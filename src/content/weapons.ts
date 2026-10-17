@@ -34,12 +34,16 @@ export const SNIPER: WeaponDefinition = {
   pellets: 1, spreadRadians: 0,
 };
 
-/**
- * T01 registry. Rocket is intentionally absent until T02 provides the real
- * explosion service; getWeapon('rocket') fails instead of firing a fake bullet.
- */
+export const ROCKET: WeaponDefinition = {
+  id: 'rocket', name: '火箭筒', interval: 1.1,
+  projectileSpeed: 600, range: 900, knockback: 330, recoil: 65, maxAmmo: 3,
+  pellets: 1, spreadRadians: 0,
+  explosion: { radius: 140, centerImpulse: 330, edgeImpulse: 80 },
+};
+
+/** Six families are registered; the rocket payload is resolved by ExplosionSystem. */
 export const WEAPONS: Readonly<Partial<Record<WeaponId, WeaponDefinition>>> = {
-  pistol: BASIC_PISTOL, smg: SMG, rifle: RIFLE, shotgun: SHOTGUN, sniper: SNIPER,
+  pistol: BASIC_PISTOL, smg: SMG, rifle: RIFLE, shotgun: SHOTGUN, sniper: SNIPER, rocket: ROCKET,
 };
 
 export function getWeapon(id: WeaponId): WeaponDefinition {

@@ -72,6 +72,14 @@ export interface WeaponDefinition {
   pellets: number;
   /** Maximum absolute spread from the facing axis, in radians; 0 means a straight shot. */
   spreadRadians: number;
+  /** Rocket-style payload; absent for ordinary bullets. */
+  explosion?: ExplosionProfile;
+}
+
+export interface ExplosionProfile {
+  radius: number;
+  centerImpulse: number;
+  edgeImpulse: number;
 }
 
 /**
@@ -138,6 +146,8 @@ export interface Projectile {
   velocity: Vec2;
   impulse: Vec2;
   distanceRemaining: number;
+  /** Frozen at fire time; rockets explode instead of applying a direct hit. */
+  explosion?: ExplosionProfile;
 }
 
 export interface Bomb {

@@ -8,7 +8,7 @@
 
 先读 [AGENTS.md](../../AGENTS.md)、[架构](../ARCHITECTURE.md) 和 [PRD](../PRD.md)。状态、负责人、工作区与分支只在总看板登记；本文复选框用于子任务，不代表集成完成。
 
-T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快照，并确定拾取位于“批量出界之后、胜负之前”；T03 用 `WeaponSystem.equipWeapon` / `refillWeapon` 切枪补满，不改起始配置。T01 五把非火箭枪已注册；火箭未注册，默认武器池在 T02 完成前必须排除 `rocket`，否则 `getWeapon('rocket')` 会抛错。依赖 T01 换枪入口、T04 地图点位和 T00 调度 / 随机约定。可先实现点位筛选与投放状态机；主流程接入须等依赖就绪。
+T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快照，并确定拾取位于“批量出界之后、胜负之前”；T03 用 `WeaponSystem.equipWeapon` / `refillWeapon` 切枪补满，不改起始配置。T01 六把枪已注册，火箭也已接入 T02 爆炸服务；默认池可以包含 `rocket`，但仍需 T03 的点位 / 状态机与 T02 的爆炸表现。依赖 T01 换枪入口、T04 地图点位和 T00 调度 / 随机约定。可先实现点位筛选与投放状态机；主流程接入须等依赖就绪。
 
 ## 模块范围与验收
 

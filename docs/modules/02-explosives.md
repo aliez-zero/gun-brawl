@@ -51,7 +51,7 @@ T00 已冻结 `ActorInput.bombPressed`（默认 false，当前无键位 / UI）�
 
 - 键盘投弹键（K / 小键盘 1）属于 T06，当前 `KeyboardInput` 仍返回 `bombPressed: false`；未接前不显示为可用。
 - HUD 炸弹数量 / 冷却提示、炸弹渲染、爆炸音效、AI 投弹属于 T05 / T06 / T10 集成；本轮只提供状态和事件。
-- 火箭筒（T01.4）现在可以消费 `ExplosionSystem`，但尚未注册 / 发射火箭。
+- 火箭筒（T01.4）已注册并使用 `ExplosionSystem`；T01 的通用火箭完成，17 个具体型号 / 弹匣仍是设计提案。
 - 炸弹物理使用固定步长与 AABB 近似，极端高速 / 尖角场景未做连续碰撞专项测试。
 
 ## 文件与接口交接

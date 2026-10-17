@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
-import { BASIC_PISTOL, RIFLE, SMG, SNIPER, WEAPONS, createWeapon, getWeapon } from '../src/content/weapons';
+import { BASIC_PISTOL, RIFLE, ROCKET, SMG, SNIPER, WEAPONS, createWeapon, getWeapon } from '../src/content/weapons';
 import { BotController } from '../src/game/ai/BotController';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
-import type { MatchConfig } from '../src/game/core/types';
+import type { MapDefinition, MatchConfig } from '../src/game/core/types';
 import { equipWeapon, hasAmmo, refillWeapon, revertToPistol } from '../src/game/systems/WeaponSystem';
 
 function active(overrides: Partial<MatchConfig> = {}): BattleSimulation {
@@ -20,11 +20,21 @@ function fire(simulation: BattleSimulation): void {
   simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), shootHeld: true }]]));
 }
 
+function flatMap(): MapDefinition {
+  return {
+    id: 'flat-test', name: '平地', width: 1600, height: 700,
+    spawns: [{ x: 200, y: 500 }, { x: 800, y: 500 }],
+    bounds: { left: -100, right: 1700, top: -300, bottom: 700 },
+    platforms: [{ id: 'floor', x: 0, y: 500, width: 1600, height: 40, kind: 'solid' }],
+  };
+}
+
 describe('T01 weapon registry and ammo', () => {
-  it('registers five usable guns, keeps the rocket blocked, and exposes legal switch / refill entries', () => {
-    expect(Object.keys(WEAPONS).sort()).toEqual(['pistol', 'rifle', 'shotgun', 'smg', 'sniper']);
+  it('registers six usable guns and exposes legal switch / refill entries', () => {
+    expect(Object.keys(WEAPONS).sort()).toEqual(['pistol', 'rifle', 'rocket', 'shotgun', 'smg', 'sniper']);
     expect(createWeapon('smg').ammoRemaining).toBe(60);
-    expect(() => getWeapon('rocket')).toThrow(/not implemented/);
+    expect(getWeapon('rocket')).toBe(ROCKET);
+    expect(ROCKET.explosion).toEqual({ radius: 140, centerImpulse: 330, edgeImpulse: 80 });
 
     const simulation = active();
     const actor = simulation.state.actors[0]!;
@@ -39,8 +49,9 @@ describe('T01 weapon registry and ammo', () => {
     revertToPistol(actor);
     expect(actor.weapon.definition).toBe(BASIC_PISTOL);
     expect(actor.fireCooldown).toBe(0.42);
-    expect(() => equipWeapon(actor, 'rocket')).toThrow(/not implemented/);
-    expect(actor.weapon.definition).toBe(BASIC_PISTOL);
+    equipWeapon(actor, 'rocket');
+    expect(actor.weapon.definition).toBe(ROCKET);
+    expect(actor.weapon.ammoRemaining).toBe(3);
   });
 
   it.each([
@@ -116,6 +127,53 @@ describe('T01 weapon registry and ammo', () => {
       simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), shootHeld: true }]]));
     }
     expect(simulation.state.projectiles.filter((projectile) => projectile.weaponId === 'pistol')).toHaveLength(1);
+  });
+
+  it('rocket explodes on impact instead of applying a direct bullet hit', () => {
+    const simulation = active({ map: flatMap() });
+    const [shooter, target] = simulation.state.actors;
+    shooter!.position = { x: 400, y: 500 };
+    target!.position = { x: 470, y: 500 };
+    shooter!.facing = 1;
+    shooter!.protectionRemaining = 0;
+    target!.protectionRemaining = 0;
+    equipWeapon(shooter!, 'rocket');
+    fire(simulation);
+    for (let frame = 0; frame < 12 && simulation.state.projectiles.length > 0; frame++) {
+      simulation.step(FIXED_STEP, new Map());
+    }
+    const events = simulation.drainEvents();
+
+    expect(events.some((event) => event.type === 'explosion' && event.source === 'rocket')).toBe(true);
+    expect(events.some((event) => event.type === 'hit' && event.actorId === 'p2')).toBe(true);
+    expect(simulation.state.projectiles).toHaveLength(0);
+    expect(target!.lastHit?.by).toBe('p1');
+    expect(target!.impulse.x).toBeGreaterThan(0);
+    expect(shooter!.weapon.ammoRemaining).toBe(2);
+  });
+
+  it('explodes at max range, keeps the frozen rocket profile after switching guns', () => {
+    const simulation = active({ map: flatMap() });
+    const [shooter, target] = simulation.state.actors;
+    shooter!.position = { x: 300, y: 500 };
+    target!.position = { x: 100, y: 500 };
+    shooter!.facing = 1;
+    shooter!.protectionRemaining = 0;
+    target!.protectionRemaining = 0;
+    equipWeapon(shooter!, 'rocket');
+    fire(simulation);
+    const rocket = simulation.state.projectiles.find((projectile) => projectile.weaponId === 'rocket')!;
+    expect(rocket.explosion).toEqual({ radius: 140, centerImpulse: 330, edgeImpulse: 80 });
+
+    // Switching to the pistol must not change the rocket already in flight.
+    equipWeapon(shooter!, 'pistol');
+    for (let frame = 0; frame < 100 && simulation.state.projectiles.length > 0; frame++) {
+      simulation.step(FIXED_STEP, new Map());
+    }
+    const events = simulation.drainEvents();
+    expect(events.some((event) => event.type === 'explosion' && event.source === 'rocket')).toBe(true);
+    expect(events.some((event) => event.type === 'hit' && event.actorId === 'p2')).toBe(false);
+    expect(simulation.state.projectiles).toHaveLength(0);
   });
 
   it('lets the bot read the equipped weapon range instead of a fixed pistol distance', () => {

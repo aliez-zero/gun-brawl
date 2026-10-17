@@ -1,10 +1,12 @@
 import { BASIC_PISTOL } from '../../content/weapons';
 import { actorRect, addImpulse, segmentRect } from '../core/math';
-import type { ActorInput, ActorState, BattleEvent, MatchState } from '../core/types';
+import type { ActorInput, ActorState, BattleEvent, MatchState, Vec2 } from '../core/types';
+import { applyExplosionHits, ExplosionSystem } from './ExplosionSystem';
 import { hasAmmo, revertToPistol } from './WeaponSystem';
 
 export class CombatSystem {
   private nextProjectile = 0;
+  private readonly explosions = new ExplosionSystem();
 
   update(state: MatchState, inputs: ReadonlyMap<string, ActorInput>, dt: number, events: BattleEvent[]): void {
     for (const actor of state.actors) {
@@ -35,6 +37,7 @@ export class CombatSystem {
           },
           impulse: { x: actor.facing * weapon.knockback, y: -weapon.knockback * 0.2 },
           distanceRemaining: weapon.range,
+          ...(weapon.explosion ? { explosion: { ...weapon.explosion } } : {}),
         });
       }
       addImpulse(actor, -actor.facing * weapon.recoil, 0);
@@ -72,7 +75,13 @@ export class CombatSystem {
         if (hit !== null && hit < closest) { closest = hit; target = actor; }
       }
       if (closest !== Infinity) {
-        if (target && target.protectionRemaining <= 0) {
+        if (projectile.explosion) {
+          const impact = {
+            x: projectile.position.x + (to.x - projectile.position.x) * closest,
+            y: projectile.position.y + (to.y - projectile.position.y) * closest,
+          };
+          this.explode(state, projectile, impact, events);
+        } else if (target && target.protectionRemaining <= 0) {
           addImpulse(target, projectile.impulse.x, projectile.impulse.y);
           target.lastHit = { by: projectile.owner, at: state.elapsed };
           events.push({ type: 'hit', actorId: target.config.id, position: { ...target.position, y: target.position.y - 28 } });
@@ -81,7 +90,29 @@ export class CombatSystem {
       }
       projectile.position = to;
       projectile.distanceRemaining -= distance;
-      return projectile.distanceRemaining > 1e-8;
+      if (projectile.distanceRemaining <= 1e-8) {
+        if (projectile.explosion) this.explode(state, projectile, to, events);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  private explode(state: MatchState, projectile: { owner: string; explosion?: { radius: number; centerImpulse: number; edgeImpulse: number } }, center: Vec2, events: BattleEvent[]): void {
+    if (!projectile.explosion) return;
+    const request = {
+      ownerId: projectile.owner,
+      source: 'rocket' as const,
+      center: { ...center },
+      radius: projectile.explosion.radius,
+      centerImpulse: projectile.explosion.centerImpulse,
+      edgeImpulse: projectile.explosion.edgeImpulse,
+    };
+    const hits = this.explosions.resolve(state, request);
+    applyExplosionHits(state, request, hits, events);
+    events.push({
+      type: 'explosion', source: 'rocket', ownerId: projectile.owner,
+      position: { ...center }, radius: projectile.explosion.radius,
     });
   }
 }
