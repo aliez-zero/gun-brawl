@@ -5,7 +5,7 @@ export type MatchPhase = 'countdown' | 'playing' | 'paused' | 'finished';
 export type ActorStatus = 'alive' | 'respawning' | 'eliminated';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type HumanSlot = 1 | 2;
-/** Stable IDs for the six PRD weapon families. Only pistol has content in the current build. */
+/** Stable IDs for the six PRD families. Five non-rocket families have content; rocket waits for T02. */
 export type WeaponId = 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket';
 export type CharacterStyle = 'cowboy' | 'ronin' | 'operative' | 'astronaut' | 'knight';
 export type Headwear = 'cowboy' | 'straw' | 'beret' | 'space' | 'knight' | 'none';
@@ -34,7 +34,7 @@ export interface ActorInput {
   jumpPressed: boolean;
   dropPressed: boolean;
   shootHeld: boolean;
-  /** Press-edge reserved for T02. Always false until T02/T06 wire the bomb key. */
+  /** Press-edge consumed by T02; the keyboard binding remains T06 until wired. */
   bombPressed: boolean;
 }
 
@@ -121,6 +121,8 @@ export interface ActorState {
   protectionRemaining: number;
   fireCooldown: number;
   weapon: WeaponInstance;
+  bombsRemaining: number;
+  bombCooldown: number;
   lastHit: { by: string; at: number } | null;
   stats: { knockouts: number; falls: number; selfFalls: number };
 }
@@ -136,6 +138,18 @@ export interface Projectile {
   velocity: Vec2;
   impulse: Vec2;
   distanceRemaining: number;
+}
+
+export interface Bomb {
+  id: number;
+  owner: string;
+  position: Vec2;
+  previous: Vec2;
+  velocity: Vec2;
+  /** Remaining logical seconds before this bomb explodes. */
+  fuseRemaining: number;
+  /** Collision radius, kept in the frozen state so rendering and physics agree. */
+  radius: number;
 }
 
 export type ExplosionSource = 'bomb' | 'rocket';
@@ -180,6 +194,7 @@ export interface MatchState {
   phase: MatchPhase;
   actors: ActorState[];
   projectiles: Projectile[];
+  bombs: Bomb[];
   elapsed: number;
   remaining: number;
   countdownRemaining: number;
@@ -190,6 +205,9 @@ export interface MatchState {
 export type BattleEvent =
   | { type: 'shot'; actorId: string; position: Vec2 }
   | { type: 'hit'; actorId: string; position: Vec2 }
+  | { type: 'bomb'; actorId: string; position: Vec2; bombId: number }
+  | { type: 'bomb-empty'; actorId: string; position: Vec2 }
+  | { type: 'explosion'; source: ExplosionSource; ownerId: string; position: Vec2; radius: number }
   | { type: 'ringout'; actorId: string; position: Vec2; creditedTo: string | null }
   | { type: 'respawn'; actorId: string; position: Vec2 }
   | { type: 'phase'; phase: MatchPhase }

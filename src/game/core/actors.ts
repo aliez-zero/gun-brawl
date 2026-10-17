@@ -1,4 +1,4 @@
-import { PROTECTION_TIME } from './constants';
+import { BOMB, PROTECTION_TIME } from './constants';
 import { createWeaponInstance } from './types';
 import type { ActorConfig, ActorState, MatchState, Vec2, WeaponDefinition } from './types';
 
@@ -17,6 +17,7 @@ export function createActor(
     dropPlatform: null, dropRemaining: 0, stocks, status: 'alive',
     respawnRemaining: 0, protectionRemaining: PROTECTION_TIME, fireCooldown: 0,
     weapon: createWeaponInstance(startingWeapon),
+    bombsRemaining: BOMB.perLife, bombCooldown: 0,
     lastHit: null, stats: { knockouts: 0, falls: 0, selfFalls: 0 },
   };
 }

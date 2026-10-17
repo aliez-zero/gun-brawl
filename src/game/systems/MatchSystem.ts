@@ -32,6 +32,7 @@ export function resolveMatch(state: MatchState, events: BattleEvent[]): void {
   state.countdownRemaining = state.config.countdown;
   state.phase = 'countdown';
   state.projectiles = [];
+  state.bombs = [];
   const ids = new Set(leaders.map((actor) => actor.config.id));
   for (const actor of state.actors) {
     if (!ids.has(actor.config.id)) { actor.stocks = 0; actor.status = 'eliminated'; }

@@ -3,12 +3,14 @@ import { idleInput } from './types';
 import type { ActorInput, BattleEvent, MatchConfig, MatchState } from './types';
 import { moveActor } from '../systems/MovementSystem';
 import { CombatSystem } from '../systems/CombatSystem';
+import { GrenadeSystem } from '../systems/GrenadeSystem';
 import { resolveRingouts, updateLifeTimers } from '../systems/LifeSystem';
 import { resolveMatch } from '../systems/MatchSystem';
 
 export class BattleSimulation {
   readonly state: MatchState;
   private readonly combat = new CombatSystem();
+  private readonly grenades = new GrenadeSystem();
   private events: BattleEvent[] = [];
 
   constructor(config: MatchConfig) {
@@ -20,7 +22,7 @@ export class BattleSimulation {
       config, phase: 'countdown', actors: config.actors.map((actor, index) => createActor(
         actor, config.map.spawns[index]!, config.stocks, config.map.width / 2, config.startingWeapon,
       )),
-      projectiles: [], elapsed: 0, remaining: config.duration,
+      projectiles: [], bombs: [], elapsed: 0, remaining: config.duration,
       countdownRemaining: config.countdown, overtime: false, result: null,
     };
   }
@@ -43,6 +45,7 @@ export class BattleSimulation {
     updateLifeTimers(state, dt, this.events);
     for (const actor of state.actors) moveActor(actor, inputs.get(actor.config.id) ?? idleInput(), state.config.map, dt);
     this.combat.update(state, inputs, dt, this.events);
+    this.grenades.update(state, inputs, dt, this.events);
     resolveRingouts(state, this.events);
     resolveMatch(state, this.events);
   }

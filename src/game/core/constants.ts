@@ -17,3 +17,20 @@ export const MOVEMENT = {
 export const RESPAWN_DELAY = 1;
 export const PROTECTION_TIME = 1.5;
 export const HIT_CREDIT_WINDOW = 5;
+export const BOMB = {
+  perLife: 2,
+  cooldown: 0.6,
+  maxActive: 2,
+  fuse: 2,
+  radius: 150,
+  centerImpulse: 360,
+  edgeImpulse: 90,
+  gravity: 1400,
+  throwVelocityX: 320,
+  throwVelocityY: -340,
+  throwOffsetX: 18,
+  throwOffsetY: 34,
+  bounce: 0.45,
+  bodyRadius: 10,
+  minBounceSpeed: 40,
+} as const;
