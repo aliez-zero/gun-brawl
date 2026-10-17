@@ -8,7 +8,7 @@
 
 先读 [AGENTS.md](../../AGENTS.md)、[架构](../ARCHITECTURE.md) 和 [PRD](../PRD.md)。状态、负责人、工作区与分支只在总看板登记；本文复选框用于子任务，不代表集成完成。
 
-T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`WeaponInstance { definition, ammoRemaining }`、`ActorState.weapon`、`MatchConfig.startingWeapon`、`Projectile.weaponId / velocity / impulse`；冷却仍在 `ActorState.fireCooldown`，切枪不重置。T01 直接在这些字段上补注册表、有限弹、耗尽回退和六枪，不要另建并行类型。普通枪械可与 T02、T04、T06、T12 并行；火箭必须等待 T02 的真实爆炸服务，未完成时如实记为部分交付。
+T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`WeaponInstance { definition, ammoRemaining }`、`ActorState.weapon`、`MatchConfig.startingWeapon`、`Projectile.weaponId / velocity / impulse`；冷却仍在 `ActorState.fireCooldown`，切枪不重置。T01 直接在这些字段上补注册表、有限弹、耗尽回退和六枪，不要另建并行类型。普通枪械可与 T02、T04、T06、T12 并行；火箭必须等待 T02 的真实爆炸服务，未完成时如实记为部分交付。17 个具体型号与“弹匣 + 备弹 + 换弹”的后续提案见 [武器型号设计](../WEAPONS.md)；它尚未实现，落地时需替换当前 `maxAmmo` 总弹量语义。
 
 ## 模块范围与验收
 
