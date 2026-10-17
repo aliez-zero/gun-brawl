@@ -198,7 +198,8 @@ export class GameUI {
       const card = this.overlay.querySelector(`#card-${actor.config.id}`);
       const stockText = state.config.mode === 'training' ? '∞ 无限生命' : `${'● '.repeat(actor.stocks)}${'○ '.repeat(Math.max(0, state.config.stocks - actor.stocks))}`;
       if (stocks && stocks.textContent !== stockText) stocks.textContent = stockText;
-      if (status) status.textContent = actor.status === 'eliminated' ? '已淘汰 · 观战中' : actor.status === 'respawning' ? '正在返回战场' : '基础手枪 · ∞';
+      const ammo = actor.weapon.ammoRemaining === null ? '∞' : String(actor.weapon.ammoRemaining);
+      if (status) status.textContent = actor.status === 'eliminated' ? '已淘汰 · 观战中' : actor.status === 'respawning' ? '正在返回战场' : `${actor.weapon.definition.name} · ${ammo}`;
       card?.classList.toggle('eliminated', actor.status === 'eliminated');
     }
     const countdown = this.overlay.querySelector<HTMLElement>('.countdown');

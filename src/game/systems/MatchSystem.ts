@@ -4,7 +4,7 @@ import type { BattleEvent, MatchState } from '../core/types';
 function finish(state: MatchState, winner: string | null, events: BattleEvent[]): void {
   state.phase = 'finished';
   state.result = {
-    id: `${state.config.seed}-${state.config.mode}`,
+    id: state.config.matchId ?? `${state.config.seed}-${state.config.mode}`,
     mode: state.config.mode, winner, duration: state.elapsed, overtime: state.overtime,
     actors: state.actors.map((actor) => ({
       id: actor.config.id, name: actor.config.name, stocks: actor.stocks, ...actor.stats,

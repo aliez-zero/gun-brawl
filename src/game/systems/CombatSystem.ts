@@ -1,4 +1,3 @@
-import { BASIC_PISTOL } from '../../content/weapons';
 import { actorRect, addImpulse, segmentRect } from '../core/math';
 import type { ActorInput, ActorState, BattleEvent, MatchState } from '../core/types';
 
@@ -9,22 +8,30 @@ export class CombatSystem {
     for (const actor of state.actors) {
       actor.fireCooldown = Math.max(0, actor.fireCooldown - dt);
       if (actor.status !== 'alive' || !inputs.get(actor.config.id)?.shootHeld || actor.fireCooldown > 1e-8) continue;
+      const weapon = actor.weapon.definition;
       actor.protectionRemaining = 0;
-      actor.fireCooldown = BASIC_PISTOL.interval;
+      actor.fireCooldown = weapon.interval;
       const position = { x: actor.position.x + actor.facing * 27, y: actor.position.y - 28 };
       state.projectiles.push({
-        id: this.nextProjectile++, owner: actor.config.id,
+        id: this.nextProjectile++, owner: actor.config.id, weaponId: weapon.id,
         position, previous: { ...position }, direction: actor.facing,
-        distanceRemaining: BASIC_PISTOL.range,
+        velocity: { x: actor.facing * weapon.projectileSpeed, y: 0 },
+        impulse: { x: actor.facing * weapon.knockback, y: -weapon.knockback * 0.2 },
+        distanceRemaining: weapon.range,
       });
-      addImpulse(actor, -actor.facing * BASIC_PISTOL.recoil, 0);
+      addImpulse(actor, -actor.facing * weapon.recoil, 0);
       events.push({ type: 'shot', actorId: actor.config.id, position: { ...position } });
     }
 
     state.projectiles = state.projectiles.filter((projectile) => {
       projectile.previous = { ...projectile.position };
-      const distance = Math.min(BASIC_PISTOL.projectileSpeed * dt, projectile.distanceRemaining);
-      const to = { x: projectile.position.x + projectile.direction * distance, y: projectile.position.y };
+      const speed = Math.hypot(projectile.velocity.x, projectile.velocity.y);
+      if (speed <= 1e-8) return false;
+      const distance = Math.min(speed * dt, projectile.distanceRemaining);
+      const to = {
+        x: projectile.position.x + (projectile.velocity.x / speed) * distance,
+        y: projectile.position.y + (projectile.velocity.y / speed) * distance,
+      };
       let closest = Infinity;
       let target: ActorState | null = null;
       for (const platform of state.config.map.platforms) {
@@ -39,7 +46,7 @@ export class CombatSystem {
       }
       if (closest !== Infinity) {
         if (target && target.protectionRemaining <= 0) {
-          addImpulse(target, projectile.direction * BASIC_PISTOL.knockback, -BASIC_PISTOL.knockback * 0.2);
+          addImpulse(target, projectile.impulse.x, projectile.impulse.y);
           target.lastHit = { by: projectile.owner, at: state.elapsed };
           events.push({ type: 'hit', actorId: target.config.id, position: { ...target.position, y: target.position.y - 28 } });
         }

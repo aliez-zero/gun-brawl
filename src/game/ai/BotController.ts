@@ -13,7 +13,7 @@ export class BotController {
   sample(actor: ActorState, state: MatchState, dt: number): ActorInput {
     if (actor.status !== 'alive' || state.phase !== 'playing') { this.climbTarget = null; return idleInput(); }
     this.remaining -= dt;
-    if (this.remaining > 0) return { ...this.held, jumpPressed: false, dropPressed: false };
+    if (this.remaining > 0) return { ...this.held, jumpPressed: false, dropPressed: false, bombPressed: false };
     const delays = { easy: 0.5, normal: 0.3, hard: 0.18 };
     this.remaining = delays[this.difficulty] * (0.85 + this.random.next() * 0.3);
     const target = state.actors.filter((other) => other !== actor && other.status === 'alive')
@@ -55,6 +55,7 @@ export class BotController {
       jumpPressed: recoveryJump || wantsHeight,
       dropPressed: dy > 100 && Boolean(actor.groundedOn) && actor.position.y < lowestLevel - 10,
       shootHeld: Math.abs(dy) < 45 && Math.abs(dx) < 720 && actor.facing === Math.sign(dx),
+      bombPressed: false,
     };
     return { ...this.held };
   }

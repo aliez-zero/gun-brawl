@@ -5,6 +5,8 @@ export type MatchPhase = 'countdown' | 'playing' | 'paused' | 'finished';
 export type ActorStatus = 'alive' | 'respawning' | 'eliminated';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type HumanSlot = 1 | 2;
+/** Stable IDs for the six PRD weapon families. Only pistol has content in the current build. */
+export type WeaponId = 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket';
 export type CharacterStyle = 'cowboy' | 'ronin' | 'operative' | 'astronaut' | 'knight';
 export type Headwear = 'cowboy' | 'straw' | 'beret' | 'space' | 'knight' | 'none';
 export interface CharacterAppearance {
@@ -32,10 +34,12 @@ export interface ActorInput {
   jumpPressed: boolean;
   dropPressed: boolean;
   shootHeld: boolean;
+  /** Press-edge reserved for T02. Always false until T02/T06 wire the bomb key. */
+  bombPressed: boolean;
 }
 
 export const idleInput = (): ActorInput => ({
-  moveX: 0, jumpPressed: false, dropPressed: false, shootHeld: false,
+  moveX: 0, jumpPressed: false, dropPressed: false, shootHeld: false, bombPressed: false,
 });
 
 export interface Platform extends Rect { id: string; kind: 'one-way' | 'solid' }
@@ -55,23 +59,42 @@ export interface MapDefinition {
 }
 
 export interface WeaponDefinition {
-  id: string;
+  id: WeaponId;
   name: string;
   interval: number;
   projectileSpeed: number;
   range: number;
   knockback: number;
   recoil: number;
+  /** null means infinite ammo. Finite weapons reset to this value on spawn/respawn. */
+  maxAmmo: number | null;
 }
+
+/**
+ * Per-actor weapon state. The definition is a content value shared by all instances;
+ * ammo is per actor. Fire cooldown stays on ActorState so switching guns cannot reset it.
+ */
+export interface WeaponInstance {
+  readonly definition: WeaponDefinition;
+  ammoRemaining: number | null;
+}
+
+export const createWeaponInstance = (definition: WeaponDefinition): WeaponInstance => ({
+  definition, ammoRemaining: definition.maxAmmo,
+});
 
 export interface MatchConfig {
   mode: GameMode;
   map: MapDefinition;
   actors: readonly ActorConfig[];
+  /** Reset target for spawn, respawn and overtime; pickups only change the current instance. */
+  startingWeapon: WeaponDefinition;
   stocks: number;
   duration: number;
   countdown: number;
   seed: number;
+  /** Per-match identity; decoupled from seed so the same seed can produce distinct results. */
+  matchId?: string;
 }
 
 export interface ActorState {
@@ -93,6 +116,7 @@ export interface ActorState {
   respawnRemaining: number;
   protectionRemaining: number;
   fireCooldown: number;
+  weapon: WeaponInstance;
   lastHit: { by: string; at: number } | null;
   stats: { knockouts: number; falls: number; selfFalls: number };
 }
@@ -100,10 +124,35 @@ export interface ActorState {
 export interface Projectile {
   id: number;
   owner: string;
+  /** Weapon and hit parameters are frozen when the shot is created; switching guns cannot alter it. */
+  weaponId: WeaponId;
   position: Vec2;
   previous: Vec2;
   direction: -1 | 1;
+  velocity: Vec2;
+  impulse: Vec2;
   distanceRemaining: number;
+}
+
+export type ExplosionSource = 'bomb' | 'rocket';
+
+/** T02 owns the resolver. T01's rocket and T02's bomb pass a request, then apply the returned hits. */
+export interface ExplosionRequest {
+  ownerId: string;
+  source: ExplosionSource;
+  center: Vec2;
+  radius: number;
+  centerImpulse: number;
+  edgeImpulse: number;
+}
+
+export interface ExplosionHit {
+  actorId: string;
+  impulse: Vec2;
+}
+
+export interface ExplosionResolver {
+  resolve(state: MatchState, request: ExplosionRequest): ExplosionHit[];
 }
 
 export interface MatchResult {

@@ -86,7 +86,10 @@ export class GameApplication {
     this.persist();
     this.screen = 'match';
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-    this.arena.startMatch(createMatchConfig(mode, seed, { mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances }));
+    const matchId = crypto.randomUUID();
+    this.arena.startMatch(createMatchConfig(mode, seed, {
+      mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances, matchId,
+    }));
     this.ui.showMatch(this.arena.matchState!);
     (document.activeElement as HTMLElement | null)?.blur();
   }

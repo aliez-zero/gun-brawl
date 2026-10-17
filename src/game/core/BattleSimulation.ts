@@ -17,7 +17,9 @@ export class BattleSimulation {
     if (!config.actors.some((actor) => actor.control === 'human')) throw new Error('至少需要一名本地玩家');
     if (config.map.spawns.length < config.actors.length || !Number.isFinite(config.duration) || config.duration <= 0 || !Number.isInteger(config.stocks) || config.stocks < 1) throw new Error('地图或对局规则无效');
     this.state = {
-      config, phase: 'countdown', actors: config.actors.map((actor, index) => createActor(actor, config.map.spawns[index]!, config.stocks, config.map.width / 2)),
+      config, phase: 'countdown', actors: config.actors.map((actor, index) => createActor(
+        actor, config.map.spawns[index]!, config.stocks, config.map.width / 2, config.startingWeapon,
+      )),
       projectiles: [], elapsed: 0, remaining: config.duration,
       countdownRemaining: config.countdown, overtime: false, result: null,
     };

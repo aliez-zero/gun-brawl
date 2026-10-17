@@ -1,7 +1,14 @@
 import { PROTECTION_TIME } from './constants';
-import type { ActorConfig, ActorState, MatchState, Vec2 } from './types';
+import { createWeaponInstance } from './types';
+import type { ActorConfig, ActorState, MatchState, Vec2, WeaponDefinition } from './types';
 
-export function createActor(config: ActorConfig, spawn: Vec2, stocks: number, centerX: number): ActorState {
+export function createActor(
+  config: ActorConfig,
+  spawn: Vec2,
+  stocks: number,
+  centerX: number,
+  startingWeapon: WeaponDefinition,
+): ActorState {
   return {
     config, position: { ...spawn }, previous: { ...spawn },
     moveVelocity: 0, verticalVelocity: 0, impulse: { x: 0, y: 0 },
@@ -9,6 +16,7 @@ export function createActor(config: ActorConfig, spawn: Vec2, stocks: number, ce
     groundedOn: null, jumpsRemaining: 2, coyoteRemaining: 0, jumpBuffer: 0,
     dropPlatform: null, dropRemaining: 0, stocks, status: 'alive',
     respawnRemaining: 0, protectionRemaining: PROTECTION_TIME, fireCooldown: 0,
+    weapon: createWeaponInstance(startingWeapon),
     lastHit: null, stats: { knockouts: 0, falls: 0, selfFalls: 0 },
   };
 }
@@ -28,6 +36,8 @@ export function respawnActor(actor: ActorState, state: MatchState): void {
     }
   }
   const stats = actor.stats;
-  Object.assign(actor, createActor(actor.config, spawn, actor.stocks, state.config.map.width / 2));
+  Object.assign(actor, createActor(
+    actor.config, spawn, actor.stocks, state.config.map.width / 2, state.config.startingWeapon,
+  ));
   actor.stats = stats;
 }

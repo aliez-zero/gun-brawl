@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { presetAppearance } from '../src/content/appearances';
 import { ARENAS } from '../src/content/maps';
 import { createMatchConfig } from '../src/content/matches';
+import { BASIC_PISTOL } from '../src/content/weapons';
 import { createActor } from '../src/game/core/actors';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
@@ -15,7 +16,7 @@ describe('playable themed maps', () => {
     const reached = new Map<string, ActorState>();
     const queue: ActorState[] = [];
     for (const spawn of map.spawns) {
-      const actor = createActor({ id: 'test', name: 'test', color: 0xffffff, control: 'dummy' }, spawn, 3, 640);
+      const actor = createActor({ id: 'test', name: 'test', color: 0xffffff, control: 'dummy' }, spawn, 3, 640, BASIC_PISTOL);
       for (let frame = 0; frame < 120; frame++) moveActor(actor, idleInput(), map, FIXED_STEP);
       expect(actor.groundedOn, `unsafe spawn ${spawn.x},${spawn.y}`).not.toBeNull();
       expect(actor.position).toEqual(spawn);

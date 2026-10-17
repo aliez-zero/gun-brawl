@@ -8,7 +8,7 @@
 
 先读 [AGENTS.md](../../AGENTS.md)、[架构](../ARCHITECTURE.md) 和 [PRD](../PRD.md)。状态、负责人、工作区与分支只在总看板登记；本文复选框用于子任务，不代表集成完成。
 
-依赖 T00 输入与爆炸契约。可与 T01 并行新增独立系统；不要同时编辑 CombatSystem。键盘入口由 T06 或集成者接入。
+T00 已冻结 `ActorInput.bombPressed`（默认 false，当前无键位 / UI）、`ExplosionSource`、`ExplosionRequest { ownerId, source, center, radius, centerImpulse, edgeImpulse }`、`ExplosionHit { actorId, impulse }` 和 `ExplosionResolver.resolve(state, request)`。T02 实现解析器与炸弹运行时；键盘投弹键由 T06 接 K / 小键盘 1，未接入前不显示为可用。可与 T01 并行新增独立系统；不要同时编辑 CombatSystem。
 
 ## 模块范围与验收
 

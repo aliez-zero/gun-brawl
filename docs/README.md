@@ -10,7 +10,7 @@
 4. 到 [并行计划总看板](./PARALLEL_PLAN.md) 确认依赖和领取状态，登记负责人、工作区与文件范围。
 5. 按模块交付清单开发、验证、交接，再由集成者接入主游戏。
 
-文档归档与模块拆分已经完成。当前新增四图选择与多风格换装，详细接口、验证和剩余工作见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md)，模块状态以总看板为准。
+文档归档与模块拆分已经完成。T00 已冻结首批武器 / 弹丸 / 投弹 / 爆炸契约与本地 Git 基线，详见 [T00 接手记录](./updates/2026-10-17-t00-contracts.md)；四图选择与多风格换装见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md)。模块状态以总看板为准。
 
 ## 文档职责
 
@@ -39,6 +39,7 @@ gun-brawl/
     DEVELOPMENT.md
     PARALLEL_PLAN.md
     sources/                 调研来源文字留档
+    updates/                 交付与接手记录
     modules/                 可分别交给不同 AI 的模块任务包
       README.md
       00-integration.md

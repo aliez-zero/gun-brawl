@@ -22,6 +22,7 @@ describe('keyboard controls', () => {
     key('keydown', 'KeyD');
     key('keydown', 'KeyJ');
     expect(keyboard.sample(1)).toEqual({ ...idleInput(), moveX: 1, shootHeld: true });
+    expect(keyboard.sample(1).bombPressed).toBe(false);
     expect(keyboard.sample(2)).toEqual(idleInput());
     key('keydown', 'ArrowLeft');
     key('keydown', 'Enter');

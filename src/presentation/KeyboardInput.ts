@@ -41,6 +41,8 @@ export class KeyboardInput {
     return {
       moveX: ((held(binding.right) ? 1 : 0) - (held(binding.left) ? 1 : 0)) as -1 | 0 | 1,
       jumpPressed: take(binding.jump), dropPressed: take(binding.drop), shootHeld: held(binding.shoot),
+      // T02/T06 will wire the default bomb key; the contract stays a no-op until then.
+      bombPressed: false,
     };
   }
 

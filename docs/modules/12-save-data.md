@@ -12,6 +12,8 @@
 
 已接入子集：本轮在 v1 原 key 下增加 `selectedMapId` 和两位玩家 `appearances`，逐字段校验 / 旧档补默认 / 混搭保存已有测试。音量、震动、模式、统计和结果标识保持兼容。后续开发保留这些字段，不能把改 key 或清空旧档作为迁移。完整记录见 [地图 / 外观交付](../updates/2026-10-17-appearance-maps.md)。
 
+T00 已提供结果 ID 接入点：`GameApplication` 每局生成 `matchId` 放进 `MatchConfig`，`MatchSystem` 优先用它写 `MatchResult.id`，旧调用缺省仍回退 `seed-mode`。当前 `SaveStore` 仍只保存 `lastResultId`；历史 / 交错重复的去重范围、键位 / 教学 / 战役字段和迁移仍由 T12 完成，不能把“每局 ID 唯一”说成“历史去重已完成”。
+
 ## 模块范围与验收
 
 - **目标 / 需求**：F14，并服务设置 / 自定义 / 战役 / 外观；A26、A29。
