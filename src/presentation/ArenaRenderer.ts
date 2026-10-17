@@ -96,10 +96,13 @@ export class ArenaRenderer {
     }
     for (const projectile of state.projectiles) {
       const x = frozen ? projectile.position.x : Phaser.Math.Linear(projectile.previous.x, projectile.position.x, alpha);
+      const speed = Math.hypot(projectile.velocity.x, projectile.velocity.y);
+      const dx = speed > 1e-8 ? projectile.velocity.x / speed : projectile.direction;
+      const dy = speed > 1e-8 ? projectile.velocity.y / speed : 0;
       g.lineStyle(7, 0xffd38a, 0.18);
-      g.lineBetween(x - projectile.direction * 16, projectile.position.y, x + projectile.direction * 3, projectile.position.y);
+      g.lineBetween(x - dx * 16, projectile.position.y - dy * 16, x + dx * 3, projectile.position.y + dy * 3);
       g.lineStyle(2.5, 0xffefbf, 1);
-      g.lineBetween(x - projectile.direction * 12, projectile.position.y, x + projectile.direction * 4, projectile.position.y);
+      g.lineBetween(x - dx * 12, projectile.position.y - dy * 12, x + dx * 4, projectile.position.y + dy * 4);
     }
     for (const effect of this.effects) {
       if (!frozen) effect.life -= seconds;

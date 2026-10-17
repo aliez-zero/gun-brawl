@@ -9,6 +9,7 @@ import type { ActorInput, MatchConfig, WeaponDefinition } from '../src/game/core
 const TEST_SMG: WeaponDefinition = {
   id: 'smg', name: '测试冲锋枪', interval: 0.1,
   projectileSpeed: 900, range: 600, knockback: 120, recoil: 0, maxAmmo: 12,
+  pellets: 1, spreadRadians: 0,
 };
 
 function active(overrides: Partial<MatchConfig> = {}): BattleSimulation {

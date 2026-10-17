@@ -1,5 +1,7 @@
+import { BASIC_PISTOL } from '../../content/weapons';
 import { actorRect, addImpulse, segmentRect } from '../core/math';
 import type { ActorInput, ActorState, BattleEvent, MatchState } from '../core/types';
+import { hasAmmo, revertToPistol } from './WeaponSystem';
 
 export class CombatSystem {
   private nextProjectile = 0;
@@ -8,19 +10,44 @@ export class CombatSystem {
     for (const actor of state.actors) {
       actor.fireCooldown = Math.max(0, actor.fireCooldown - dt);
       if (actor.status !== 'alive' || !inputs.get(actor.config.id)?.shootHeld || actor.fireCooldown > 1e-8) continue;
+      if (!hasAmmo(actor)) {
+        // A depleted instance can only enter this branch through external state changes;
+        // revert without granting a free pistol shot in the same frame.
+        revertToPistol(actor);
+        actor.fireCooldown = Math.max(actor.fireCooldown, BASIC_PISTOL.interval);
+        continue;
+      }
+
       const weapon = actor.weapon.definition;
+      const ammo = actor.weapon.ammoRemaining;
       actor.protectionRemaining = 0;
       actor.fireCooldown = weapon.interval;
       const position = { x: actor.position.x + actor.facing * 27, y: actor.position.y - 28 };
-      state.projectiles.push({
-        id: this.nextProjectile++, owner: actor.config.id, weaponId: weapon.id,
-        position, previous: { ...position }, direction: actor.facing,
-        velocity: { x: actor.facing * weapon.projectileSpeed, y: 0 },
-        impulse: { x: actor.facing * weapon.knockback, y: -weapon.knockback * 0.2 },
-        distanceRemaining: weapon.range,
-      });
+      const pellets = Math.max(1, Math.floor(weapon.pellets));
+      for (let index = 0; index < pellets; index++) {
+        const spread = pellets === 1 ? 0 : ((index / (pellets - 1)) * 2 - 1) * weapon.spreadRadians;
+        state.projectiles.push({
+          id: this.nextProjectile++, owner: actor.config.id, weaponId: weapon.id,
+          position: { ...position }, previous: { ...position }, direction: actor.facing,
+          velocity: {
+            x: Math.cos(spread) * weapon.projectileSpeed * actor.facing,
+            y: Math.sin(spread) * weapon.projectileSpeed,
+          },
+          impulse: { x: actor.facing * weapon.knockback, y: -weapon.knockback * 0.2 },
+          distanceRemaining: weapon.range,
+        });
+      }
       addImpulse(actor, -actor.facing * weapon.recoil, 0);
       events.push({ type: 'shot', actorId: actor.config.id, position: { ...position } });
+
+      if (ammo !== null) {
+        actor.weapon.ammoRemaining = ammo - 1;
+        if (actor.weapon.ammoRemaining === 0) {
+          revertToPistol(actor);
+          // Preserve cadence: a depleted SMG cannot chain into a pistol shot at 0.1 s.
+          actor.fireCooldown = Math.max(actor.fireCooldown, BASIC_PISTOL.interval);
+        }
+      }
     }
 
     state.projectiles = state.projectiles.filter((projectile) => {

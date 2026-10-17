@@ -68,6 +68,10 @@ export interface WeaponDefinition {
   recoil: number;
   /** null means infinite ammo. Finite weapons reset to this value on spawn/respawn. */
   maxAmmo: number | null;
+  /** Projectiles per trigger; one trigger consumes one ammo even when this is greater than one. */
+  pellets: number;
+  /** Maximum absolute spread from the facing axis, in radians; 0 means a straight shot. */
+  spreadRadians: number;
 }
 
 /**

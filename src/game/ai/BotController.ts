@@ -54,7 +54,8 @@ export class BotController {
       moveX,
       jumpPressed: recoveryJump || wantsHeight,
       dropPressed: dy > 100 && Boolean(actor.groundedOn) && actor.position.y < lowestLevel - 10,
-      shootHeld: Math.abs(dy) < 45 && Math.abs(dx) < 720 && actor.facing === Math.sign(dx),
+      shootHeld: Math.abs(dy) < 45 && Math.abs(dx) < Math.min(720, actor.weapon.definition.range)
+        && actor.facing === Math.sign(dx),
       bombPressed: false,
     };
     return { ...this.held };

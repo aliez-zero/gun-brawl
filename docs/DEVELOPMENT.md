@@ -4,9 +4,9 @@
 
 ## 1. 接手结论
 
-项目在 `D:\Code\gun-brawl`。已经可以进入人机对战、本地双人和自由练习，完成移动、射击、击退出界、复活、结算和重赛。当前有四张主题地图、五种可混搭角色风格、无限弹手枪和普通 AI。T00 已接入首批武器实例 / 弹丸快照 / 投弹输入 / 爆炸服务契约与每局 `matchId`，但六枪、炸弹和投放的运行时行为仍未实现。外观与地图接手细节见 [地图 / 外观交付](./updates/2026-10-17-appearance-maps.md)，契约细节见 [T00 交付](./updates/2026-10-17-t00-contracts.md)。
+项目在 `D:\code\gun-brawl`。已经可以进入人机对战、本地双人和自由练习，完成移动、射击、击退出界、复活、结算和重赛。当前有四张主题地图、五种可混搭角色风格、普通 AI；正常入口仍是无限弹手枪。T00 已接入首批武器 / 弹丸 / 投弹 / 爆炸契约与每局 `matchId`；T01 已交付五把非火箭枪的核心、弹量、耗尽回退与霰弹二维弹道，但还没有投放 / 切枪入口，火箭仍待 T02。外观与地图接手细节见 [地图 / 外观交付](./updates/2026-10-17-appearance-maps.md)，契约见 [T00 交付](./updates/2026-10-17-t00-contracts.md)，五枪见 [T01 交付](./updates/2026-10-17-weapons.md)。
 
-后续主线是枪械实例与弹量、炸弹 / 爆炸、武器箱、地图投放数据与完整 AI 导航，然后接自定义、训练教学、战役、改键和扩展存档。依赖与认领见 [并行开发计划](./PARALLEL_PLAN.md)，独立任务文件见 [模块任务包](./modules/README.md)。
+后续主线是火箭与 T02 炸弹 / 爆炸、T03 武器箱投放、完整 AI 导航，然后接自定义、训练教学、战役、改键和扩展存档；T01 五把非火箭枪核心已完成，但正常对局还没有拾取入口。依赖与认领见 [并行开发计划](./PARALLEL_PLAN.md)，独立任务文件见 [模块任务包](./modules/README.md)。
 
 阅读关系：
 
@@ -35,12 +35,12 @@
 | --- | --- | --- | --- | --- |
 | F01 主菜单 / 快速对战 | 部分实现 | 三种模式选择、倒计时、帮助、设置、进入和返回 | 首次教学提示、完整产品入口；当前人机固定普通 AI | `src/ui/GameUI.ts`、`src/app/GameApplication.ts`、`src/content/matches.ts` |
 | F02 移动与平台 | 已实现核心 | 左右与朝向、二段跳、宽限、跳跃缓存、穿台、单向 / 实体碰撞、插值；四图出生点和合法跳跃通路回归 | 实体复杂组合、最低视口完整人工验收；移动平台不在当前 P0 | `src/game/systems/MovementSystem.ts`、`src/game/core/math.ts` |
-| F03 攻击与击退 | 部分实现 | 手枪连射、后坐力、独立击退、扫掠命中、实体挡弹、声音与命中特效；T00 起弹丸冻结发射时的武器 / 速度 / 推力快照 | 炸弹、爆炸、自伤、散射和火箭 | `src/game/systems/CombatSystem.ts`、`src/content/weapons.ts`、表现层 |
+| F03 攻击与击退 | 部分实现 | 手枪连射、后坐力、独立击退、扫掠命中、实体挡弹、声音与命中特效；T00 起弹丸冻结发射时的武器 / 速度 / 推力快照；T01 有五枪实例、霰弹五弹道与耗尽回退 | 炸弹、爆炸、自伤和火箭；特殊枪尚无游戏内投放 / 切枪入口 | `src/game/systems/CombatSystem.ts`、`WeaponSystem.ts`、`src/content/weapons.ts`、表现层 |
 | F04 生命与胜负 | 已实现当前模式规则；扩展待验收 | 三命、完整碰撞体出界、复活 / 保护、统一判胜、超时、30 秒加时、平局、5 秒击出归因 | 炸弹 / 拾枪保护、多于两人的完整实战覆盖 | `src/game/systems/LifeSystem.ts`、`MatchSystem.ts`、`src/game/core/actors.ts` |
-| F05 枪械 | 部分实现 | 一种基础手枪，无限弹；T00 已有 `WeaponInstance` / `ActorState.weapon` / `MatchConfig.startingWeapon`，生成、复活、加时按配置复位 | 有限弹量扣减 / 耗尽回退、六枪注册表、换枪与图鉴；当前仍只有手枪 | `src/content/weapons.ts`、`CombatSystem.ts`、`src/game/core/types.ts` |
+| F05 枪械 | 部分实现 | 五把非火箭枪的核心：手枪无限弹、冲锋枪 / 步枪 / 狙击有限弹、霰弹 5 丸 / 一次扣 1 发；注册表、切枪 / 补弹 / 回退入口、HUD 与 AI 射程读取；复活 / 加时按 `startingWeapon` 复位 | 火箭（T02）、游戏内投放 / 拾取（T03）、训练试枪 / 图鉴（T08）、六枪平衡与外观 | `src/content/weapons.ts`、`WeaponSystem.ts`、`CombatSystem.ts`、`src/game/core/types.ts` |
 | F06 地图 | 可玩四图已实现；扩展数据待续 | 云上古城、霓虹天际、星际方舟、训练台；注册 / 选择 / 保存、主题背景、按实际平台绘制、每图四出生点、主流程切换与重赛 | 箱子投放点、完整导航图与四人全量验收；新主题已取代双塔 / 断桥规划 | `src/content/maps.ts`、`WorldArt.ts`、`ArenaRenderer.ts`、`src/ui/maps/` |
 | F07 武器投放 | 未实现 | 无箱子或投放系统 | 预告、种子随机、点位筛选、上限 / 过期、拾取与同帧争抢 | 计划扩展 `src/game/systems/`、地图 / 武器配置 |
-| F08 AI | 部分实现 | 追击、转向、同高度射击、简单跳跃 / 穿台、按地图下层平台判断恢复区域、保留跳跃落点、反应计时；飞船下层回台测试 | 三档行为验收、完整平台导航、抢箱、避爆、按武器战术 | `src/game/ai/BotController.ts`、`src/game/core/MatchRunner.ts` |
+| F08 AI | 部分实现 | 追击、转向、同高度射击、简单跳跃 / 穿台、按地图下层平台判断恢复区域、保留跳跃落点、反应计时；T01 起射击距离读当前武器射程；飞船下层回台测试 | 三档行为验收、完整平台导航、抢箱、避爆、按武器选位 / 距离策略 | `src/game/ai/BotController.ts`、`src/game/core/MatchRunner.ts` |
 | F09 自定义对局 | 未实现产品流程 | 构造器允许 2—4 个角色并检查部分基本规则 | 配置页、槽位、AI 难度 / 地图 / 生命 / 时限 / 武器池校验、最近配置；实际入口均为两角色 | `src/content/matches.ts`、`BattleSimulation.ts` |
 | F10 战役 | 未实现 | 无关卡和进度 | 六关、解锁、独立配置、最佳成绩、失败 / 平局不解锁 | 后续新增战役配置、页面与存档 |
 | F11 训练场 | 部分实现 | 静止假人、无限时 / 生命、0.5 秒回场、重开、排除正式统计 | 六项教学任务、试枪 / 补弹、移动假人、局部重置、教学标记、图鉴返回 | `src/content/matches.ts`、生命 / 胜负系统、UI |
@@ -119,9 +119,10 @@
 | `MatchConfig` | `mode`、`map`、`actors`、`startingWeapon`、`stocks`、`duration`、`countdown`、`seed`、可选 `matchId` | 无武器池、战役 ID、自定义配置 ID；`startingWeapon` 是复活 / 加时复位目标 |
 | `GameMode` | `duel-ai`、`local-duel`、`training` | 增加模式要联动标签、存档校验与统计 |
 | `ActorState` | 位置 / 速度 / 外力、朝向、平台与跳跃计时、生命 / 保护 / 复活、冷却、`weapon` 实例、命中归因、统计 | 无炸弹数、已拾取武器历史；当前武器只保存一个实例 |
-| `WeaponDefinition` | ID、名称、间隔、弹速、射程、击退、后坐力、`maxAmmo`（null 无限） | 只有 `BASIC_PISTOL`；T01 补六枪、有限弹和耗尽回退 |
-| `WeaponInstance` | `definition`、`ammoRemaining`（null 无限） | 每角色一个实例；冷却仍在 `ActorState.fireCooldown`，切枪不清零 |
-| `Projectile` | ID、拥有者、`weaponId`、前后位置、左右方向、`velocity`、`impulse`、剩余射程 | 发射时冻结；当前只有水平手枪弹，二维 / 霰弹 / 火箭由 T01 / T02 接入 |
+| `WeaponDefinition` | ID、名称、间隔、弹速、射程、击退、后坐力、`maxAmmo`（null 无限）、`pellets`、`spreadRadians` | 已注册手枪 / 冲锋枪 / 步枪 / 霰弹 / 狙击；火箭未注册，`getWeapon('rocket')` 抛错，待 T02 |
+| `WeaponInstance` | `definition`、`ammoRemaining`（null 无限） | 每角色一个实例；冷却仍在 `ActorState.fireCooldown`，切枪 / 补弹不清零 |
+| `WeaponSystem` | `equipWeapon`、`refillWeapon`、`revertToPistol`、`hasAmmo` | T03 / T08 的合法切枪 / 补弹入口；不直接改冷却 |
+| `Projectile` | ID、拥有者、`weaponId`、前后位置、左右方向、二维 `velocity`、`impulse`、剩余射程 | 发射时冻结；步枪 / 霰弹 / 狙击已接入，火箭待 T02；霰弹有 5 条 -12°…12° 弹道 |
 | `ExplosionResolver` | `resolve(state, ExplosionRequest) -> ExplosionHit[]`；请求含 owner / source / center / radius / 中心与边缘推力 | 只有签名，没有运行时实现；T02 负责共享计算与遮挡 |
 | `MapDefinition` | ID / 名称、尺寸、平台、出生点、边界、可选主题 / 英文副标题 / 描述 / 强调色 | 无投放点、完整导航图 |
 | `BattleEvent` | shot / hit / ringout / respawn / phase / overtime / finished | 无投弹、爆炸、拾取、武器切换事件 |
@@ -129,7 +130,7 @@
 | `CharacterAppearance` | style、hat、outfit、color、skin；复制到 `ActorConfig.appearance` | 只决定造型，不改变碰撞、击退或移动 |
 | `createMatchConfig` 第三参数 | 可选 `mapId` / `appearances` / `matchId`；应用传存档选择和每局 ID，旧调用保留训练台默认 | 对局创建后不接受 UI 修改存档来改变当前局 |
 
-T00 的首批契约不是玩法完成声明：`ActorState.weapon` 目前始终由 `BASIC_PISTOL` 创建，`bombPressed` 始终为 false，`ExplosionResolver` 只有类型签名。T01 / T02 / T06 接入时必须补真实行为、默认键位和清理路径；不要把这些字段当作已可用的入口。
+T00 的首批契约不是玩法完成声明：正常出生仍由 `MatchConfig.startingWeapon`（当前手枪）创建，`bombPressed` 始终为 false，`ExplosionResolver` 只有类型签名。T01 已让五枪可通过 `equipWeapon` 发射，但游戏内还没有投放 / 切枪入口；T02 / T06 / T03 接入时必须补真实行为、默认键位、拾取和清理路径，不要把这些字段当作已可用的入口。
 
 `BattleSimulation.step(dt, inputs)` 是底层更新入口；`MatchRunner.advance(milliseconds, readHuman)` 加上固定步长和 AI。测试可以通过模拟器设置场景；产品代码不能照搬测试方式任意写状态。
 
@@ -137,7 +138,7 @@ T00 的首批契约不是玩法完成声明：`ActorState.weapon` 目前始终�
 
 | 编号 | 已确认的限制 / 尚缺的证据 | 接入时的处理 | 对应任务 |
 | --- | --- | --- | --- |
-| L01 | 弹丸已有发射时快照；武器行为仍只有手枪，没有换枪 / 有限弹入口 | 已飞出的子弹不能因换枪而改变命中推力 / 弹种 / 射程；T01 接六枪、弹量和回退 | T01 |
+| L01 | 五把非火箭枪核心已接入，弹丸有发射时快照；火箭未注册，游戏内没有投放 / 切枪入口 | 已飞出的子弹不能因换枪而改变命中推力 / 弹种 / 射程；T02 接火箭，T03 接投放，T08 接训练试枪 | T02、T03、T08 |
 | L02 | 四图已统一配置与绘制；仍没有箱子点位和导航图 | 新增点位 / 路线需同步内容、投放、导航与检查，不能从画面推导碰撞 | T03、T04、T05 |
 | L03 | AI 已按下层平台恢复并保留落点，但仍为简单位置启发式 | 全图路线、重选路径、多层战术和三档难度仍需 T05，当前修正不等于完整导航 | T05 |
 | L04 | 两人入口之外没有完整可操作配置和四人实战验证 | 保留 2—4 人类型能力，完成校验和覆盖前不宣布四人支持 | T07、T11 |
@@ -145,7 +146,7 @@ T00 的首批契约不是玩法完成声明：`ActorState.weapon` 目前始终�
 | L06 | 存档未知版本回默认，没有数据迁移；无清档入口 | 扩字段时补向后兼容 / 迁移和 UI 流程，保留已有有效设置 | T12 |
 | L07 | 减少震动只有布尔值，保护是轮廓 / 半透明；没有保护剩余数字 | 如按 PRD 补强度 / 提示，需同步设置、可读性与存档 | T06、T10 |
 | L08 | 自动化并非完整 PRD 验收，未做参考机四人性能和连续 20 局资源验证 | 单独报告性能 / 人工 / 硬件键盘结果，不能以单元测试代替 | T11 |
-| L09 | 特殊枪与炸弹仍是旧 PRD 草案数值，而基础手枪已增强 | 新武器围绕现有手枪重新调参；保证区分度和回台机会 | T01、T02、T11 |
+| L09 | 五把非火箭枪采用 PRD 初始数值，尚未做人工手感 / 平衡试射；火箭与炸弹仍待实现 | 新武器围绕现有手枪重新调参；当前参数不是最终平衡结论 | T01、T02、T11 |
 | L10（已解决） | Git 基线已建立（`332998d` / `1cc7358`），HEAD 正常；本机 Git / GitHub CLI 已迁到 `D:\Tools` | 后续并行仍用分支 / worktree；不要以清理未跟踪文件处理协作问题 | T00 |
 
 以上是实现边界和静态核对结果，不代表每项都已在用户正常操作中触发故障。
@@ -156,10 +157,10 @@ T00 契约和之前的地图 / 外观代码已执行下表检查；截图逐张�
 
 | 检查 | 最近结果 | 覆盖 |
 | --- | --- | --- |
-| `pnpm test` | 48 项通过，5 个文件 | 原 44 项 + T00 契约 4 项：默认武器 / 投弹输入、在途弹丸快照、复活 / 加时复位、`matchId` 结果标识 |
+| `pnpm test` | 55 项通过，6 个文件 | 原 44 项 + T00 契约 4 项 + T01 五枪 7 项：注册表 / 切枪 / 补弹、三把直射枪、霰弹五弹道单发扣弹、耗尽回退、AI 射程 |
 | `pnpm build` | 通过，含严格类型检查 | 生产构建、Phaser 单独分包 |
-| `pnpm test:browser` | 通过，系统 Chromium / 软件 WebGL | 菜单 / 帮助、画布、键位、训练、暂停恢复、失焦、设置、双人、重赛、刷新保存、禁用存储 |
-| `pnpm test:visual` | 上次通过；T00 未重跑 | 五风格、头饰 / 衣服 / 配色 / 肤色混搭、P1/P2 独立、刷新保存、四图进入对局、暂停修改下局生效、重赛、1024 / 720 / 390 像素宽无横向溢出；T00 只把 HUD 武器文案改为读当前实例，手枪显示仍为“基础手枪 · ∞” |
+| `pnpm test:browser` | 通过，系统 Chromium / 软件 WebGL | 菜单 / 帮助、画布、键位、训练、暂停恢复、失焦、设置、双人、重赛、刷新保存、禁用存储；正常入口仍为手枪 |
+| `pnpm test:visual` | 上次通过；T00 / T01 未重跑 | 五风格、头饰 / 衣服 / 配色 / 肤色混搭、P1/P2 独立、刷新保存、四图进入对局、暂停修改下局生效、重赛、1024 / 720 / 390 像素宽无横向溢出；正常模式 HUD 仍显示“基础手枪 · ∞”，特殊枪暂无投放入口 |
 
 测试位置：
 
@@ -168,6 +169,7 @@ T00 契约和之前的地图 / 外观代码已执行下表检查；截图逐张�
 - `tests/storage.test.ts`：字段归一、损坏 / 不支持版本、存储异常、最近结果去重与练习排除，旧 v1 补外观 / 地图默认、混搭保存和无效外观局部回退。
 - `tests/maps-appearance.test.ts`：四图出生点、真实移动探索可达平台、出界后在该图复活并保留外观；外观不影响规则；飞船 AI 从下层返回甲板。
 - `tests/contracts.test.ts`：T00 首批契约；默认武器 / 投弹输入、在途弹丸不随换枪改变、复活 / 加时按 `startingWeapon` 复位、显式 / 旧回退结果 ID。
+- `tests/weapons.test.ts`：T01 五枪；注册表 / 切枪 / 补弹 / 火箭拒绝、三把直射枪的弹速 / 弹量 / 冷却、霰弹五条 -12°…12° 弹道与单发扣弹、耗尽回退无同帧补射、AI 读取当前武器射程。
 - `scripts/smoke.mjs`：完整浏览器流程；截图输出到 `artifacts/menu.png`、`battle.png`、`local-duel.png`。
 - `scripts/appearance-maps.mjs`：换装 / 切图浏览器流程；截图 `artifacts/appearance-studio.png`、`map-picker.png`、`map-*.png`、`appearance-compact.png`、`appearance-narrow.png`。窄屏使用对话框纵向滚动，游戏仍建议桌面键盘。
 

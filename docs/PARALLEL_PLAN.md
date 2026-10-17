@@ -1,6 +1,6 @@
 # 并行开发计划与任务看板
 
-更新：2026-10-17（北京时间）。T00 已完成首批公共契约与本地基线；T04 四图和 T10 多风格换装已交付可玩子集，并接入 T12 外观 / 地图保存；依赖其他系统的扩展仍待续。T00 记录见 [交付记录](./updates/2026-10-17-t00-contracts.md)，地图 / 外观记录见 [交付记录](./updates/2026-10-17-appearance-maps.md)。
+更新：2026-10-17（北京时间）。T00 已完成首批公共契约与本地基线；T01 已交付五把非火箭枪核心（火箭待 T02）；T04 四图和 T10 多风格换装已交付可玩子集，并接入 T12 外观 / 地图保存；依赖其他系统的扩展仍待续。T00 记录见 [交付记录](./updates/2026-10-17-t00-contracts.md)，T01 记录见 [交付记录](./updates/2026-10-17-weapons.md)，地图 / 外观记录见 [交付记录](./updates/2026-10-17-appearance-maps.md)。
 
 先读 [开发现状](./DEVELOPMENT.md)、[架构](./ARCHITECTURE.md) 和 [根目录协作约定](../AGENTS.md)。产品规则引用 [PRD](./PRD.md)；任务验收是增量条件，不能替代全量 A01—A30。各模块的独立任务文件见 [模块任务包](./modules/README.md)。
 
@@ -96,14 +96,14 @@
 | ID | 任务 | 阶段 / 优先级 | 开发前依赖 | 当前状态 / 负责人 |
 | --- | --- | --- | --- | --- |
 | T00 | Git 基线、首批公共契约与集成准备 | M1 前置 | 当前原型 | 已完成 / 当前会话（2026-10-17，基线 332998d / 1cc7358） |
-| T01 | 武器实例、有限弹量、六类枪 | M1 高 | T00 武器 / 弹丸契约已提供；火箭依赖 T02 爆炸服务 | 待领取 / — |
-| T02 | 炸弹、爆炸、遮挡、自伤 | M1 高 | T00 输入 / 爆炸契约已提供 | 待领取 / — |
-| T03 | 武器箱投放与自动拾取 | M1 高 | T01 武器切换、T04 投放点、T00 调度 / 随机 | 待领取 / — |
+| T01 | 武器实例、有限弹量、六类枪 | M1 高 | T00 武器 / 弹丸契约已提供；火箭依赖 T02 爆炸服务 | 部分完成 / 当前会话（五枪核心已交付，火箭待 T02） |
+| T02 | 炸弹、爆炸、遮挡、自伤 | M1 高 | T00 输入 / 爆炸契约已提供；T01 已留火箭消费点 | 待领取 / — |
+| T03 | 武器箱投放与自动拾取 | M1 高 | T01 换枪入口已提供；T04 投放点、T00 调度 / 随机；火箭池须等 T02 | 待领取 / — |
 | T04 | 地图注册与古城 / 都市 / 飞船主题 | M1 高 | 投放点依赖 T03 契约，完整导航数据对齐 T05 | 部分完成 / 当前会话（四图已交付） |
 | T05 | AI 平台导航与三档决策 | M1 高 | 可先做现有地图导航；完整验收依赖 T01—T04 | 待领取 / — |
 | T06 | 自定义键位与设置子视图 | M2；可提前并行 | T00 设置 / 输入边界已冻结；持久化接入 T12 | 待领取 / — |
 | T07 | 自定义对局、配置校验与 UI | M1 高 | T00 已冻结 `startingWeapon` / `matchId`；完整接入 T01 / T03 / T04 / T05 / T12 | 待领取 / — |
-| T08 | 训练教学、试枪与图鉴 | M2 | T01 / T02；投放重置依赖 T03；教学保存依赖 T12 | 待领取 / — |
+| T08 | 训练教学、试枪与图鉴 | M2 | T01 五枪核心已提供，火箭待 T02；投放重置依赖 T03；教学保存依赖 T12 | 待领取 / — |
 | T09 | 六关战役、解锁、成绩 | M2 | T01—T05、T07 配置能力、T12 | 待领取 / — |
 | T10 | 多风格外观编辑与角色重绘 | M2 | 箱子 / 炸弹 / 六枪表现依赖 T01—T03 | 部分完成 / 当前会话（换装已交付） |
 | T11 | 增量回归、完整验收、性能 / 资源 | 全阶段；发布门槛 M3 | 可立即做基线清单；完整验收依赖对应功能 | 待领取 / — |
@@ -113,11 +113,13 @@
 
 已落地契约：`CharacterAppearance` / `ActorConfig.appearance?`、地图可选主题元数据、`createMatchConfig(mode, seed, selections?)`、`selectedMapId` / 两玩家 `appearances`（继续 v1）；T00 新增 `WeaponInstance` / `ActorState.weapon` / `MatchConfig.startingWeapon`、`Projectile.weaponId` / `velocity` / `impulse`、`ActorInput.bombPressed`、`ExplosionRequest` / `ExplosionHit` / `ExplosionResolver`、`MatchConfig.matchId`。主 UI 的换装 / 选图回调由应用统一保存，当前对局保持创建时配置。T05 仅补充基于地图的下层恢复与跳跃落点，完整导航未实现。上述公共文件接线已结束，可由后续负责人继续；不要再按旧的“写死训练台”假设修改。
 
-### 3.1 T00 接入清单
+T01 执行记录：在 `D:\code\gun-brawl` 同一工作区交付五把非火箭枪核心、注册表、有限弹 / 耗尽回退、霰弹五弹道、HUD / AI 射程读取；55 项测试 / 6 文件通过。火箭未注册，T03 接投放前游戏内仍只有手枪；详细参数与限制见 [T01 交付](./updates/2026-10-17-weapons.md)。
+
+### 3.1 T00 / T01 接入清单
 
 | 任务 | 直接消费 | 仍需完成 / 不要假设 |
 | --- | --- | --- |
-| T01 | `ActorState.weapon.definition` / `ammoRemaining`、`MatchConfig.startingWeapon`、`Projectile.weaponId` / `velocity` / `impulse` | 武器注册表、六枪数据、有限弹扣减与耗尽回退、霰弹 / 二维弹道、火箭消费爆炸服务；`fireCooldown` 继续留在角色上，切枪不要清零 |
+| T01 | `ActorState.weapon.definition` / `ammoRemaining`、`MatchConfig.startingWeapon`、`Projectile.weaponId` / `velocity` / `impulse` | 五枪核心、注册表、有限弹扣减 / 耗尽回退、霰弹二维弹道、HUD / AI 读取已交付；火箭待 T02，游戏内拾取待 T03，训练试枪待 T08；`fireCooldown` 继续留在角色上，切枪不要清零 |
 | T02 | `ActorInput.bombPressed`（默认 false）、`ExplosionResolver` / `ExplosionRequest` / `ExplosionHit` | 实现共享爆炸计算、炸弹 / 引信 / 遮挡 / 自伤、事件与清理；键盘投弹键由 T06 接，未接入前不得显示为可用 |
 | T03 | `createWeaponInstance` / 换枪入口、`Projectile` 快照、`MatchConfig.startingWeapon` | 地图点位、8 秒投放、预告 / 落地 / 到期、同帧拾取裁定；拾取顺序固定在批量出界之后、胜负之前 |
 | T06 | `ActorInput.bombPressed` 契约、设置视图边界 | 默认候选 K / 小键盘 1 只在 T02 真实可用后显示；设置组件只回调应用，不直接写 SaveStore / localStorage |
@@ -125,6 +127,8 @@
 | T12 | `MatchResult.id`（`matchId` 优先，旧 `seed-mode` 回退） | 最近结果 / 交错重复去重范围、存档字段与迁移；当前只保存 `lastResultId`，不是完整历史 |
 
 T00 验收检查：`pnpm typecheck`、48 项 `pnpm test`、`pnpm build`、`pnpm test:browser` 均通过；浏览器 smoke 覆盖三模式、默认键位、暂停 / 恢复、失焦、设置、双人、重赛、刷新和禁用存储。T00 不包含推送远端；本次契约只做本地提交。
+
+T01 验收检查：55 项 `pnpm test` / 6 文件、`pnpm build` 通过；五枪注册表 / 弹量 / 霰弹 / 耗尽回退 / AI 射程有自动化覆盖。火箭未注册，`getWeapon('rocket')` 抛错；未接 T03 前游戏内仍只有手枪。
 
 ## 4. 建议并行批次
 
