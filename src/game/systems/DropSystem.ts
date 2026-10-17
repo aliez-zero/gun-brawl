@@ -105,6 +105,9 @@ export class DropSystem {
     if (raw.length === 0) {
       for (const platform of map.platforms) {
         if (platform.width < 80) continue;
+        // T04 owns the real safe-point table. Until then, prefer the lower half
+        // so the fallback cannot strand a box on an unreachable tower roof.
+        if (platform.y < map.height * 0.55) continue;
         for (const fraction of [0.25, 0.5, 0.75]) {
           raw.push({ x: platform.x + platform.width * fraction, y: platform.y });
         }

@@ -62,12 +62,12 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 - 火箭命中角色 / 实体地形或射程耗尽时走 `ExplosionSystem`；不应用直接命中推力，爆炸可伤及使用者，但不写自己的归因。
 - HUD 继续读 `ActorState.weapon` 显示当前枪名和 `ammoRemaining`；无限弹显示 `∞`，火箭显示 `3`。
 - AI 的射击距离改为读取当前武器 `range`，以 720 像素封顶；手枪行为不变，短枪会更靠近再开火。
-- `ArenaRenderer` 按 `velocity` 绘制弹道，霰弹的斜向弹丸有对应视觉方向；火箭 / 炸弹专用外观与爆炸特效仍待表现层接入。
+- `ArenaRenderer` 按 `velocity` 绘制弹道，霰弹的斜向弹丸有对应视觉方向；手内六枪外观由 `WeaponLayer` 接入，炸弹 / 爆炸由 `FieldLayer` 接入。
 - 生命周期复位仍走 `MatchConfig.startingWeapon`。
 
 ### 检查
 
-- `pnpm typecheck` 通过；`pnpm test` **107 项 / 9 文件**通过（含并行地图会话的 94 项）；`pnpm build` 通过。
+- `pnpm typecheck` 通过；`pnpm test` **119 项 / 10 文件**通过（含并行地图会话与 T03 / T06 测试）；`pnpm build` 通过。
 - `tests/weapons.test.ts` 覆盖六枪注册表 / 切枪 / 补弹、三把直射枪、霰弹五弹道与单发扣弹、火箭命中 / 射程耗尽 / 爆炸快照、耗尽回退无同帧补射、AI 射程读取。
 - 未做人工手感 / 平衡试射，未接入游戏内拾取、HUD 图鉴或训练试枪。
 
@@ -75,7 +75,7 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 
 - **T03** 才能提供游戏内“实际获得”六枪的箱子与拾取入口；当前只能通过 `equipWeapon` 入口或测试注入。
 - **T08** 的训练试枪 / 补弹 / 图鉴 UI 仍未实现。
-- 六枪外观、炸弹 / 火箭渲染和爆炸音效仍待 T10；T01 核心、HUD / AI 读取和弹量 / 回退契约已完成。
+- 六家族手内外观 / 箱子 / 炸弹 / 爆炸已由 T10 接入；17 个具体型号、HUD 武器图标和音效仍待。T01 核心、HUD / AI 读取和弹量 / 回退契约已完成。
 
 ## 文件与接口交接
 

@@ -11,7 +11,7 @@ function shade(color: number, amount: number): string {
 }
 
 /** Shared artwork for the dressing-room canvas and the in-game sprite atlas. Coordinates are feet-centred. */
-export function paintCharacter(ctx: CanvasRenderingContext2D, look: CharacterAppearance, pose: CharacterPose = {}): void {
+export function paintCharacter(ctx: CanvasRenderingContext2D, look: CharacterAppearance, pose: CharacterPose = {}, withGun = true): void {
   const line = '#17232c';
   const color = colorCss(look.color);
   const dark = shade(look.color, -0.42);
@@ -151,15 +151,18 @@ export function paintCharacter(ctx: CanvasRenderingContext2D, look: CharacterApp
     path([-3, -76, -8, -84, -4, -88, 13, -85, 17, -78, 8, -78, 3, -74], '#a44c5b');
   }
 
-  // Front arm and handgun: the muzzle stays aligned with the core's y = feet - 28.
+  // Front arm: the in-game weapon is a separate sprite layer so switching guns
+  // never requires rebuilding the look atlas. Menus may pass withGun = true.
   box(7 - recoil * 2, -38, 12, 12, color, 4);
   box(13 - recoil * 3, -32, 9, 8, skinShade, 3);
-  ctx.save(); ctx.translate(-recoil * 3, 0); ctx.rotate(-recoil * 0.1);
-  path([18, -35, 24, -34, 22, -23, 16, -24], '#4b3d38');
-  box(17, -36, 19, 7, look.outfit === 'astronaut' ? '#cadce2' : '#94a6ad', 1.8);
-  box(32, -35.5, 5, 6, '#263a46', 0.8); box(20, -34, 5, 5, '#485d68', 1);
-  stroke([19, -35, 32, -35], '#e1e5d9', 1); box(29, -38, 2, 2, '#b7c6c8', 0.3);
-  ctx.restore();
+  if (withGun) {
+    ctx.save(); ctx.translate(-recoil * 3, 0); ctx.rotate(-recoil * 0.1);
+    path([18, -35, 24, -34, 22, -23, 16, -24], '#4b3d38');
+    box(17, -36, 19, 7, look.outfit === 'astronaut' ? '#cadce2' : '#94a6ad', 1.8);
+    box(32, -35.5, 5, 6, '#263a46', 0.8); box(20, -34, 5, 5, '#485d68', 1);
+    stroke([19, -35, 32, -35], '#e1e5d9', 1); box(29, -38, 2, 2, '#b7c6c8', 0.3);
+    ctx.restore();
+  }
   if (pose.hurt) { ctx.globalCompositeOperation = 'source-atop'; ctx.fillStyle = '#ffb4a638'; ctx.fillRect(-30, -90, 70, 95); }
   ctx.restore(); ctx.restore();
 }
@@ -175,7 +178,7 @@ export function createCharacterAtlas(look: CharacterAppearance): HTMLCanvasEleme
   for (let frame = 0; frame < 10; frame++) {
     ctx.save(); ctx.translate(frame * CHARACTER_FRAME.width + CHARACTER_FRAME.width / 2, CHARACTER_FRAME.height * CHARACTER_FRAME.feet);
     ctx.scale(CHARACTER_FRAME.scale, CHARACTER_FRAME.scale);
-    paintCharacter(ctx, look, { stride: frame >= 1 && frame <= 6 ? Math.sin((frame - 1) / 6 * Math.PI * 2) * 4 : 0, airborne: frame === 7, recoil: frame === 8 ? 1 : 0, hurt: frame === 9 });
+    paintCharacter(ctx, look, { stride: frame >= 1 && frame <= 6 ? Math.sin((frame - 1) / 6 * Math.PI * 2) * 4 : 0, airborne: frame === 7, recoil: frame === 8 ? 1 : 0, hurt: frame === 9 }, false);
     ctx.restore();
   }
   return canvas;

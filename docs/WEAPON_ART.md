@@ -1,6 +1,6 @@
 # 武器外观设计（提案）
 
-更新：2026-10-17（北京时间）。状态：**设计提案，尚未接入代码**。当前 `CharacterArt` 把同一把手枪烘进所有角色图集，换枪不会换外观；本方案为 [17 个型号](./WEAPONS.md) 定义独立侧视轮廓、配色、手内尺寸和 HUD 识别规则。
+更新：2026-10-17（北京时间）。状态：**六家族手内版本已接入；17 个具体型号仍是提案**。`WeaponArt` + `WeaponLayer` 已按 `ActorState.weapon.definition.id` 切换六种程序化侧视轮廓；`CharacterArt` 不再把同一把手枪烘进实战图集；本方案继续为 [17 个型号](./WEAPONS.md) 定义独立侧视轮廓、配色、手内尺寸和 HUD 识别规则。
 
 ![武器侧视概念图](./assets/weapons-roster.png)
 
@@ -83,37 +83,32 @@
 - 当前 HUD 的 `枪名 · 弹匣/备弹` 放在图标右侧；没有图标时不能只靠文字。
 - 图标与手内模型共用同一份轮廓数据，不另画一套完全不同的形状。
 
-## 6. 与当前代码的差距
+## 6. 当前实现与后续
 
-当前实现：
+已接入：
 
-- `CharacterArt.paintCharacter` 在角色右臂后直接画一把固定手枪（约 20 px），并烘进每个外观图集。
-- `ArenaRenderer` 只为每个角色创建一张 character sprite；没有独立武器 sprite、武器切换或枪口锚点。
-- 当前有六把类别枪（含通用火箭）；17 个具体型号还没有注册表 ID。
+- `src/presentation/WeaponArt.ts`：六个家族（手枪 / 冲锋枪 / 步枪 / 霰弹 / 狙击 / 火箭）的 3× Canvas 纹理，握把为原点，枪口朝右；`displayScale = 0.55 / 3`，实机手内长枪约 30—55 px。
+- `src/presentation/WeaponLayer.ts`：每个 actor 一张独立武器 sprite，按 `ActorState.weapon.definition.id` 换纹理；`flipX` 跟随朝向，深度在角色之上、名字标签之下；换枪不重建角色图集。
+- `CharacterArt.paintCharacter` 增加 `withGun` 参数；实战图集传 `false`，只保留手臂 / 手；菜单预览和外观编辑器仍默认带手枪，避免预览空手。
+- `src/presentation/FieldLayer.ts`：箱子 incoming / active / warning、武器图标、炸弹、爆炸圈；箱子图标复用同一套武器纹理。
+- 数据来源已经是 `weapon.definition.id`，不是角色外观；17 个型号落地前先按六家族画轮廓。
 
-接入建议：
+后续：
 
-1. 新增 `src/presentation/WeaponArt.ts`：
-   - `paintWeapon(ctx, weaponId, { recoil, reload })`：本地坐标以握把为原点，枪口朝右。
-   - `createWeaponTexture(weaponId)` / `weaponTextureKey(weaponId)`：按型号缓存，不按角色外观复制。
-   - `WEAPON_VISUALS`：轮廓、主色、识别色、手内长度、枪口偏移、换弹动作。
-2. `CharacterArt` 删除固定的手枪路径，只保留手臂 / 手；武器改为独立层，避免 5 种外观 × 17 把枪生成 85 张角色图集。
-3. `ArenaRenderer` 为每个 actor 增加 weapon sprite：
-   - 位置 = 角色手部锚点；`flipX` 跟随角色朝向；
-   - 深度在角色之上、名字标签之下；
-   - 换枪时只换 weapon texture，不重建 character atlas；
-   - 开火帧按 `weapon.recoil` 做短位移 / 旋转，枪口火光用视觉枪口。
-4. 数据来源：`ActorState.weapon.definition.id`；在 17 个型号 ID 落地前，先按六个家族画六把占位轮廓。
-5. 验证：训练场摆一排 17 把枪截图；HUD 32 px 图标截图；角色左右朝向、跑动 / 空中 / 开火 / 换弹；确认没有改变碰撞、弹丸出生点和后坐力数值。
+1. 17 个具体型号的独立轮廓 / 配色 / 配件；保持同一握把原点和 `weaponArtKey` 约定。
+2. HUD 32 px 武器图标、图鉴 / 训练武器墙。
+3. 开火短位移 / 旋转、枪口火光、换弹动作；目前只有独立纹理，没有逐枪动作。
+4. 投弹 / 拾取 / 爆炸音效。
+5. 正式地图 `dropPoints` 与箱子落点预告；当前回退到平台下半区派生点。
 
-这一步会修改 `CharacterArt` / `ArenaRenderer`，属于 T10.4 与 T01 型号系统的交叉；当前工作区有并行地图改动，建议等地图会话提交后再接，避免抢文件。
+这一步没有改 `ArenaRenderer`，避免与并行地图会话抢文件；只新增武器 / 场地层并在 `ArenaScene` 装配。
 
 ## 7. 待确认
 
 1. 是否保持现在的扁平卡通 + 深色描边，还是提高到更写实的厚涂 / 像素风？
-2. 17 把全部做独立模型，还是先做六个家族轮廓、型号只换配色和配件？
+2. 17 把全部做独立模型，还是型号只换配色和配件？（当前先用六家族轮廓）
 3. 手内长枪是否允许超过 40 px（更醒目但可能挡住角色）？
 4. 型号名是否先用 P92 / M416 / AKM 等参考名？
 5. 是否在训练场加入“武器墙”用于逐把试看和截图验收？
 
-确认后我优先做 `WeaponArt + 角色独立武器层`，不改任何战斗数值。
+后续优先扩 `WEAPON_ART` 的 17 型号表，不改任何战斗数值。
