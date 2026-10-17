@@ -1,6 +1,6 @@
 # T02 · 炸弹与爆炸
 
-更新：2026-10-17（北京时间）。分组：战斗 / 炸弹爆炸。状态：部分完成；负责人：当前会话；核心物理 / 爆炸服务 / T02.5 清理已交付，键盘、HUD、炸弹渲染、音效和 AI 投弹仍待集成。基线 `e5ff7eb`。
+更新：2026-10-17（北京时间）。分组：战斗 / 炸弹爆炸。状态：核心完成；负责人：当前会话；物理 / 爆炸服务 / 清理 / 默认投弹键 / HUD 数量 / 炸弹与爆炸表现已交付；改键 UI、音效和 AI 投弹仍待。基线 `e5ff7eb`。
 
 [模块目录](./README.md) · [认领与依赖总看板](../PARALLEL_PLAN.md) · [当前实现状态](../DEVELOPMENT.md)
 
@@ -8,7 +8,7 @@
 
 先读 [AGENTS.md](../../AGENTS.md)、[架构](../ARCHITECTURE.md) 和 [PRD](../PRD.md)。状态、负责人、工作区与分支只在总看板登记；本文复选框用于子任务，不代表集成完成。
 
-T00 已冻结 `ActorInput.bombPressed`（默认 false，当前无键位 / UI）、`ExplosionSource`、`ExplosionRequest { ownerId, source, center, radius, centerImpulse, edgeImpulse }`、`ExplosionHit { actorId, impulse }` 和 `ExplosionResolver.resolve(state, request)`。T02 实现解析器与炸弹运行时；键盘投弹键由 T06 接 K / 小键盘 1，未接入前不显示为可用。可与 T01 并行新增独立系统；不要同时编辑 CombatSystem。
+T00 已冻结 `ActorInput.bombPressed`（默认 false）、`ExplosionSource`、`ExplosionRequest { ownerId, source, center, radius, centerImpulse, edgeImpulse }`、`ExplosionHit { actorId, impulse }` 和 `ExplosionResolver.resolve(state, request)`。T02 实现解析器与炸弹运行时；默认投弹键 K / 小键盘 1 已由 T06 接线，HUD 显示每命炸弹数；改键 UI 仍未接。可与 T01 并行新增独立系统；不要同时编辑 CombatSystem。
 
 ## 模块范围与验收
 
@@ -49,8 +49,8 @@ T00 已冻结 `ActorInput.bombPressed`（默认 false，当前无键位 / UI）�
 
 ### 仍待集成
 
-- 键盘投弹键（K / 小键盘 1）属于 T06，当前 `KeyboardInput` 仍返回 `bombPressed: false`；未接前不显示为可用。
-- HUD 炸弹数量 / 冷却提示、炸弹渲染、爆炸音效、AI 投弹属于 T05 / T06 / T10 集成；本轮只提供状态和事件。
+- 默认投弹键 K / 小键盘 1 已接；T06 的改键 / 冲突检测 / 设置组件仍未完成，当前不能重绑定。
+- HUD 已显示每命炸弹数；冷却条未单独展示。炸弹 / 爆炸表现已由 `FieldLayer` 接入；爆炸音效和 AI 投弹仍待 T05 / T10。
 - 火箭筒（T01.4）已注册并使用 `ExplosionSystem`；T01 的通用火箭完成，17 个具体型号 / 弹匣仍是设计提案。
 - 炸弹物理使用固定步长与 AABB 近似，极端高速 / 尖角场景未做连续碰撞专项测试。
 

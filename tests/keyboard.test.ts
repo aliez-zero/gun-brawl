@@ -52,6 +52,23 @@ describe('keyboard controls', () => {
     expect(keyboard.sample(1).moveX).toBe(0);
   });
 
+  it('exposes the default bomb edge for both players without holding it', () => {
+    key('keydown', 'KeyK');
+    expect(keyboard.sample(1).bombPressed).toBe(true);
+    expect(keyboard.sample(1).bombPressed).toBe(false);
+    key('keyup', 'KeyK');
+    key('keydown', 'KeyK', true);
+    expect(keyboard.sample(1).bombPressed).toBe(false);
+    key('keyup', 'KeyK');
+    key('keydown', 'KeyK');
+    expect(keyboard.sample(1).bombPressed).toBe(true);
+
+    expect(keyboard.sample(2).bombPressed).toBe(false);
+    key('keydown', 'Numpad1');
+    expect(keyboard.sample(2).bombPressed).toBe(true);
+    expect(keyboard.sample(2).bombPressed).toBe(false);
+  });
+
   it('clears held inputs on blur and ignores late repeats and disabled input', () => {
     key('keydown', 'KeyJ');
     key('keydown', 'Space');
