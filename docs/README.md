@@ -1,0 +1,59 @@
+# 项目文档导航
+
+更新：2026-10-17（北京时间）。本目录包含项目所需的产品、技术、协作与任务资料；整体复制项目即可携带这些文档，无需依赖 `D:\Code\docs`。
+
+## 接手顺序
+
+1. 阅读 [AI 协作约定](../AGENTS.md)，理解架构边界和共享文件归属。
+2. 阅读 [开发现状](./DEVELOPMENT.md)，区分已完成、部分实现、未实现和待验证。
+3. 在 [模块任务目录](./modules/README.md) 选一个模块，阅读其独立任务说明。
+4. 到 [并行计划总看板](./PARALLEL_PLAN.md) 确认依赖和领取状态，登记负责人、工作区与文件范围。
+5. 按模块交付清单开发、验证、交接，再由集成者接入主游戏。
+
+文档归档与模块拆分已经完成。当前新增四图选择与多风格换装，详细接口、验证和剩余工作见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md)，模块状态以总看板为准。
+
+## 文档职责
+
+| 文档 / 目录 | 内容 | 更新时机 |
+| --- | --- | --- |
+| [PRD.md](./PRD.md) | F01—F15 产品需求、A01—A30 验收、阶段目标 | 产品规则或范围调整 |
+| [RESEARCH.md](./RESEARCH.md) | 参考玩法、事实来源、待核实信息 | 增补或修订调研依据 |
+| `sources/` | S01—S04 网页文字留档，调研文档中有链接 | 保留原文，新增来源另建文件 |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | 现有分层、数据流、状态与逻辑时序 | 真实架构变化后 |
+| [DEVELOPMENT.md](./DEVELOPMENT.md) | 已完成 / 未完成、代码入口、参数、测试证据和已知限制 | 功能集成或验证结论变化后 |
+| [PARALLEL_PLAN.md](./PARALLEL_PLAN.md) | 唯一认领看板、依赖、公共契约、文件归属、整合规则 | 认领 / 交接 / 集成 / 验收时 |
+| [modules/README.md](./modules/README.md) | 13 个模块入口与分发方式 | 模块范围变化时 |
+| `modules/00-*.md` 至 `modules/12-*.md` | 独立模块任务包、子任务、接口与验收、可复制开发指令 | 模块拆分或范围变化时 |
+
+## 目录结构
+
+```text
+gun-brawl/
+  AGENTS.md
+  README.md
+  docs/
+    README.md
+    PRD.md
+    RESEARCH.md
+    ARCHITECTURE.md
+    DEVELOPMENT.md
+    PARALLEL_PLAN.md
+    sources/                 调研来源文字留档
+    modules/                 可分别交给不同 AI 的模块任务包
+      README.md
+      00-integration.md
+      01-weapons.md
+      02-explosives.md
+      03-drops.md
+      04-maps.md
+      05-ai.md
+      06-controls.md
+      07-match-setup.md
+      08-training-encyclopedia.md
+      09-campaign.md
+      10-appearance.md
+      11-quality.md
+      12-save-data.md
+```
+
+文档中的未来源码路径是任务建议；对应模块尚未开发时，不代表该文件已经存在。当前代码事实以开发现状和实际源码为准。
