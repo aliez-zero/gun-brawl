@@ -51,6 +51,8 @@ export interface MapDefinition {
   height: number;
   platforms: readonly Platform[];
   spawns: readonly Vec2[];
+  /** Optional T04-provided safe drop points; T03 derives platform points when absent. */
+  dropPoints?: readonly Vec2[];
   bounds: { left: number; right: number; top: number; bottom: number };
   theme?: MapTheme;
   subtitle?: string;
@@ -150,6 +152,16 @@ export interface Projectile {
   explosion?: ExplosionProfile;
 }
 
+export interface WeaponDrop {
+  id: number;
+  weaponId: WeaponId;
+  position: Vec2;
+  state: 'incoming' | 'active';
+  /** Seconds until landing, then seconds of active lifetime. */
+  timer: number;
+  warning: boolean;
+}
+
 export interface Bomb {
   id: number;
   owner: string;
@@ -205,6 +217,7 @@ export interface MatchState {
   actors: ActorState[];
   projectiles: Projectile[];
   bombs: Bomb[];
+  drops: WeaponDrop[];
   elapsed: number;
   remaining: number;
   countdownRemaining: number;
@@ -218,6 +231,10 @@ export type BattleEvent =
   | { type: 'bomb'; actorId: string; position: Vec2; bombId: number }
   | { type: 'bomb-empty'; actorId: string; position: Vec2 }
   | { type: 'explosion'; source: ExplosionSource; ownerId: string; position: Vec2; radius: number }
+  | { type: 'drop-incoming'; dropId: number; weaponId: WeaponId; position: Vec2 }
+  | { type: 'drop-landed'; dropId: number; weaponId: WeaponId; position: Vec2 }
+  | { type: 'drop-expired'; dropId: number; position: Vec2 }
+  | { type: 'pickup'; actorId: string; weaponId: WeaponId; position: Vec2; dropId: number }
   | { type: 'ringout'; actorId: string; position: Vec2; creditedTo: string | null }
   | { type: 'respawn'; actorId: string; position: Vec2 }
   | { type: 'phase'; phase: MatchPhase }
