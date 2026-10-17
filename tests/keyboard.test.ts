@@ -69,6 +69,15 @@ describe('keyboard controls', () => {
     expect(keyboard.sample(2).bombPressed).toBe(false);
   });
 
+  it('consumes training 1-6 slots once and ignores them while disabled', () => {
+    key('keydown', 'Digit3');
+    expect(keyboard.consumeWeaponSlot()).toBe(3);
+    expect(keyboard.consumeWeaponSlot()).toBeNull();
+    keyboard.enabled = false;
+    key('keydown', 'Digit6');
+    expect(keyboard.consumeWeaponSlot()).toBeNull();
+  });
+
   it('clears held inputs on blur and ignores late repeats and disabled input', () => {
     key('keydown', 'KeyJ');
     key('keydown', 'Space');

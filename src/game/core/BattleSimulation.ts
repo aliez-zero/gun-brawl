@@ -1,3 +1,4 @@
+import { WEAPON_SLOTS } from '../../content/weapons';
 import { createActor } from './actors';
 import { idleInput } from './types';
 import type { ActorInput, BattleEvent, MatchConfig, MatchState } from './types';
@@ -7,6 +8,7 @@ import { DropSystem } from '../systems/DropSystem';
 import { GrenadeSystem } from '../systems/GrenadeSystem';
 import { resolveRingouts, updateLifeTimers } from '../systems/LifeSystem';
 import { resolveMatch } from '../systems/MatchSystem';
+import { equipWeapon } from '../systems/WeaponSystem';
 
 export class BattleSimulation {
   readonly state: MatchState;
@@ -27,6 +29,20 @@ export class BattleSimulation {
       projectiles: [], bombs: [], drops: [], elapsed: 0, remaining: config.duration,
       countdownRemaining: config.countdown, overtime: false, result: null,
     };
+  }
+
+  /** T08.2: training-only hotbar. UI/scene code calls this; DOM never edits actor state. */
+  selectTrainingWeapon(slot: number): boolean {
+    if (this.state.config.mode !== 'training') return false;
+    const weaponId = WEAPON_SLOTS[slot - 1];
+    if (!weaponId) return false;
+    let selected = false;
+    for (const actor of this.state.actors) {
+      if (actor.config.control !== 'human' || actor.status !== 'alive') continue;
+      equipWeapon(actor, weaponId);
+      selected = true;
+    }
+    return selected;
   }
 
   step(dt: number, inputs: ReadonlyMap<string, ActorInput>): void {

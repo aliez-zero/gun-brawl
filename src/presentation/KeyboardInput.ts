@@ -6,8 +6,11 @@ export class KeyboardInput {
   enabled = false;
   private readonly held = new Set<string>();
   private readonly pressed = new Set<string>();
-  private readonly allowed = new Set(Object.values(KEY_BINDINGS).flatMap((bindings) =>
-    Object.values(bindings).flatMap((binding) => binding.codes)));
+  private readonly weaponCodes = Array.from({ length: 6 }, (_, index) => `Digit${index + 1}`);
+  private readonly allowed = new Set([
+    ...Object.values(KEY_BINDINGS).flatMap((bindings) => Object.values(bindings).flatMap((binding) => binding.codes)),
+    ...this.weaponCodes,
+  ]);
   private readonly onDown = (event: KeyboardEvent): void => {
     if (event.code === 'Escape' && !event.repeat) { this.onPause(); return; }
     const target = event.target;
@@ -43,6 +46,14 @@ export class KeyboardInput {
       jumpPressed: take(binding.jump), dropPressed: take(binding.drop), shootHeld: held(binding.shoot),
       bombPressed: take(binding.bomb),
     };
+  }
+
+  /** Training-only 1-6 hotbar; returns null when no slot was pressed this frame. */
+  consumeWeaponSlot(): number | null {
+    for (let index = 0; index < this.weaponCodes.length; index++) {
+      if (this.pressed.delete(this.weaponCodes[index]!)) return index + 1;
+    }
+    return null;
   }
 
   readonly clear = (): void => { this.held.clear(); this.pressed.clear(); };

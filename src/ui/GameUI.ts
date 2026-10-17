@@ -259,7 +259,7 @@ export class GameUI {
         const keys = KEY_BINDINGS[slot];
         return `<div><strong>玩家 ${slot}</strong><p><kbd>${keys.left.label}</kbd> <kbd>${keys.right.label}</kbd> 移动</p><p><kbd>${keys.jump.label}</kbd> 跳跃 / 二段跳</p><p><kbd>${keys.drop.label}</kbd> 向下穿台</p><p><kbd>${keys.shoot.label}</kbd> 持续开火</p><p><kbd>${keys.bomb.label}</kbd> 投弹</p></div>`;
       }).join('')}</div>
-      <p class="help-note"><kbd>Esc</kbd> 暂停 · 切换窗口会自动暂停 · 自由练习不限时间与生命。</p>
+      <p class="help-note"><kbd>Esc</kbd> 暂停 · 切换窗口会自动暂停 · 自由练习不限时间与生命，按 <kbd>1—6</kbd> 直接试六把枪。</p>
       <button class="start-button" data-action="close"><span>明白了</span><span>↗</span></button>`);
   }
 
@@ -282,7 +282,7 @@ export class GameUI {
     const p2 = KEY_BINDINGS[2];
     this.footer.innerHTML = mode === 'local-duel'
       ? `<span>P1 <kbd>${p1.left.label} ${p1.right.label}</kbd> 移动 <kbd>${p1.jump.label}</kbd> 跳 <kbd>${p1.drop.label}</kbd> 穿台 <kbd>${p1.shoot.label}</kbd> 开火 <kbd>${p1.bomb.label}</kbd> 投弹</span><span>P2 <kbd>${p2.left.label} ${p2.right.label}</kbd> 移动 <kbd>${p2.jump.label}</kbd> 跳 <kbd>${p2.drop.label}</kbd> 穿台 <kbd>${p2.shoot.label}</kbd> 开火 <kbd>${p2.bomb.label}</kbd> 投弹</span><span><kbd>Esc</kbd> 暂停</span>`
-      : `<span><kbd>${p1.left.label}</kbd> <kbd>${p1.right.label}</kbd> 移动</span><span><kbd>${p1.jump.label}</kbd> 二段跳</span><span><kbd>${p1.drop.label}</kbd> 穿台</span><span><kbd>${p1.shoot.label}</kbd> 开火</span><span><kbd>${p1.bomb.label}</kbd> 投弹</span><span><kbd>Esc</kbd> 暂停</span>`;
+      : `<span><kbd>${p1.left.label}</kbd> <kbd>${p1.right.label}</kbd> 移动</span><span><kbd>${p1.jump.label}</kbd> 二段跳</span><span><kbd>${p1.drop.label}</kbd> 穿台</span><span><kbd>${p1.shoot.label}</kbd> 开火</span><span><kbd>${p1.bomb.label}</kbd> 投弹</span><span><kbd>1—6</kbd> 试枪</span><span><kbd>Esc</kbd> 暂停</span>`;
   }
 }
 

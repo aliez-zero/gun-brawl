@@ -82,6 +82,8 @@ export class ArenaScene extends Phaser.Scene {
       return;
     }
     this.keyboard.enabled = this.runner.state.phase === 'playing';
+    const weaponSlot = this.keyboard.consumeWeaponSlot();
+    if (weaponSlot !== null) this.runner.simulation.selectTrainingWeapon(weaponSlot);
     const events = this.runner.advance(delta, (slot) => this.keyboard.sample(slot));
     this.arenaView.handle(events);
     this.fieldView.handle(events);

@@ -41,6 +41,9 @@ export const ROCKET: WeaponDefinition = {
   explosion: { radius: 140, centerImpulse: 330, edgeImpulse: 80 },
 };
 
+/** Training hotbar order; also the stable 1-6 selection order. */
+export const WEAPON_SLOTS: readonly WeaponId[] = ['pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'rocket'];
+
 /** Six families are registered; the rocket payload is resolved by ExplosionSystem. */
 export const WEAPONS: Readonly<Partial<Record<WeaponId, WeaponDefinition>>> = {
   pistol: BASIC_PISTOL, smg: SMG, rifle: RIFLE, shotgun: SHOTGUN, sniper: SNIPER, rocket: ROCKET,
