@@ -46,7 +46,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `pnpm typecheck` | 通过 |
-| `pnpm test` | 120 项 / 10 文件通过（T03 节奏追加 1 项 + T06 投弹键 1 项） |
+| `pnpm test` | 123 项 / 11 文件通过（T03 节奏追加 1 项 + T06 投弹键 1 项） |
 | `pnpm build` | 通过 |
 | 浏览器 smoke | 通过；菜单、训练、暂停、双人、重赛、保存 |
 | 视觉检查 | `artifacts/weapon-layer-gallery.png` 六家族纹理；`artifacts/battle.png` 手内位置；`artifacts/training-bomb.png` 炸弹 + HUD；`artifacts/training-drop.png` 箱子 |

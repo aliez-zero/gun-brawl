@@ -55,7 +55,7 @@ T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快
 - 箱子 incoming / active / warning、武器图标、拾取 toast / 音效和炸弹 / 爆炸表现已接入；HUD 武器图标仍待 T10。
 - T04 的真实 `dropPoints` 尚未写入地图；当前用平台下半区派生安全点作为回退，地图负责人可以覆盖。
 - T07 自定义武器池 / 空池 UI 未接。
-- T05 AI 抢箱、绕路和按武器距离决策未接。
+- T05 AI 已接 340 px 内抢箱；完整绕路 / 四图路线仍未完成。
 
 ## 文件与接口交接
 
