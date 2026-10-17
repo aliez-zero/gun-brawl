@@ -97,6 +97,18 @@ describe('T03 drop scheduler and weapon pool', () => {
     expect(noPoints.state.drops).toHaveLength(0);
   });
 
+  it('adds one box every eight seconds and stops at the three-box cap', () => {
+    const simulation = active();
+    advance(simulation, 8.1);
+    expect(simulation.state.drops).toHaveLength(1);
+    advance(simulation, 8);
+    expect(simulation.state.drops).toHaveLength(2);
+    advance(simulation, 8);
+    expect(simulation.state.drops).toHaveLength(3);
+    advance(simulation, 8);
+    expect(simulation.state.drops).toHaveLength(3);
+  });
+
   it('caps live drops at three and declares the final three seconds', () => {
     const simulation = active();
     const drop = waitForDrop(simulation);

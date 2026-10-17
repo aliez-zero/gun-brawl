@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { createMatchConfig } from '../content/matches';
 import { normalizeAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
+import { getWeapon } from '../content/weapons';
 import type { BattleEvent, GameMode, MatchState } from '../game/core/types';
 import { SoundEffects } from '../presentation/SoundEffects';
 import { ArenaScene } from '../scenes/ArenaScene';
@@ -105,6 +106,10 @@ export class GameApplication {
         this.ui.showResult(event.result);
       }
       if (event.type === 'overtime') this.ui.notify('进入决胜加时，每人只剩一条命！');
+      if (event.type === 'pickup') {
+        const actor = this.arena.matchState?.actors.find((candidate) => candidate.config.id === event.actorId);
+        this.ui.notify(`${actor?.config.name ?? '玩家'} 拾取 ${getWeapon(event.weaponId).name}`);
+      }
     }
   }
 

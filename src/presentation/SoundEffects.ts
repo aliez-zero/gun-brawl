@@ -15,6 +15,10 @@ export class SoundEffects {
     if (!this.context || this.context.state !== 'running' || this.volume <= 0) return;
     if (event.type === 'shot') this.tone(180, 60, 0.045, 'square', 0.1);
     if (event.type === 'hit') this.tone(110, 45, 0.07, 'triangle', 0.2);
+    if (event.type === 'bomb') this.tone(240, 90, 0.12, 'triangle', 0.16);
+    if (event.type === 'explosion') this.tone(90, 35, 0.3, 'sawtooth', 0.25);
+    if (event.type === 'drop-landed') this.tone(520, 380, 0.09, 'sine', 0.08);
+    if (event.type === 'pickup') this.tone(520, 880, 0.14, 'sine', 0.16);
     if (event.type === 'ringout') this.tone(220, 50, 0.32, 'sawtooth', 0.15);
     if (event.type === 'finished') this.tone(330, 660, 0.35, 'sine', 0.25);
   }

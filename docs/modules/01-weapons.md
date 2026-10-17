@@ -67,7 +67,7 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 
 ### 检查
 
-- `pnpm typecheck` 通过；`pnpm test` **119 项 / 10 文件**通过（含并行地图会话与 T03 / T06 测试）；`pnpm build` 通过。
+- `pnpm typecheck` 通过；`pnpm test` **120 项 / 10 文件**通过（含并行地图会话与 T03 / T06 测试）；`pnpm build` 通过。
 - `tests/weapons.test.ts` 覆盖六枪注册表 / 切枪 / 补弹、三把直射枪、霰弹五弹道与单发扣弹、火箭命中 / 射程耗尽 / 爆炸快照、耗尽回退无同帧补射、AI 射程读取。
 - 未做人工手感 / 平衡试射，未接入游戏内拾取、HUD 图鉴或训练试枪。
 
