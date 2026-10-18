@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { DeepSeekClient } from '../adapters/ai/DeepSeekClient';
+import type { DeepSeekSession, DeepSeekStatus } from '../adapters/ai/DeepSeekClient';
 import { DEFAULT_KEY_BINDINGS } from '../content/controls';
 import type { KeyBindings } from '../content/controls';
 import { MatchRunner } from '../game/core/MatchRunner';
@@ -14,10 +16,12 @@ export interface ArenaCallbacks {
   onFrame: (state: Readonly<MatchState>) => void;
   onEvents: (events: readonly BattleEvent[]) => void;
   onPause: () => void;
+  onExternalAI: (status: DeepSeekStatus | null) => void;
 }
 
 export class ArenaScene extends Phaser.Scene {
   private runner: MatchRunner | null = null;
+  private externalAI: DeepSeekClient | null = null;
   private keyboard!: KeyboardInput;
   private arenaView!: ArenaRenderer;
   private weaponView!: WeaponLayer;
@@ -38,6 +42,7 @@ export class ArenaScene extends Phaser.Scene {
     const cleanup = (): void => {
       if (cleaned) return;
       cleaned = true;
+      this.externalAI?.destroy();
       this.keyboard.destroy();
       this.fieldView.destroy();
       this.weaponView.destroy();
@@ -48,17 +53,20 @@ export class ArenaScene extends Phaser.Scene {
     this.callbacks.onReady();
   }
 
-  startMatch(config: MatchConfig): void {
+  startMatch(config: MatchConfig, session?: DeepSeekSession): void {
+    this.externalAI?.destroy(); this.externalAI = null;
     this.keyboard.clear();
     this.arenaView.reset();
     this.weaponView.reset();
     this.fieldView.reset();
     this.arenaView.setMap(config.map);
     this.runner = new MatchRunner(config);
+    if (session) this.externalAI = new DeepSeekClient(this.runner, 'deepseek', session, this.callbacks.onExternalAI);
     this.callbacks.onFrame(this.runner.state);
   }
 
   showMenu(): void {
+    this.externalAI?.destroy(); this.externalAI = null;
     this.keyboard.clear(); this.keyboard.enabled = false; this.runner = null;
     this.weaponView.reset(); this.fieldView.reset(); this.arenaView.reset();
   }
@@ -74,6 +82,7 @@ export class ArenaScene extends Phaser.Scene {
     this.keyboard.clear();
     this.cameras.main.resetFX();
     this.runner?.pause();
+    this.externalAI?.update();
   }
 
   resumeMatch(): void { this.keyboard.clear(); this.runner?.resume(); }
@@ -98,6 +107,7 @@ export class ArenaScene extends Phaser.Scene {
     const weaponSlot = this.keyboard.consumeWeaponSlot();
     if (weaponSlot !== null) this.runner.simulation.selectTrainingWeapon(weaponSlot);
     const events = this.runner.advance(delta, (slot) => this.keyboard.sample(slot));
+    this.externalAI?.update();
     this.arenaView.handle(events);
     this.fieldView.handle(events);
     for (const event of events) this.soundEffects.play(event);

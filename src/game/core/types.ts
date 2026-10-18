@@ -43,6 +43,7 @@ export type ActorConfig = {
   | { control: 'human'; inputSlot: HumanSlot }
   | { control: 'bot'; difficulty: Difficulty }
   | { control: 'dummy' }
+  | { control: 'external'; provider: 'deepseek' }
 );
 
 export interface ActorInput {

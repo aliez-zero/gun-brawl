@@ -16,8 +16,13 @@ import { isGameMode } from '../storage/SaveStore';
 import type { SaveData } from '../storage/SaveStore';
 import { appearanceEditor, drawAppearancePreviews } from './appearance/AppearanceEditor';
 import { drawMapPreviews, mapPicker } from './maps/MapPicker';
+import type { DeepSeekInfo, DeepSeekStatus } from '../adapters/ai/DeepSeekClient';
+import { deepSeekSetup } from './DeepSeekSetup';
+import './deepseek.css';
 
 export interface UIActions {
+  deepseek: () => void;
+  startDeepSeek: () => void;
   start: (mode: GameMode) => void;
   pause: () => void;
   resume: () => void;
@@ -88,7 +93,7 @@ export class GameUI {
             <div id="game-overlay"></div>
             <div class="toast" role="status" aria-live="polite" hidden></div>
           </section>
-          <div class="control-strip"><div id="match-status"></div><div id="control-guide"></div></div>
+          <div class="control-strip"><div><div id="match-status"></div><div class="deepseek-status" id="deepseek-status" role="status" hidden></div></div><div id="control-guide"></div></div>
           <div class="mobile-note">建议使用电脑和键盘体验。两位玩家可以在同一台电脑上对战。</div>
         </main>
         <footer class="site-footer"><span>高台有优势，边缘有代价。</span><span>跳跃 · 开火 · 把对手送出场外 <b>↗</b></span></footer>
@@ -107,6 +112,8 @@ export class GameUI {
       const mode = button.dataset.mode;
       if (action === 'mode' && isGameMode(mode)) { this.selected = mode; this.showMenu(); return; }
       if (action === 'start') { this.actions.start(this.selected); return; }
+      if (action === 'deepseek') { this.actions.deepseek(); return; }
+      if (action === 'start-deepseek') { this.actions.startDeepSeek(); return; }
       if (action === 'rebind') {
         const slot = Number(button.dataset.slot) as HumanSlot;
         const control = button.dataset.control as ControlAction;
@@ -280,7 +287,7 @@ export class GameUI {
         </div>
         <p class="mode-description">${descriptions[this.selected]}</p>
         <div class="loadout-actions"><button data-action="appearance"><span>✦ 角色外观</span><small>${look.name} ↗</small></button><button data-action="maps"><span>▧ 更换地图</span><small>${map.name} ↗</small></button></div>
-        <button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>17 个型号真实数据 / 直接试枪 ↗</small></button>
+        <div class="menu-tools"><button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>17 个型号 / 直接试枪 ↗</small></button><button class="encyclopedia-entry deepseek-entry" data-action="deepseek" ${this.ready ? '' : 'disabled'}><span>◈ DeepSeek 对战</span><small>外部 AI 直接操作 ↗</small></button></div>
         <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${!this.ready ? '正在准备战场' : this.selected === 'custom' ? '配置对局' : this.selected === 'campaign' ? '选择关卡' : '进入战场'}</span><span>↗</span></button>
         <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : this.selected === 'custom' ? '2—4 人自由配置' : this.selected === 'campaign' ? '六关战役' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : this.selected === 'custom' ? '可关闭特殊投放' : this.selected === 'campaign' ? '胜利解锁下一关' : '最后存活者获胜'}</span></div>
       </div>
@@ -290,6 +297,7 @@ export class GameUI {
   }
 
   showMatch(state: Readonly<MatchState>): void {
+    const matchLabel = state.actors.some((a) => a.config.control === 'external') ? 'DeepSeek 对战' : MODE_LABELS[state.config.mode];
     this.hudReady = true;
     this.lastPhase = '';
     this.weaponIcons.clear();
@@ -297,7 +305,7 @@ export class GameUI {
     this.overlay.innerHTML = `
       <div class="hud-top">
         <div class="actor-cards ${state.actors.length > 2 ? 'many' : ''}">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${actor.config.name}</span><canvas class="weapon-icon" id="weapon-icon-${actor.config.id}" width="120" height="48" aria-label="当前武器"></canvas></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
-        <div class="timer-block"><span id="round-label">${MODE_LABELS[state.config.mode]}</span><strong id="round-time">03:00</strong></div>
+        <div class="timer-block"><span id="round-label">${matchLabel}</span><strong id="round-time">03:00</strong></div>
         <button class="pause-button" data-action="pause" aria-label="暂停对战">Ⅱ <kbd>ESC</kbd></button>
       </div>
       <div class="countdown" aria-live="polite" hidden><small>准备就绪</small><strong></strong><span>保持移动，远离边缘。</span></div>
@@ -306,8 +314,21 @@ export class GameUI {
     this.trainingDummyMoving = state.training?.dummyMoving ?? true;
     this.setGuide(state.config.mode);
     this.mapLabel.textContent = state.config.map.name + ' / ' + state.config.map.subtitle;
-    this.status.innerHTML = `<span class="status-dot"></span> ${MODE_LABELS[state.config.mode]} <span class="status-divider">/</span> ${state.config.map.name}`;
+    this.status.innerHTML = `<span class="status-dot"></span> ${matchLabel} <span class="status-divider">/</span> ${state.config.map.name}`;
     this.updateHUD(state);
+  }
+
+  showDeepSeekSetup(info: DeepSeekInfo | null, error: string | null = null, starting = false): void {
+    this.dialog('DEEPSEEK / DIRECT CONTROL', '挑战 DeepSeek。', deepSeekSetup(info, getArena(this.save.selectedMapId).name, error, starting));
+  }
+
+  updateExternalAI(value: DeepSeekStatus | null): void {
+    const element = document.querySelector<HTMLElement>('#deepseek-status');
+    if (!element) return;
+    element.hidden = value === null;
+    if (!value) { element.textContent = ''; return; }
+    element.dataset.phase = value.phase;
+    element.textContent = `DeepSeek · ${value.message} · 已接收 ${value.decisions} 次操作${value.latencyMs === null ? '' : ` · ${value.latencyMs} ms`} · 请求 ${value.requests} · ${value.tokens} token`;
   }
 
   private trainingPanel(state: Readonly<MatchState>): string {
@@ -330,7 +351,7 @@ export class GameUI {
     const timer = this.overlay.querySelector('#round-time');
     const label = this.overlay.querySelector('#round-label');
     if (timer) timer.textContent = state.config.mode === 'training' ? '∞' : formatTime(state.remaining);
-    if (label) label.textContent = state.overtime ? '决胜加时' : MODE_LABELS[state.config.mode];
+    if (label) label.textContent = state.overtime ? '决胜加时' : state.actors.some((a) => a.config.control === 'external') ? 'DeepSeek 对战' : MODE_LABELS[state.config.mode];
     const spectator = this.overlay.querySelector<HTMLElement>('#spectator-banner');
     if (spectator) {
       const humans = state.actors.filter((actor) => actor.config.control === 'human');

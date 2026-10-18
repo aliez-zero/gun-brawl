@@ -20,6 +20,8 @@
 
 五位角色第一轮精修、22 帧动作与后续 C01—C07 任务见 [角色设计与细节方案](./CHARACTER_DESIGN.md)，实际文件、检查结果与边界见 [角色精修交接](./updates/2026-10-18-character-polish.md)。
 
+外部模型怎样实际参加对局，见 [外部 AI 调研与接入设计](./EXTERNAL_AI.md)。用户随后选择状态接口直接操作，首版 DeepSeek 网关、角色输入和独立入口已接入，配置及真实验证边界见 [DeepSeek 接入说明](./DEEPSEEK.md)；没有密钥时不调用模型，原有本地玩法可继续运行。
+
 | 文档 / 目录 | 内容 | 更新时机 |
 | --- | --- | --- |
 | [PRD.md](./PRD.md) | F01—F15 产品需求、A01—A30 验收、阶段目标 | 产品规则或范围调整 |
@@ -29,6 +31,8 @@
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | 已完成 / 未完成、代码入口、参数、测试证据和已知限制 | 功能集成或验证结论变化后 |
 | [WEAPONS.md](./WEAPONS.md) | 17 个具体型号、弹匣 / 备弹、射速 / 弹速、后坐力与投放权重提案 | 型号、弹药或平衡方案调整；落地后转为实现文档 |
 | [CHARACTER_DESIGN.md](./CHARACTER_DESIGN.md) | 五角色造型、材质、动作、调研取舍、资源预算与 C01—C07 精修任务 | 角色设计、动画或视觉验收变化后 |
+| [EXTERNAL_AI.md](./EXTERNAL_AI.md) | 外部模型控制游戏的研究归档、路线比较和 EAI-01—06 原始任务提案 | 外部 AI 方案或实验结论变化后 |
+| [DEEPSEEK.md](./DEEPSEEK.md) | 已接入的 DeepSeek 直接操作、密钥配置、实际协议 / 预算、测试与限制 | DeepSeek 实现、配置或验证结论变化后 |
 | [PARALLEL_PLAN.md](./PARALLEL_PLAN.md) | 唯一认领看板、依赖、公共契约、文件归属、整合规则 | 认领 / 交接 / 集成 / 验收时 |
 | [modules/README.md](./modules/README.md) | 13 个模块入口与分发方式 | 模块范围变化时 |
 | `modules/00-*.md` 至 `modules/12-*.md` | 独立模块任务包、子任务、接口与验收、可复制开发指令 | 模块拆分或范围变化时 |
@@ -46,6 +50,8 @@ gun-brawl/
     ARCHITECTURE.md
     DEVELOPMENT.md
     WEAPONS.md
+    EXTERNAL_AI.md
+    DEEPSEEK.md
     PARALLEL_PLAN.md
     sources/                 调研来源文字留档
     updates/                 交付与接手记录

@@ -22,6 +22,8 @@ pnpm dev
 
 打开终端显示的本地地址，默认是 `http://127.0.0.1:5173/`。
 
+**DeepSeek 对战**：复制 `.env.example` 为 `.env.local`，填入 `DEEPSEEK_API_KEY`，重启 `pnpm dev` 后点击主菜单的“DeepSeek 对战”。模型通过状态接口直接操作角色，密钥只在 Node 端使用。配置、预算、延迟和验证边界见 [DeepSeek 接入说明](./docs/DEEPSEEK.md)。没有密钥仍可玩原有模式。
+
 ```powershell
 pnpm typecheck   # 严格 TypeScript 检查
 pnpm test        # 无浏览器的核心规则与存档测试
@@ -34,6 +36,7 @@ pnpm preview     # 本地预览生产构建
 ```powershell
 pnpm test:browser
 pnpm test:visual   # 换装、地图选择、保存与响应式验收
+pnpm test:deepseek # 外部 AI 完整流程；模拟响应，不产生模型费用
 ```
 
 脚本优先使用 Windows 已安装的 Chrome / Edge；其他环境可先执行 `pnpm exec playwright install chromium`。通过 `GAME_TEST_URL` 可以指定测试站点，通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 可以指定浏览器。截图保存在被 Git 忽略的 `artifacts/`。
@@ -91,4 +94,4 @@ docs/              架构、开发现状和并行任务计划
 3. 补齐逐枪手绘换弹 / 音色、完整四人人工实战和真实设备性能验收。
 4. 完成视觉、音效、性能与正式发布检查。
 
-画面为程序绘制，音效为本地 Web Audio 合成，没有第三方游戏素材或远端资源依赖。构建产物可以作为静态网站部署；本次仅启动本地预览。
+画面为程序绘制，音效为本地 Web Audio 合成，没有远端游戏素材依赖。普通玩法可静态部署；DeepSeek 对战还需要同源 Node 网关，本地 `pnpm dev` / `pnpm preview` 已集成。当前仅运行本地服务。

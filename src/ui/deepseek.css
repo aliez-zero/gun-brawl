@@ -1,0 +1,11 @@
+.menu-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.menu-tools .encyclopedia-entry { min-width: 0; flex-wrap: wrap; gap: 3px; }
+.menu-tools .deepseek-entry { border-color: #427c80; background: #1b3436df; }
+.menu-tools .deepseek-entry span { color: #9ee8e4; }
+.deepseek-connection { display: grid; gap: 7px; padding: 15px; margin: 18px 0; background: #101b1a; border: 1px solid #52615a; border-radius: 4px; }
+.deepseek-connection strong { font-size: 14px; color: #e2d5a8; }
+.deepseek-connection.ready { border-color: #4b9690; }
+.deepseek-connection.ready strong { color: #9ee8e4; }
+.deepseek-connection span, .deepseek-config { font-size: 12px; line-height: 1.8; color: #acb9aa; overflow-wrap: anywhere; }
+.deepseek-status { max-width: 100%; margin-top: 8px; color: #9ee8e4; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.deepseek-status[data-phase="error"] { color: #efb87c; }

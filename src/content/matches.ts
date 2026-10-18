@@ -203,3 +203,12 @@ export function createMatchConfig(mode: GameMode, seed: number, selections: Matc
 }
 
 export const CUSTOM_MAP_OPTIONS = ARENAS;
+
+export function createDeepSeekMatchConfig(seed: number, selections: MatchSelections): MatchConfig {
+  if (!selections.matchId) throw new Error('DeepSeek 对局需要唯一 ID');
+  const config = createMatchConfig('duel-ai', seed, selections);
+  const external: ActorConfig = {
+    ...config.actors[1]!, id: 'deepseek', name: 'DeepSeek', control: 'external', provider: 'deepseek',
+  };
+  return { ...config, actors: [config.actors[0]!, external] };
+}

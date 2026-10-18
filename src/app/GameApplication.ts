@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { cloneCustomMatch, createCustomMatchConfig, createMatchConfig, validateCustomMatch } from '../content/matches';
+import { cloneCustomMatch, createCustomMatchConfig, createDeepSeekMatchConfig, createMatchConfig, validateCustomMatch } from '../content/matches';
+import { closeDeepSeekSession, getDeepSeekInfo, openDeepSeekSession } from '../adapters/ai/DeepSeekClient';
+import type { DeepSeekInfo } from '../adapters/ai/DeepSeekClient';
 import type { CustomMatchSettings } from '../content/matches';
 import { CAMPAIGN_LEVELS, createCampaignConfig, getCampaignLevel } from '../content/campaign';
 import { normalizeAppearance } from '../content/appearances';
@@ -12,9 +14,9 @@ import { BootScene } from '../scenes/BootScene';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
 import { GameUI } from '../ui/GameUI';
 
-type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia' | 'campaign';
+type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia' | 'campaign' | 'deepseek';
 type Screen = 'menu' | 'match' | 'pause' | 'result' | Dialog;
-const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia', 'campaign'].includes(screen);
+const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia', 'campaign', 'deepseek'].includes(screen);
 
 export class GameApplication {
   private readonly store = new SaveStore(browserStorage());
@@ -28,9 +30,14 @@ export class GameApplication {
   private activeCampaignLevel: string | null = null;
   private isReady = false;
   private storageNotified = false;
+  private deepSeekActive = false;
+  private deepSeekInfo: DeepSeekInfo | null = null;
+  private deepSeekSetupRequest: AbortController | null = null;
 
   constructor(root: HTMLElement) {
     this.ui = new GameUI(root, {
+      deepseek: () => this.openDialog('deepseek'),
+      startDeepSeek: () => { void this.startDeepSeek(); },
       start: (mode) => this.start(mode),
       pause: () => this.pause(),
       resume: () => this.resume(),
@@ -82,6 +89,7 @@ export class GameApplication {
       onFrame: (state) => this.frame(state),
       onEvents: (events) => this.handleEvents(events),
       onPause: () => this.handleEscape(),
+      onExternalAI: (value) => this.ui.updateExternalAI(value),
     }, this.sound, this.store.data.bindings);
     this.sound.volume = this.store.data.settings.volume;
     this.game = new Phaser.Game({
@@ -104,6 +112,7 @@ export class GameApplication {
     if (!this.isReady) return;
     if (mode === 'custom') { this.openDialog('custom'); return; }
     if (mode === 'campaign') { this.openDialog('campaign'); return; }
+    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
     this.sound.unlock();
     this.activeMode = mode;
     this.store.data.lastMode = mode;
@@ -123,6 +132,7 @@ export class GameApplication {
     if (!this.isReady) return;
     const errors = validateCustomMatch(settings);
     if (errors.length) { this.ui.notify(errors[0]!); return; }
+    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
     const normalized = cloneCustomMatch(settings);
     this.sound.unlock();
     this.activeMode = 'custom';
@@ -144,6 +154,7 @@ export class GameApplication {
     const level = getCampaignLevel(levelId);
     if (!level) { this.ui.notify('无效的战役关卡'); return; }
     if (this.store.data.campaign.unlocked < level.order) { this.ui.notify('先通关上一关才能解锁'); return; }
+    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
     this.sound.unlock();
     this.activeMode = 'campaign';
     this.activeCampaignLevel = level.id;
@@ -168,12 +179,58 @@ export class GameApplication {
   }
 
   private restart(): void {
-    if (this.activeMode === 'custom') this.startCustom(this.store.data.customMatch);
+    if (this.deepSeekActive) { this.openDialog('deepseek'); void this.startDeepSeek(); }
+    else if (this.activeMode === 'custom') this.startCustom(this.store.data.customMatch);
     else if (this.activeMode === 'campaign' && this.activeCampaignLevel) this.startCampaign(this.activeCampaignLevel);
     else this.start(this.activeMode);
   }
 
+  private cancelDeepSeekSetup(): void {
+    this.deepSeekSetupRequest?.abort(); this.deepSeekSetupRequest = null;
+  }
+
+  private async refreshDeepSeek(): Promise<void> {
+    this.cancelDeepSeekSetup();
+    const request = new AbortController(); this.deepSeekSetupRequest = request;
+    this.ui.showDeepSeekSetup(null);
+    const timer = setTimeout(() => request.abort(), 6000);
+    try {
+      const info = await getDeepSeekInfo(request.signal);
+      if (this.deepSeekSetupRequest !== request || this.screen !== 'deepseek') return;
+      this.deepSeekInfo = info; this.ui.showDeepSeekSetup(info);
+    } catch {
+      if (this.deepSeekSetupRequest === request && this.screen === 'deepseek') this.ui.showDeepSeekSetup(null, '无法连接 AI 服务，请确认游戏服务已启动');
+    } finally { clearTimeout(timer); }
+  }
+
+  private async startDeepSeek(): Promise<void> {
+    if (!this.isReady || this.screen !== 'deepseek' || !this.deepSeekInfo?.configured) return;
+    this.cancelDeepSeekSetup();
+    const request = new AbortController(); this.deepSeekSetupRequest = request;
+    this.ui.showDeepSeekSetup(this.deepSeekInfo, null, true);
+    const matchId = crypto.randomUUID();
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
+    const timer = setTimeout(() => request.abort(), 6000);
+    try {
+      const session = await openDeepSeekSession(matchId, 'deepseek', request.signal);
+      if (this.deepSeekSetupRequest !== request || this.screen !== 'deepseek') {
+        void closeDeepSeekSession(session.sessionId).catch(() => {}); return;
+      }
+      this.deepSeekActive = true; this.activeMode = 'duel-ai'; this.screen = 'match';
+      this.sound.unlock();
+      this.arena.startMatch(createDeepSeekMatchConfig(seed, {
+        mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances, matchId,
+      }), session);
+      this.ui.showMatch(this.arena.matchState!);
+      (document.activeElement as HTMLElement | null)?.blur();
+      if (document.hidden || !document.hasFocus()) this.pause();
+    } catch (error) {
+      if (this.deepSeekSetupRequest === request && this.screen === 'deepseek') this.ui.showDeepSeekSetup(this.deepSeekInfo, error instanceof Error ? error.message : '无法连接 DeepSeek');
+    } finally { clearTimeout(timer); }
+  }
+
   private clearSave(): void {
+    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
     this.store.clear();
     this.arena.setBindings(this.store.data.bindings);
     this.arena.setReducedMotion(this.store.data.settings.reducedMotion);
@@ -244,6 +301,7 @@ export class GameApplication {
 
   private menu(): void {
     if (!this.isReady) return;
+    this.cancelDeepSeekSetup();
     this.screen = 'menu';
     this.arena.showMenu();
     this.refreshMenuPreview();
@@ -252,6 +310,7 @@ export class GameApplication {
 
   private openDialog(kind: Dialog): void {
     if (!this.isReady) return;
+    this.cancelDeepSeekSetup();
     if (isDialog(this.screen)) { this.screen = kind; }
     else {
       if (this.screen === 'match') this.pause();
@@ -259,6 +318,7 @@ export class GameApplication {
       this.screen = kind;
     }
     if (kind === 'settings') this.ui.showSettings();
+    else if (kind === 'deepseek') { void this.refreshDeepSeek(); }
     else if (kind === 'help') this.ui.showHelp();
     else if (kind === 'appearance') this.ui.showAppearance(this.returnScreen !== 'menu');
     else if (kind === 'custom') this.ui.showCustomSetup(this.store.data.customMatch);
@@ -269,6 +329,7 @@ export class GameApplication {
 
   private closeDialog(): void {
     if (!isDialog(this.screen)) return;
+    this.cancelDeepSeekSetup();
     this.screen = this.returnScreen;
     if (this.screen === 'pause') this.ui.showPause();
     else if (this.screen === 'result' && this.arena.matchState?.result) this.ui.showResult(this.arena.matchState.result);
@@ -299,6 +360,7 @@ export class GameApplication {
   }
 
   destroy(): void {
+    this.cancelDeepSeekSetup();
     window.removeEventListener('blur', this.onBlur);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.ui.destroy();

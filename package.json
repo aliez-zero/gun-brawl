@@ -2,7 +2,9 @@
   "name": "gun-brawl",
   "version": "0.1.0",
   "private": true,
-  "engines": { "node": ">=22.12.0" },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "type": "module",
   "packageManager": "pnpm@11.25.0",
   "scripts": {
@@ -13,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "node scripts/smoke.mjs",
+    "test:deepseek": "node scripts/deepseek-smoke.mjs",
     "test:perf": "node scripts/perf.mjs",
     "test:latency": "node scripts/latency.mjs",
     "test:visual": "node scripts/appearance-maps.mjs"
@@ -21,6 +24,7 @@
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "playwright": "^1.62.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.0",
