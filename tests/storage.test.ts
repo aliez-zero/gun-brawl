@@ -74,8 +74,10 @@ describe('versioned local saves', () => {
     const storage = memoryStorage();
     const store = new SaveStore(storage);
     store.data.trainingCompleted = ['move', 'bomb'];
+    store.data.trainingIntroSeen = true;
     store.persist();
     expect(new SaveStore(storage).data.trainingCompleted).toEqual(['move', 'bomb']);
+    expect(new SaveStore(storage).data.trainingIntroSeen).toBe(true);
 
     const damaged = new SaveStore(memoryStorage(JSON.stringify({ version: 1, trainingCompleted: ['move', 'unknown', 'move'] })));
     expect(damaged.data.trainingCompleted).toEqual(['move']);
@@ -114,6 +116,7 @@ describe('versioned local saves', () => {
     expect(store.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);
     expect(store.data.customMatch.stocks).toBe(3);
     expect(store.data.trainingCompleted).toEqual([]);
+    expect(store.data.trainingIntroSeen).toBe(false);
     expect(store.data.recentResults).toEqual([]);
     expect(new SaveStore(storage).data.stats.completed).toBe(0);
   });

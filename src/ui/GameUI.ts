@@ -37,6 +37,7 @@ export interface UIActions {
   resetTraining: () => void;
   setDummyMoving: (value: boolean) => void;
   startTrainingWeapon: (weaponId: WeaponId) => void;
+  dismissTrainingIntro: () => void;
   encyclopedia: () => void;
   clearSave: () => void;
   selectCampaign: (levelId: string) => void;
@@ -60,6 +61,8 @@ export class GameUI {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingBinding: { slot: HumanSlot; action: ControlAction } | null = null;
   private trainingDummyMoving = true;
+  private lastTrainingWeaponId: WeaponId = 'pistol';
+  private trainingIntroDismissed = false;
   private readonly listeners = new AbortController();
 
   constructor(root: HTMLElement, private readonly actions: UIActions, private readonly save: SaveData) {
@@ -140,6 +143,12 @@ export class GameUI {
         if (toggle) toggle.textContent = this.trainingDummyMoving ? '假人：移动中' : '假人：静止';
         return;
       }
+      if (action === 'dismiss-training-intro') {
+        this.trainingIntroDismissed = true;
+        this.actions.dismissTrainingIntro();
+        this.overlay.querySelector('#training-intro')?.remove();
+        return;
+      }
       if (action === 'encyclopedia') { this.actions.encyclopedia(); return; }
       if (action === 'next-campaign') { this.actions.nextCampaign(); return; }
       if (action === 'campaign-select') { this.actions.campaignSelect(); return; }
@@ -154,7 +163,10 @@ export class GameUI {
       }
       if (action === 'train-weapon') {
         const weaponId = button.dataset.weapon as WeaponId;
-        if (ARMORY_WEAPONS.some((weapon) => weapon.id === weaponId)) this.actions.startTrainingWeapon(weaponId);
+        if (ARMORY_WEAPONS.some((weapon) => weapon.id === weaponId)) {
+          this.lastTrainingWeaponId = weaponId;
+          this.actions.startTrainingWeapon(weaponId);
+        }
         return;
       }
       if (action === 'appearance-slot') {
@@ -302,7 +314,11 @@ export class GameUI {
     const training = state.training;
     const done = training ? training.completedTasks.length : 0;
     const tasks = TRAINING_TASKS.map((task) => `<li class="training-task ${training?.completed[task.id] ? 'done' : ''}" data-training-task="${task.id}"><b>${task.title}</b><span>${task.hint}</span></li>`).join('');
+    const intro = !this.save.trainingIntroSeen && !this.trainingIntroDismissed
+      ? `<div class="training-intro" id="training-intro"><small>第一次来训练台？</small><p>先按 A / D 移动，空格跳跃；按 J 开火。底栏 1—8 可直接换枪，右侧图鉴可试全部 17 个型号。</p><button data-action="dismiss-training-intro">知道了</button></div>`
+      : '';
     return `<aside class="training-panel" aria-label="训练任务">
+      ${intro}
       <div class="training-head"><strong>训练任务 <span id="training-progress">${done}/6</span></strong><span>不扣命 · 不计战绩</span></div>
       <ul class="training-tasks">${tasks}</ul>
       <div class="training-actions"><button data-action="dummy-toggle">${training?.dummyMoving ? '假人：移动中' : '假人：静止'}</button><button data-action="reset-training">重置训练</button><button data-action="encyclopedia">武器图鉴</button></div>
@@ -334,6 +350,8 @@ export class GameUI {
       this.drawWeaponIcon(actor.config.id, actor.weapon.definition.id);
     }
     if (state.training) {
+      const human = state.actors.find((actor) => actor.config.control === 'human');
+      if (human) this.lastTrainingWeaponId = human.weapon.definition.id;
       const progress = this.overlay.querySelector<HTMLElement>('#training-progress');
       if (progress) progress.textContent = `${state.training.completedTasks.length}/6`;
       for (const task of TRAINING_TASKS) {
@@ -411,8 +429,9 @@ export class GameUI {
         ? `${weapon.pellets} 丸 · ±${Math.round(weapon.spreadRadians * 180 / Math.PI)}°`
         : '单发直线';
       const blast = weapon.explosion ? ` · 爆炸 ${weapon.explosion.radius}px` : '';
-      return `<article class="weapon-card ${weapon.tier === 'ultimate' ? 'ultimate' : ''}">
-        <div class="weapon-card-head"><strong>${escapeLabel(weapon.name)}</strong><small>${weapon.tier === 'ultimate' ? '终极' : '标准'}</small></div>
+      const selected = id === this.lastTrainingWeaponId;
+      return `<article class="weapon-card ${weapon.tier === 'ultimate' ? 'ultimate' : ''} ${selected ? 'selected' : ''}" ${selected ? 'aria-current="true"' : ''}>
+        <div class="weapon-card-head"><strong>${escapeLabel(weapon.name)}</strong><small>${selected ? '当前试枪' : weapon.tier === 'ultimate' ? '终极' : '标准'}</small></div>
         <p>${magazine} 弹匣 · 换弹 ${weapon.reloadTime ?? '—'}s</p>
         <p>${Math.round(weapon.interval * 1000)}ms / 发 · ${weapon.range}px · 击退 ${weapon.knockback}</p>
         <p>${spread}${blast}</p>

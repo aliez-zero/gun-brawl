@@ -166,6 +166,7 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .encyclopedia-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .weapon-card { padding: 10px; border: 1px solid #354832; border-radius: 3px; background: #101811; }
 .weapon-card.ultimate { border-color: #8f6a2f; }
+.weapon-card.selected { border-color: var(--lime); background: #172217; box-shadow: inset 3px 0 0 var(--lime); }
 .weapon-card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
 .weapon-card-head strong { color: #dce7d2; font-size: 12px; }
 .weapon-card-head small { color: #9fc36b; font-size: 9px; }
@@ -174,6 +175,10 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .weapon-card button { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--lime); font-size: 9px; }
 .weapon-card button:hover { text-decoration: underline; }
 .training-panel { position: absolute; left: 22px; bottom: 22px; width: min(360px, calc(100% - 44px)); padding: 12px; border: 1px solid #4a5c41; border-radius: 4px; background: #101811ed; pointer-events: auto; }
+.training-intro { margin-bottom: 10px; padding: 9px 10px; border: 1px solid #6f8a55; background: #1b281a; }
+.training-intro small { color: var(--lime); font-size: 9px; letter-spacing: 1px; }
+.training-intro p { margin: 4px 0 7px; color: #b9c9aa; font-size: 10px; line-height: 1.5; }
+.training-intro button { padding: 2px 0; border: 0; background: none; color: var(--lime); font-size: 9px; }
 .training-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
 .training-head strong { color: #dce7d2; font-size: 11px; letter-spacing: .5px; }
 .training-head span { color: #7f9272; font-size: 9px; }

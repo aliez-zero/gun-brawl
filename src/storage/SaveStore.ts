@@ -25,6 +25,8 @@ export interface SaveData {
   bindings: KeyBindings;
   customMatch: CustomMatchSettings;
   trainingCompleted: TrainingTaskId[];
+  /** One-time training onboarding; old v2 saves without it default to false. */
+  trainingIntroSeen: boolean;
   /** Campaign progress is submitted separately from casual match stats. */
   campaign: CampaignProgress;
   /** Bounded recent IDs; handles interleaved duplicates without claiming full history. */
@@ -41,7 +43,8 @@ const defaults = (): SaveData => ({
   version: SAVE_VERSION, settings: { volume: 0.35, reducedMotion: false },
   lastMode: 'duel-ai', stats: { completed: 0, p1Wins: 0, p2Wins: 0, draws: 0 }, lastResultId: null,
   selectedMapId: 'sky-citadel', appearances: { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') },
-  bindings: cloneBindings(), customMatch: cloneCustomMatch(), trainingCompleted: [], campaign: defaultCampaignProgress(), recentResults: [],
+  bindings: cloneBindings(), customMatch: cloneCustomMatch(), trainingCompleted: [], trainingIntroSeen: false,
+  campaign: defaultCampaignProgress(), recentResults: [],
 });
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -76,6 +79,7 @@ export class SaveStore {
       this.data.appearances[2] = normalizeAppearance(appearances['2'], this.data.appearances[2]);
       this.data.bindings = normalizeBindings(parsed.bindings);
       this.data.customMatch = normalizeCustomMatch(parsed.customMatch);
+      this.data.trainingIntroSeen = parsed.trainingIntroSeen === true;
       const trainingIds = new Set(TRAINING_TASKS.map((task) => task.id));
       if (Array.isArray(parsed.trainingCompleted)) {
         this.data.trainingCompleted = [
@@ -146,6 +150,7 @@ export class SaveStore {
     this.data.bindings = fresh.bindings;
     this.data.customMatch = fresh.customMatch;
     this.data.trainingCompleted = fresh.trainingCompleted;
+    this.data.trainingIntroSeen = fresh.trainingIntroSeen;
     this.data.campaign = fresh.campaign;
     this.data.recentResults = fresh.recentResults;
     this.persist();

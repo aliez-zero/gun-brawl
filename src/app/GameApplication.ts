@@ -61,6 +61,10 @@ export class GameApplication {
       resetTraining: () => { this.arena.resetTraining(); },
       setDummyMoving: (value) => { this.arena.setDummyMoving(value); },
       startTrainingWeapon: (weaponId) => this.startTrainingWeapon(weaponId),
+      dismissTrainingIntro: () => {
+        this.store.data.trainingIntroSeen = true;
+        this.persist();
+      },
       encyclopedia: () => this.openDialog('encyclopedia'),
       clearSave: () => this.clearSave(),
       selectCampaign: (levelId) => this.startCampaign(levelId),
