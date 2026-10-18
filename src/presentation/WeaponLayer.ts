@@ -49,8 +49,14 @@ export class WeaponLayer {
       const x = interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, alpha) : actor.position.x;
       const y = interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, alpha) : actor.position.y;
       const pose = weaponPose(actor);
+      // Phaser mirrors the texture around the frame centre, not the grip origin.
+      // Mirror the origin as well so the grip stays under the hand when facing
+      // left; otherwise the stock jumps across the body and it reads as a new gun.
+      const gripOriginX = WEAPON_ART.gripX / WEAPON_ART.width;
+      const originX = actor.facing < 0 ? 1 - gripOriginX : gripOriginX;
       sprite
         .setTexture(key)
+        .setOrigin(originX, WEAPON_ART.gripY / WEAPON_ART.height)
         .setScale(weaponDisplayScale(definition.id))
         .setPosition(x + actor.facing * (CHARACTER_GRIP.x + pose.x), y + CHARACTER_GRIP.y + pose.y)
         .setFlipX(actor.facing < 0)

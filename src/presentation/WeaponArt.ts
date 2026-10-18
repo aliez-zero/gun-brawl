@@ -16,9 +16,9 @@ export const WEAPON_ART = {
 } as const;
 
 /**
- * World scale per model. Character sprite is ~96 logical px tall; a rifle at
- * 0.34 is ~54 px, close to half body height, so it reads as held rather than
- * dragged. Snipers / launchers stay longer but never exceed the body.
+ * Scale relative to the 160x80 art grid. The generated canvas is SAMPLE=3
+ * larger, so weaponDisplayScale() divides by SAMPLE; forgetting that made a
+ * rifle render at ~160 px instead of ~54 px next to a 96 px character.
  */
 const MODEL_SCALE: Partial<Record<WeaponId, number>> = {
   pistol: 0.24, p1911: 0.23, deagle: 0.28,
@@ -31,7 +31,8 @@ const MODEL_SCALE: Partial<Record<WeaponId, number>> = {
 };
 
 export function weaponDisplayScale(id: WeaponId): number {
-  return MODEL_SCALE[id] ?? WEAPON_ART.displayScale;
+  const scale = MODEL_SCALE[id];
+  return scale === undefined ? WEAPON_ART.displayScale : scale / SAMPLE;
 }
 
 const LINE = '#17232c';
