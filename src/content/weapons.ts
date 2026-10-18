@@ -31,9 +31,9 @@ export const RIFLE: WeaponDefinition = {
 
 export const SHOTGUN: WeaponDefinition = {
   id: 'shotgun', name: '霰弹枪', tier: 'standard', interval: 0.75,
-  projectileSpeed: 1200, range: 320, knockback: 320, recoil: 48, maxAmmo: 6,
+  projectileSpeed: 1200, range: 320, knockback: 340, recoil: 48, maxAmmo: 6,
   reserveAmmo: 18, reloadTime: 2, pellets: 5, spreadRadians: 12 * DEG,
-  impulseCap: 1600,
+  impulseCap: 1700,
 };
 
 export const SNIPER: WeaponDefinition = {
@@ -117,9 +117,9 @@ export const SCAR_L: WeaponDefinition = {
 
 export const S686: WeaponDefinition = {
   id: 's686', name: 'S686', family: 'shotgun', tier: 'standard', interval: 0.4,
-  projectileSpeed: 1150, range: 270, knockback: 350, recoil: 42, recoilY: 12,
+  projectileSpeed: 1150, range: 270, knockback: 380, recoil: 42, recoilY: 12,
   maxAmmo: 2, reserveAmmo: 10, reloadTime: 2.2, pellets: 6, spreadRadians: 12 * DEG,
-  impulseCap: 2100,
+  impulseCap: 2280,
 };
 
 export const S1897: WeaponDefinition = {
@@ -195,6 +195,43 @@ export const WEAPON_ROLES: Readonly<Record<(typeof ARMORY_IDS)[number], string>>
   kar98k: '精准狙击', m24: '快速狙击', awm: '重狙',
   rpg7: '范围重击', at4: '高爆重击',
 };
+
+/**
+ * World-space muzzle position relative to the actor's feet, facing right.
+ * Values are derived from the 160x80 art: grip (46,46), muzzle x 145-158,
+ * y 31-35, converted through each model's display scale. Matching these to the
+ * rendered tip is what makes the tracer/flash leave the barrel instead of the
+ * chest.
+ */
+export interface MuzzleOffset { x: number; y: number }
+
+const FAMILY_MUZZLE: Record<string, MuzzleOffset> = {
+  pistol: { x: 29, y: -36 },
+  smg: { x: 43, y: -37 },
+  rifle: { x: 63, y: -37 },
+  shotgun: { x: 64, y: -38 },
+  sniper: { x: 71, y: -38 },
+  rocket: { x: 73, y: -37 },
+  gatling: { x: 72, y: -37 },
+  cannon: { x: 79, y: -38 },
+};
+
+const MODEL_MUZZLE: Readonly<Partial<Record<WeaponId, MuzzleOffset>>> = {
+  p1911: { x: 29, y: -36 }, deagle: { x: 32, y: -36 },
+  ump45: { x: 44, y: -37 }, vector: { x: 43, y: -37 }, uzi: { x: 42, y: -37 },
+  m416: { x: 62, y: -37 }, akm: { x: 64, y: -37 }, 'scar-l': { x: 64, y: -37 },
+  s686: { x: 63, y: -38 }, s1897: { x: 65, y: -38 }, s12k: { x: 61, y: -38 },
+  kar98k: { x: 71, y: -38 }, m24: { x: 71, y: -38 }, awm: { x: 72, y: -38 },
+  rpg7: { x: 73, y: -37 }, at4: { x: 74, y: -37 },
+};
+
+/** Facing-right muzzle offset from the actor's feet; mirror x for facing left. */
+export function weaponMuzzle(id: WeaponId): MuzzleOffset {
+  const model = MODEL_MUZZLE[id];
+  if (model) return { ...model };
+  const family = getWeapon(id).family ?? id;
+  return { ...(FAMILY_MUZZLE[family] ?? FAMILY_MUZZLE.pistol!) };
+}
 
 /** One trigger's total impulse, counting pellets or the explosion center. */
 export function weaponBurstImpulse(weapon: WeaponDefinition): number {

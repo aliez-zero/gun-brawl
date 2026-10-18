@@ -1,4 +1,4 @@
-import { ACTOR_HEIGHT } from '../core/constants';
+import { ACTOR_HEIGHT, ACTOR_WIDTH } from '../core/constants';
 import { MOVEMENT } from '../core/constants';
 import { addImpulse, segmentRect } from '../core/math';
 import type {
@@ -29,9 +29,16 @@ export class ExplosionSystem implements ExplosionResolver {
 
       const t = request.radius <= 1e-8 ? 0 : Math.min(1, distance / request.radius);
       const magnitude = request.centerImpulse + (request.edgeImpulse - request.centerImpulse) * t;
-      const direction = distance <= 1e-8
+      let direction = distance <= 1e-8
         ? { x: 0, y: -1 }
         : { x: dx / distance, y: dy / distance };
+      // A rocket that already detonates inside / at the near edge of the target
+      // has an arbitrary radial sign; use its travel direction so the target is
+      // launched downrange instead of back into the shooter.
+      if (request.direction && distance <= ACTOR_WIDTH) {
+        const length = Math.hypot(request.direction.x, request.direction.y);
+        if (length > 1e-8) direction = { x: request.direction.x / length, y: request.direction.y / length };
+      }
       hits.push({ actorId: actor.config.id, impulse: { x: direction.x * magnitude, y: direction.y * magnitude } });
     }
     return hits;

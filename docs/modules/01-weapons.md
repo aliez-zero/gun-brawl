@@ -53,6 +53,7 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 - `getWeapon(id)` / `createWeapon(id)` 是统一查找 / 实例化入口；火箭有真实 `explosion` 配置，不再以普通子弹占位。
 - `src/game/systems/WeaponSystem.ts` 提供 `equipWeapon`、`refillWeapon`、`revertToPistol`、`hasAmmo`；切枪 / 补弹不改 `fireCooldown`，T03 / T08 直接消费。
 - `WeaponDefinition` 增加 `pellets`、`spreadRadians`、`tier`、`reserveAmmo` / `reloadTime`、可选 `explosion` / `impulseCap`；手枪 / 直射枪 1 弹丸，霰弹 5 丸 / 12°，火箭半径 170，重炮 / 霰弹 / 火箭用整发上限突破普通 900 冲量截断。
+- `weaponMuzzle(id)` 为 17 型号 + 8 类别名提供脚底相对的枪口点；`CombatSystem` 用同一位置创建所有弹丸和 `shot` 事件，`ArenaRenderer` 的枪口火光因此与弹道起点一致，朝左时 x 取反。
 
 ### 参数与试射记录
 

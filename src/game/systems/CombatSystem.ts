@@ -1,4 +1,4 @@
-import { BASIC_PISTOL } from '../../content/weapons';
+import { BASIC_PISTOL, weaponMuzzle } from '../../content/weapons';
 import { MOVEMENT } from '../core/constants';
 import { actorRect, addImpulse, segmentRect } from '../core/math';
 import type { ActorInput, ActorState, BattleEvent, MatchState, Vec2 } from '../core/types';
@@ -36,7 +36,8 @@ export class CombatSystem {
       const ammo = actor.weapon.ammoRemaining;
       actor.protectionRemaining = 0;
       actor.fireCooldown = weapon.interval;
-      const position = { x: actor.position.x + actor.facing * 27, y: actor.position.y - 28 };
+      const muzzle = weaponMuzzle(weapon.id);
+      const position = { x: actor.position.x + actor.facing * muzzle.x, y: actor.position.y + muzzle.y };
       const pellets = Math.max(1, Math.floor(weapon.pellets));
       for (let index = 0; index < pellets; index++) {
         const spread = pellets === 1 ? 0 : ((index / (pellets - 1)) * 2 - 1) * weapon.spreadRadians;
@@ -124,7 +125,7 @@ export class CombatSystem {
     });
   }
 
-  private explode(state: MatchState, projectile: { owner: string; explosion?: { radius: number; centerImpulse: number; edgeImpulse: number } }, center: Vec2, events: BattleEvent[]): void {
+  private explode(state: MatchState, projectile: { owner: string; velocity: Vec2; explosion?: { radius: number; centerImpulse: number; edgeImpulse: number } }, center: Vec2, events: BattleEvent[]): void {
     if (!projectile.explosion) return;
     const request = {
       ownerId: projectile.owner,
@@ -133,6 +134,7 @@ export class CombatSystem {
       radius: projectile.explosion.radius,
       centerImpulse: projectile.explosion.centerImpulse,
       edgeImpulse: projectile.explosion.edgeImpulse,
+      direction: { ...projectile.velocity },
     };
     const hits = this.explosions.resolve(state, request);
     applyExplosionHits(state, request, hits, events);

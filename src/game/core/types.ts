@@ -229,6 +229,8 @@ export interface ExplosionRequest {
   radius: number;
   centerImpulse: number;
   edgeImpulse: number;
+  /** Travel direction for a direct rocket impact; bombs omit it and stay radial. */
+  direction?: Vec2;
 }
 
 export interface ExplosionHit {
