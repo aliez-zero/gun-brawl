@@ -165,6 +165,7 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .encyclopedia-entry:hover { border-color: var(--lime); }
 .encyclopedia-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .weapon-card { padding: 10px; border: 1px solid #354832; border-radius: 3px; background: #101811; }
+.weapon-card-art { display: block; width: 100%; height: auto; aspect-ratio: 5 / 2; margin-bottom: 6px; border-bottom: 1px solid #263123; image-rendering: auto; }
 .weapon-card.ultimate { border-color: #8f6a2f; }
 .weapon-card.selected { border-color: var(--lime); background: #172217; box-shadow: inset 3px 0 0 var(--lime); }
 .weapon-card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }

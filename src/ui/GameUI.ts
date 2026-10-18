@@ -435,6 +435,7 @@ export class GameUI {
       const burstWidth = Math.max(3, Math.min(100, Math.round(burst / 12.5)));
       const sustainedWidth = Math.max(3, Math.min(100, Math.round(sustained / 22)));
       return `<article class="weapon-card ${weapon.tier === 'ultimate' ? 'ultimate' : ''} ${selected ? 'selected' : ''}" ${selected ? 'aria-current="true"' : ''}>
+        <canvas class="weapon-card-art" data-weapon-art="${id}" width="120" height="48" aria-label="${escapeLabel(weapon.name)} 轮廓"></canvas>
         <div class="weapon-card-head"><strong>${escapeLabel(weapon.name)}</strong><small>${selected ? '当前试枪' : weaponRole(id)}</small></div>
         <p>${magazine} 弹匣 · 换弹 ${weapon.reloadTime ?? '—'}s</p>
         <p>${Math.round(weapon.interval * 1000)}ms / 发 · ${weapon.range}px · 击退 ${weapon.knockback}</p>
@@ -445,6 +446,12 @@ export class GameUI {
       </article>`;
     }).join('');
     this.dialog('ARMORY', '十七个型号，真实参数。', `<p class="dialog-copy">六类标准枪共 17 个具体型号，逐枪展示弹匣、备弹、换弹、射速、射程、击退与后坐；点任意型号可直接进入训练场试枪。训练中 1—8 为类别代表。</p><div class="encyclopedia-grid">${cards}</div><div class="dialog-actions"><button data-action="close">返回</button></div>`);
+    for (const canvas of this.overlay.querySelectorAll<HTMLCanvasElement>('[data-weapon-art]')) {
+      const id = canvas.dataset.weaponArt as WeaponId | undefined;
+      if (!id) continue;
+      const icon = createWeaponIconCanvas(id);
+      canvas.getContext('2d')?.drawImage(icon, 0, 0);
+    }
   }
 
   showCustomSetup(settings: CustomMatchSettings): void {

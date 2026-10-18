@@ -49,7 +49,7 @@
 
 - 每张卡显示定位（快速点射 / 重击步枪 / 重狙等）。
 - 新增“单发威力”和“持续威力 / s”两条比例条，统一用 `weaponBurstImpulse` / `weaponSustainedImpulse` 计算；霰弹按全中丸数、火箭按爆心。
-- 图鉴截图：`artifacts/armory-17.png`。
+- 每张卡加入同尺寸 HUD 轮廓 canvas，17 个型号不必进训练场也能横向看形状；截图：`artifacts/armory-17.png`。
 
 ## 验证
 
