@@ -3,6 +3,7 @@ import type { MatchState } from '../game/core/types';
 import { createWeaponArtCanvas, WEAPON_ART, weaponArtKey, weaponDisplayScale } from './WeaponArt';
 import { CHARACTER_GRIP, weaponPose } from './CharacterMotion';
 import { createGripHandCanvas, createSupportHandCanvas, gripHandKey, supportGrip, supportHandKey } from './WeaponSupport';
+import type { WeaponMount } from './characters/HumanoidRig';
 
 const OUTLINE = 0x152531;
 
@@ -31,7 +32,7 @@ export class WeaponLayer {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  draw(state: Readonly<MatchState> | null, alpha: number): void {
+  draw(state: Readonly<MatchState> | null, alpha: number, mounts?: ReadonlyMap<string, WeaponMount>): void {
     if (!state) {
       for (const sprite of this.sprites.values()) sprite.setVisible(false);
       for (const hand of this.hands.values()) hand.setVisible(false);
@@ -65,6 +66,7 @@ export class WeaponLayer {
       const x = interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, alpha) : actor.position.x;
       const y = interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, alpha) : actor.position.y;
       const pose = weaponPose(actor);
+      const mount = mounts?.get(actor.config.id);
       // Phaser mirrors the texture around the frame centre, not the grip origin.
       // Mirror the origin as well so the grip stays under the hand when facing
       // left; otherwise the stock jumps across the body and it reads as a new gun.
@@ -74,11 +76,20 @@ export class WeaponLayer {
         .setTexture(key)
         .setOrigin(originX, WEAPON_ART.gripY / WEAPON_ART.height)
         .setScale(weaponDisplayScale(definition.id))
-        .setPosition(x + actor.facing * (CHARACTER_GRIP.x + pose.x), y + CHARACTER_GRIP.y + pose.y)
+        .setPosition(mount?.x ?? x + actor.facing * (CHARACTER_GRIP.x + pose.x), mount?.y ?? y + CHARACTER_GRIP.y + pose.y)
         .setFlipX(actor.facing < 0)
-        .setRotation(pose.rotation)
+        .setRotation(mount?.rotation ?? pose.rotation)
         .setAlpha(pose.alpha)
         .setVisible(true);
+
+      // The layered rig owns both arms and hands, using this same weapon mount.
+      if (mount) {
+        this.arms.get(actor.config.id)?.setVisible(false);
+        this.supportArms.get(actor.config.id)?.setVisible(false);
+        this.gripHands.get(actor.config.id)?.setVisible(false);
+        this.hands.get(actor.config.id)?.setVisible(false);
+        continue;
+      }
 
       const skin = actor.config.appearance?.skin ?? 0xe2b58e;
       const sleeve = sleeveColor(actor.config.appearance);

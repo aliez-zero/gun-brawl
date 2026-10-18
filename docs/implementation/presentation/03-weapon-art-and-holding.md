@@ -201,7 +201,9 @@ sprite.setFlipX(facing < 0);
 - 枪托不会被躯干遮住一半；
 - 朝左 / 朝右不会因为遮挡差异看成两把枪。
 
-## 7. 前景持枪手臂
+## 7. 前景持枪手臂（兼容路径）
+
+R3 后当前五人及全部混搭都由 `HumanoidRig` / `HumanoidView` 绘制手臂与双手，`ArenaRenderer.weaponMounts` 传给 `WeaponLayer.draw`，挂点存在时跳过下述旧手臂 / 小手。下面保留无挂点时的实现说明，不能与骨架叠加。固定骨长、支撑点收近及生命周期见 [全角色交接](../../updates/2026-10-18-all-character-rigs.md)。
 
 ### 7.1 为什么需要
 

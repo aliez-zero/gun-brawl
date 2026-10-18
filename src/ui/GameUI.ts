@@ -15,6 +15,7 @@ import type { CharacterAppearance, Difficulty, DropMode, GameMode, HumanSlot, Ma
 import { isGameMode } from '../storage/SaveStore';
 import type { SaveData } from '../storage/SaveStore';
 import { appearanceEditor, drawAppearancePreviews } from './appearance/AppearanceEditor';
+import { stopAppearancePreview } from './appearance/AppearanceMotionPreview';
 import { drawMapPreviews, mapPicker } from './maps/MapPicker';
 import type { DeepSeekInfo, DeepSeekStatus } from '../adapters/ai/DeepSeekClient';
 import { deepSeekSetup } from './DeepSeekSetup';
@@ -258,6 +259,7 @@ export class GameUI {
   };
 
   destroy(): void {
+    stopAppearancePreview(this.overlay);
     this.listeners.abort();
     if (this.toastTimer) clearTimeout(this.toastTimer);
   }

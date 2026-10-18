@@ -3,12 +3,15 @@ import { presetAppearance } from '../content/appearances';
 import { TRAINING_ARENA } from '../content/maps';
 import { getWeapon, weaponBurstImpulse } from '../content/weapons';
 import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchState, Vec2, WeaponId } from '../game/core/types';
-import { CHARACTER_FRAME, characterKey, colorCss, createCharacterAtlas } from './CharacterArt';
-import { characterFrame } from './CharacterMotion';
+import { colorCss } from './CharacterArt';
 import { paintWorld } from './WorldArt';
+import { humanoidArtKey } from './characters/HumanoidArt';
+import { HumanoidMotion, mountedWeaponMuzzle, previewHumanoidPose } from './characters/HumanoidRig';
+import type { HumanoidPose, WeaponMount } from './characters/HumanoidRig';
+import { HumanoidView } from './characters/HumanoidView';
 
-interface Effect extends Vec2 { life: number; kind: 'hit' | 'shot' | 'respawn'; weaponId?: WeaponId }
-interface CharacterView { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text }
+interface Effect extends Vec2 { life: number; kind: 'hit' | 'shot' | 'respawn'; weaponId?: WeaponId; actorId?: string; placed?: boolean }
+interface CharacterView { rig?: HumanoidView; label: Phaser.GameObjects.Text }
 
 interface TrailStyle { width: number; length: number; color: number; glow: number; glowWidth: number; glowAlpha: number }
 
@@ -49,6 +52,8 @@ export class ArenaRenderer {
   private readonly hitAt = new Map<string, number>();
   private readonly landedAt = new Map<string, number>();
   private readonly wasAirborne = new Set<string>();
+  private readonly humanoidMotions = new Map<string, HumanoidMotion>();
+  readonly weaponMounts = new Map<string, WeaponMount>();
   private effects: Effect[] = [];
   private clock = 0;
   private previewLooks: Record<HumanSlot, CharacterAppearance> = { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') };
@@ -90,7 +95,8 @@ export class ArenaRenderer {
   reset(): void {
     this.effects = [];
     this.hitAt.clear(); this.landedAt.clear(); this.wasAirborne.clear(); this.clock = 0;
-    for (const view of this.views.values()) { view.sprite.destroy(); view.label.destroy(); }
+    for (const view of this.views.values()) { view.rig?.destroy(); view.label.destroy(); }
+    this.humanoidMotions.clear(); this.weaponMounts.clear();
     this.views.clear(); this.shadows.clear(); this.effectsView.clear();
     this.scene.cameras.main.resetFX();
     this.trimAtlases();
@@ -99,10 +105,10 @@ export class ArenaRenderer {
   handle(events: readonly BattleEvent[]): void {
     for (const event of events) {
       if (event.type === 'hit' || event.type === 'shot' || event.type === 'respawn') {
-        this.effects.push({ ...event.position, life: 0.2, kind: event.type, ...(event.type === 'shot' ? { weaponId: event.weaponId } : {}) });
+        this.effects.push({ ...event.position, life: 0.2, kind: event.type, ...(event.type === 'shot' ? { weaponId: event.weaponId, actorId: event.actorId } : {}) });
       }
       if (event.type === 'hit') this.hitAt.set(event.actorId, this.clock);
-      if (event.type === 'respawn') { this.wasAirborne.delete(event.actorId); this.landedAt.delete(event.actorId); this.hitAt.delete(event.actorId); }
+      if (event.type === 'respawn') { this.wasAirborne.delete(event.actorId); this.landedAt.delete(event.actorId); this.hitAt.delete(event.actorId); this.humanoidMotions.delete(event.actorId); }
       if (event.type === 'ringout' && !this.reducedMotion) this.scene.cameras.main.shake(110, 0.002);
     }
     this.effects = this.effects.slice(-40);
@@ -110,10 +116,10 @@ export class ArenaRenderer {
 
   draw(state: Readonly<MatchState> | null, alpha: number, seconds: number): void {
     const g = this.effectsView;
-    g.clear(); this.shadows.clear();
+    g.clear(); this.shadows.clear(); this.weaponMounts.clear();
     if (!state) {
-      this.character('preview-2', this.previewLooks[2], this.previewFeet[2].x, this.previewFeet[2].y, 1, 1.85, 0, 1, '', 0x82d5e3);
-      this.character('preview-1', this.previewLooks[1], this.previewFeet[1].x, this.previewFeet[1].y, -1, 3.15, 0, 1, '', 0xc4f56b);
+      this.character('preview-2', this.previewLooks[2], this.previewFeet[2].x, this.previewFeet[2].y, 1, 1.85, 1, '', 0x82d5e3);
+      this.character('preview-1', this.previewLooks[1], this.previewFeet[1].x, this.previewFeet[1].y, -1, 3.15, 1, '', 0xc4f56b);
       return;
     }
     const frozen = state.phase !== 'playing';
@@ -121,7 +127,7 @@ export class ArenaRenderer {
     for (const actor of state.actors) {
       const id = actor.config.id;
       if (actor.status !== 'alive') {
-        this.views.get(id)?.sprite.setVisible(false);
+        this.views.get(id)?.rig?.setVisible(false);
         this.views.get(id)?.label.setVisible(false);
         this.wasAirborne.delete(id); this.landedAt.delete(id);
         continue;
@@ -132,9 +138,14 @@ export class ArenaRenderer {
         if (actor.groundedOn === null) this.wasAirborne.add(id);
         else if (this.wasAirborne.delete(id)) this.landedAt.set(id, this.clock);
       }
-      const frame = characterFrame(actor, this.clock, this.clock - (this.hitAt.get(id) ?? -10), this.clock - (this.landedAt.get(id) ?? -10));
-      this.character(id, actor.config.appearance ?? presetAppearance('cowboy'), x, y, actor.facing, 1, frame,
-        actor.protectionRemaining > 0 ? 0.78 : 1, actor.config.name, actor.config.color);
+      const hurtAge = this.clock - (this.hitAt.get(id) ?? -10);
+      const landingAge = this.clock - (this.landedAt.get(id) ?? -10);
+      const look = actor.config.appearance ?? presetAppearance('cowboy');
+      let motion = this.humanoidMotions.get(id);
+      if (!motion) { motion = new HumanoidMotion(); this.humanoidMotions.set(id, motion); }
+      const rigPose = motion.sample(actor, frozen ? 0 : seconds, hurtAge, landingAge);
+      this.character(id, look, x, y, actor.facing, 1,
+        actor.protectionRemaining > 0 ? 0.78 : 1, actor.config.name, actor.config.color, rigPose, hurtAge < 0.12);
       if (actor.protectionRemaining > 0) {
         g.lineStyle(2, actor.config.color, 0.65);
         g.strokeEllipse(x, y - 40, 65, 98);
@@ -153,6 +164,7 @@ export class ArenaRenderer {
       const travel = Math.hypot(x - origin.x, y - origin.y);
       const back = Math.min(style.length, travel);
       if (family === 'rocket') {
+        // Rocket is a visible body with an exhaust flame, not a tiny line.
         g.lineStyle(style.glowWidth, 0xff5b2a, style.glowAlpha);
         g.lineBetween(x - dx * back, y - dy * back, x - dx * 2, y - dy * 2);
         g.lineStyle(style.width, 0xffb347, 0.95);
@@ -167,6 +179,14 @@ export class ArenaRenderer {
       g.lineBetween(x - dx * back * 0.72, y - dy * back * 0.72, x + dx * 4, y + dy * 4);
     }
     for (const effect of this.effects) {
+      if (effect.kind === 'shot' && !effect.placed) {
+        const actor = state.actors.find((entry) => entry.config.id === effect.actorId);
+        const mount = effect.actorId ? this.weaponMounts.get(effect.actorId) : undefined;
+        if (mount && actor && actor.weapon.definition.id === (effect.weaponId ?? 'pistol')) {
+          Object.assign(effect, mountedWeaponMuzzle(mount, effect.weaponId ?? 'pistol', actor.facing));
+        }
+        effect.placed = true;
+      }
       if (!frozen) effect.life -= seconds;
       const opacity = Math.max(0, effect.life / 0.2);
       const radius = (1 - opacity) * (effect.kind === 'respawn' ? 45 : 20) + 3;
@@ -180,6 +200,7 @@ export class ArenaRenderer {
   private drawMuzzle(g: Phaser.GameObjects.Graphics, effect: Effect, opacity: number, radius: number): void {
     const weapon = getWeapon(effect.weaponId ?? 'pistol');
     const family = weapon.family ?? effect.weaponId ?? 'pistol';
+    // Heavier guns get a visibly larger flash; shotgun is wider but short-lived.
     const flashBoost = family === 'shotgun'
       ? 1.2
       : Math.max(0.85, Math.min(1.8, Math.sqrt(weaponBurstImpulse(weapon) / 500)));
@@ -218,22 +239,21 @@ export class ArenaRenderer {
     }
   }
 
-  private character(id: string, look: CharacterAppearance, x: number, y: number, facing: -1 | 1, scale: number, frame: number, alpha: number, name: string, identity: number): void {
-    const key = characterKey(look);
-    if (!this.scene.textures.exists(key)) {
-      const texture = this.scene.textures.addCanvas(key, createCharacterAtlas(look))!;
-      this.scene.textures.addSpriteSheet(key, texture, { frameWidth: CHARACTER_FRAME.width, frameHeight: CHARACTER_FRAME.height });
-      this.ownedTextures.add(key); this.appearanceKeys.add(key);
-    }
+  private character(id: string, look: CharacterAppearance, x: number, y: number, facing: -1 | 1, scale: number, alpha: number, name: string, identity: number, rigPose?: HumanoidPose, hurt = false): void {
     let view = this.views.get(id);
     if (!view) {
       view = {
-        sprite: this.scene.add.sprite(x, y, key).setOrigin(0.5, CHARACTER_FRAME.feet).setDepth(2),
         label: this.scene.add.text(0, 0, '', { fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif', fontSize: '13px', fontStyle: 'bold', stroke: '#14202a', strokeThickness: 4 }).setOrigin(0.5, 1).setDepth(8),
       };
       this.views.set(id, view);
     }
-    view.sprite.setTexture(key, frame).setVisible(true).setPosition(x, y).setScale(scale / CHARACTER_FRAME.scale).setFlipX(facing < 0).setAlpha(alpha);
+    const key = humanoidArtKey(look);
+    if (view.rig?.key !== key) {
+      view.rig?.destroy(); view.rig = new HumanoidView(this.scene, look);
+      this.ownedTextures.add(key); this.appearanceKeys.add(key);
+    }
+    const mount = view.rig!.draw(x, y, facing, scale, rigPose ?? previewHumanoidPose({}, look), alpha, rigPose === undefined, hurt);
+    if (rigPose) this.weaponMounts.set(id, mount);
     this.shadows.fillStyle(0x091723, 0.3 * alpha);
     this.shadows.fillEllipse(x, y + 3, 44 * scale, 8 * scale);
     const offscreen = x < 22 || x > 1258 || y < 85 || y > 710;
@@ -245,7 +265,7 @@ export class ArenaRenderer {
 
   private trimAtlases(): void {
     if (this.appearanceKeys.size <= 8) return;
-    const active = new Set([...this.views.values()].map((view) => view.sprite.texture.key));
+    const active = new Set([...this.views.values()].map((view) => view.rig?.key));
     for (const key of this.appearanceKeys) {
       if (active.has(key)) continue;
       this.scene.textures.remove(key); this.appearanceKeys.delete(key); this.ownedTextures.delete(key);

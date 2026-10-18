@@ -112,7 +112,7 @@ export class ArenaScene extends Phaser.Scene {
     this.fieldView.handle(events);
     for (const event of events) this.soundEffects.play(event);
     this.arenaView.draw(this.runner.state, this.runner.alpha, delta / 1000);
-    this.weaponView.draw(this.runner.state, this.runner.alpha);
+    this.weaponView.draw(this.runner.state, this.runner.alpha, this.arenaView.weaponMounts);
     this.fieldView.draw(this.runner.state, this.runner.alpha, delta / 1000);
     this.callbacks.onFrame(this.runner.state);
     if (events.length) this.callbacks.onEvents(events);

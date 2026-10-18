@@ -7,7 +7,7 @@ export type { CharacterPose } from './CharacterMotion';
 export const CHARACTER_FRAME = { width: 240, height: 288, scale: 3, feet: 88 / 96 } as const;
 
 export function characterKey(look: CharacterAppearance): string {
-  return `look-v2-${look.style}-${look.hat}-${look.outfit}-${look.color}-${look.skin}`;
+  return `look-v5-${look.style}-${look.hat}-${look.outfit}-${look.color}-${look.skin}`;
 }
 
 /** A grid keeps the atlas below common GPU texture-size limits as poses grow. */

@@ -1,6 +1,6 @@
 # 项目文档导航
 
-更新：2026-10-17（北京时间）。本目录包含项目所需的产品、技术、协作与任务资料；整体复制项目即可携带这些文档，无需依赖 `D:\Code\docs`。
+更新：2026-10-18（北京时间）。本目录包含项目所需的产品、技术、协作与任务资料；整体复制项目即可携带这些文档，无需依赖 `D:\Code\docs`。
 
 ## 接手顺序
 
@@ -10,7 +10,7 @@
 4. 到 [并行计划总看板](./PARALLEL_PLAN.md) 确认依赖和领取状态，登记负责人、工作区与文件范围。
 5. 按模块交付清单开发、验证、交接，再由集成者接入主游戏。
 
-文档归档与模块拆分已经完成。T00 已冻结首批武器 / 弹丸 / 投弹 / 爆炸契约与本地 Git 基线；T01 已交付八把枪（含两种终极武器）、弹匣 / 备弹 / 换弹，见 [T01 接手记录](./updates/2026-10-17-weapons.md)、[终极武器追加](./updates/2026-10-18-ultimate-weapons.md) 与 [弹匣换弹](./updates/2026-10-18-magazine-reload.md)；T06 改键 / 持久化见 [改键交付](./updates/2026-10-18-keybindings.md)，T07 自定义 2—4 人对局见 [自定义对局交付](./updates/2026-10-18-custom-match.md)，T08 训练任务 / 图鉴见 [训练交付](./updates/2026-10-18-training-expansion.md)，T12 存档迁移 / 清档 / 去重见 [存档交付](./updates/2026-10-18-save-migration.md)，T09 六关战役见 [战役交付](./updates/2026-10-18-campaign.md)，T05 导航 / 三档 AI 见 [AI 交付](./updates/2026-10-18-ai-navigation.md)，T11 自动化 / 限制见 [QA 记录](./QA.md)，未完成项见 [剩余清单](./REMAINING.md)，T01 追加 17 型号见 [武器型号交付](./updates/2026-10-18-weapon-models.md)，T10 型号外观 / 火光追加见 [武器表现交付](./updates/2026-10-18-weapon-polish.md)，逐枪威力 / 轮廓重做见 [武器平衡交付](./updates/2026-10-18-weapon-balance.md)，四人完整局见 [四人验收](./updates/2026-10-18-four-player-acceptance.md)；四图选择、投放点与多风格换装见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md) 和 [适中难度交接](./updates/2026-10-18-moderate-map-difficulty.md)。17 个具体枪械型号、逐枪弹匣与后坐力方案见 [武器型号设计提案](./WEAPONS.md)，该 17 型号提案尚未实现。模块状态以总看板为准。
+文档归档与模块拆分已经完成。T00 已冻结首批武器 / 弹丸 / 投弹 / 爆炸契约与本地 Git 基线；T01 已交付八类武器及 17 个具体型号，弹匣 / 备弹 / 换弹已接入，见 [初版武器](./updates/2026-10-17-weapons.md)、[终极武器](./updates/2026-10-18-ultimate-weapons.md)、[弹匣换弹](./updates/2026-10-18-magazine-reload.md)、[17 型号交付](./updates/2026-10-18-weapon-models.md) 与 [当前型号设计](./WEAPONS.md)。其他交付见 [改键](./updates/2026-10-18-keybindings.md)、[自定义对局](./updates/2026-10-18-custom-match.md)、[训练](./updates/2026-10-18-training-expansion.md)、[存档](./updates/2026-10-18-save-migration.md)、[战役](./updates/2026-10-18-campaign.md)、[规则 AI](./updates/2026-10-18-ai-navigation.md)、[武器表现](./updates/2026-10-18-weapon-polish.md)、[武器平衡](./updates/2026-10-18-weapon-balance.md) 与 [四人验收](./updates/2026-10-18-four-player-acceptance.md)。四图选择 / 换装和当前地图难度见 [初版地图外观](./updates/2026-10-17-appearance-maps.md) 与 [适中难度交接](./updates/2026-10-18-moderate-map-difficulty.md)。质量证据见 [QA](./QA.md)，未完成项见 [剩余清单](./REMAINING.md)；模块状态以总看板为准。
 
 ## 文档职责
 
@@ -20,7 +20,7 @@
 
 五位角色第一轮精修、22 帧动作与后续 C01—C07 任务见 [角色设计与细节方案](./CHARACTER_DESIGN.md)，实际文件、检查结果与边界见 [角色精修交接](./updates/2026-10-18-character-polish.md)。
 
-牛仔后续分层重绘、连续 2D 骨架、双手 IK、附件动作及五风格编辑器动作 / 朝向 / 1× 预览见 [T10-R 牛仔骨架交接](./updates/2026-10-18-cowboy-rig.md)。其他四种身体的骨架迁移仍待。
+五位角色及所有混搭已迁移到共用人体骨架，四套新服装 / 脸、双手 IK、附件动作和五风格动作 / 朝向 / 1× 预览见 [T10-R3 全角色交接](./updates/2026-10-18-all-character-rigs.md)。首位样板与人体修正历史见 [牛仔骨架交接](./updates/2026-10-18-cowboy-rig.md)。
 
 外部模型怎样实际参加对局，见 [外部 AI 调研与接入设计](./EXTERNAL_AI.md)。用户随后选择状态接口直接操作，首版 DeepSeek 网关、角色输入和独立入口已接入，配置及真实验证边界见 [DeepSeek 接入说明](./DEEPSEEK.md)；没有密钥时不调用模型，原有本地玩法可继续运行。
 
@@ -31,7 +31,7 @@
 | `sources/` | S01—S04 网页文字留档，调研文档中有链接 | 保留原文，新增来源另建文件 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 现有分层、数据流、状态与逻辑时序 | 真实架构变化后 |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | 已完成 / 未完成、代码入口、参数、测试证据和已知限制 | 功能集成或验证结论变化后 |
-| [WEAPONS.md](./WEAPONS.md) | 17 个具体型号、弹匣 / 备弹、射速 / 弹速、后坐力与投放权重提案 | 型号、弹药或平衡方案调整；落地后转为实现文档 |
+| [WEAPONS.md](./WEAPONS.md) | 已实现的 17 型号、弹匣 / 备弹、射速 / 弹速、后坐力与投放权重设计 | 型号、弹药或平衡方案调整 |
 | [CHARACTER_DESIGN.md](./CHARACTER_DESIGN.md) | 五角色造型、材质、动作、调研取舍、资源预算与 C01—C07 精修任务 | 角色设计、动画或视觉验收变化后 |
 | [EXTERNAL_AI.md](./EXTERNAL_AI.md) | 外部模型控制游戏的研究归档、路线比较和 EAI-01—06 原始任务提案 | 外部 AI 方案或实验结论变化后 |
 | [DEEPSEEK.md](./DEEPSEEK.md) | 已接入的 DeepSeek 直接操作、密钥配置、实际协议 / 预算、测试与限制 | DeepSeek 实现、配置或验证结论变化后 |

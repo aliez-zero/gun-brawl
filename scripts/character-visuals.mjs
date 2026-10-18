@@ -18,7 +18,7 @@ try {
     const { CHARACTER_ANIMATION, characterPoseForFrame } = await import('/src/presentation/CharacterMotion.ts');
     const hash = (data) => { let h=2166136261; for (const value of data) h=Math.imul(h ^ value,16777619); return h>>>0; };
     const errors = [], faces = [], atlases = [];
-    let checkedFrames=0, mixes=0;
+    let checkedFrames=0, mixes=0, mixedFrames=0;
     const inspect = (canvas, label) => {
       const { width:w, height:h } = canvas;
       const data=canvas.getContext('2d').getImageData(0,0,w,h).data;
@@ -41,10 +41,13 @@ try {
         inspect(frameCanvas,`${preset.id} frame ${f}`); checkedFrames++;
       }
       for (const hat of HEADWEAR) for (const outfit of APPEARANCE_PRESETS) {
-        frameContext.clearRect(0,0,frameCanvas.width,frameCanvas.height);
-        frameContext.save(); frameContext.translate(120,264); frameContext.scale(3,3);
-        paintCharacter(frameContext,{...preset.appearance,hat:hat.id,outfit:outfit.id},{},false); frameContext.restore();
-        inspect(frameCanvas,`${preset.id}/${hat.id}/${outfit.id}`); mixes++;
+        for (const frame of [0, 6, 12, 14, 18]) {
+          frameContext.clearRect(0,0,frameCanvas.width,frameCanvas.height);
+          frameContext.save(); frameContext.translate(120,264); frameContext.scale(3,3);
+          paintCharacter(frameContext,{...preset.appearance,hat:hat.id,outfit:outfit.id},characterPoseForFrame(frame),false); frameContext.restore();
+          inspect(frameCanvas,`${preset.id}/${hat.id}/${outfit.id}/${frame}`); mixedFrames++;
+        }
+        mixes++;
       }
       frameContext.clearRect(0,0,frameCanvas.width,frameCanvas.height);
       frameContext.save(); frameContext.translate(120,264); frameContext.scale(3,3);
@@ -52,7 +55,7 @@ try {
       faces.push(hash(frameContext.getImageData(78,38,94,92).data));
     }
     document.head.insertAdjacentHTML('beforeend', `<style>*{box-sizing:border-box}body{margin:0;background:#101b22;color:#e8ecdf;font:14px "Microsoft YaHei",sans-serif}main{padding:28px}header{display:flex;justify-content:space-between;border-bottom:1px solid #43535b;padding-bottom:20px;margin-bottom:20px}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}article{background:#24353e;border:1px solid #43535b;padding:16px}h2{font-size:20px;margin:0 0 10px}small{font-size:10px;color:#aec1bd;display:block;height:23px}canvas{display:block;width:100%}.poses{margin-top:15px;padding-top:15px;border-top:1px solid #43535b}.caption{font-size:11px;color:#a6b9b8;margin:10px 0}.film{display:none;grid-template-columns:repeat(11,1fr);gap:4px}.film canvas{background:#24353e}.film label{display:block;font-size:10px;color:#aec1bd;text-align:center;margin-top:5px}</style>`);
-    document.body.innerHTML='<main><header><b>GUN BRAWL / CHARACTER STUDY</b><span>五位角色 · 第一轮造型与动作精修</span></header><div class="cards"></div><div class="film"></div></main>';
+    document.body.innerHTML='<main><header><b>GUN BRAWL / CHARACTER STUDY</b><span>五位角色 · 自然人体与连续骨架</span></header><div class="cards"></div><div class="film"></div></main>';
     for (let index=0;index<APPEARANCE_PRESETS.length;index++) {
       const preset=APPEARANCE_PRESETS[index];
       const card=document.createElement('article');
@@ -70,14 +73,15 @@ try {
         cell.append(canvas);const label=document.createElement('label');label.textContent=`${preset.name} / ${f}`;cell.append(label);document.querySelector('.film').append(cell);
       }
     }
-    return {errors,checkedFrames,mixes,distinctFaces:new Set(faces).size};
+    return {errors,checkedFrames,mixes,mixedFrames,distinctFaces:new Set(faces).size};
   });
   assert.deepEqual(results.errors, []);
   assert.equal(results.checkedFrames, 110);
   assert.equal(results.mixes, 150);
+  assert.equal(results.mixedFrames, 750);
   assert.equal(results.distinctFaces, 5, 'style must change the face even with identical skin, hat and outfit');
   await page.screenshot({ path:'artifacts/characters-lineup.png',fullPage:true });
   await page.evaluate(() => { document.querySelector('.cards').style.display='none';document.querySelector('.film').style.display='grid'; });
   await page.screenshot({ path:'artifacts/characters-poses.png',fullPage:true });
-  console.log(`Character visuals passed: ${results.checkedFrames} atlas frames, ${results.mixes} mixed outfits, five distinct faces, no clipped frame edges.`);
+  console.log(`Character visuals passed: ${results.checkedFrames} atlas frames, ${results.mixes} mixed outfits / ${results.mixedFrames} mixed poses, five distinct faces, no clipped frame edges.`);
 } finally { await browser.close(); }

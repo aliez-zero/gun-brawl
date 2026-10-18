@@ -2,6 +2,7 @@ import { APPEARANCE_PRESETS, HEADWEAR, OUTFIT_COLORS, SKIN_TONES } from '../../c
 import type { CharacterAppearance, HumanSlot } from '../../game/core/types';
 import { colorCss, paintCharacter } from '../../presentation/CharacterArt';
 import './appearance.css';
+import { startAppearancePreview } from './AppearanceMotionPreview';
 
 export function appearanceEditor(slot: HumanSlot, look: CharacterAppearance, nextRound: boolean): string {
   const preset = APPEARANCE_PRESETS.find((entry) => entry.id === look.style)!;
@@ -11,6 +12,8 @@ export function appearanceEditor(slot: HumanSlot, look: CharacterAppearance, nex
       <div class="character-paper" style="--look-color:${colorCss(look.color)}">
         <div class="paper-topline"><span>CHARACTER / 0${slot}</span><span>✦</span></div>
         <canvas class="character-preview" width="560" height="600" role="img" aria-label="玩家 ${slot} 当前外观预览"></canvas>
+        <div class="motion-preview-controls" role="group" aria-label="动作预览"><button data-preview-motion="idle" aria-pressed="true">待机</button><button data-preview-motion="run" aria-pressed="false">跑动</button><button data-preview-motion="jump" aria-pressed="false">跳跃</button><button data-preview-motion="reload" aria-pressed="false">换弹</button><button data-preview-facing="true" aria-label="当前朝右，切换朝向">朝向 →</button></div>
+        <div class="game-scale-preview"><canvas class="character-game-scale" width="140" height="100" role="img" aria-label="实战尺寸外观预览"></canvas><span>实战尺寸 · 1×</span></div>
         <div class="paper-caption"><small>${preset.english}</small><strong>${preset.name}</strong><span>${preset.description}</span></div>
         <div class="paper-bottomline"><span>PLAYER ${slot}</span><span>装备就绪 ↗</span></div>
       </div>
@@ -41,4 +44,5 @@ export function drawAppearancePreviews(root: HTMLElement, look: CharacterAppeara
     const portrait = canvas.getContext('2d')!;
     portrait.save(); portrait.translate(76, 174); portrait.scale(1.85, 1.85); paintCharacter(portrait, preset.appearance); portrait.restore();
   }
+  startAppearancePreview(root, look);
 }
