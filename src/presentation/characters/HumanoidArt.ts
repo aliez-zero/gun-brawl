@@ -9,11 +9,12 @@ import type { HumanoidPart, HumanoidPose } from './HumanoidRig';
 import { paintKnight } from './KnightArt';
 import { paintOperative } from './OperativeArt';
 import { paintRonin } from './RoninArt';
+import { paintCowboySkin } from './CowboySkin';
 
 export const HUMANOID_ATLAS = COWBOY_ATLAS;
 let previewPistol: HTMLCanvasElement | undefined;
 export function humanoidArtKey(look: CharacterAppearance): string {
-  return `humanoid-rig-v1-${look.style}-${look.outfit}-${look.hat}-${look.color}-${look.skin}`;
+  return `humanoid-rig-${look.outfit === 'cowboy' ? 'v2' : 'v1'}-${look.style}-${look.outfit}-${look.hat}-${look.color}-${look.skin}`;
 }
 
 /** Faces follow style, clothes follow outfit, and helmets remain interchangeable. */
@@ -55,6 +56,7 @@ export function createHumanoidAtlas(look: CharacterAppearance): HTMLCanvasElemen
 export function paintHumanoid(ctx: CanvasRenderingContext2D, look: CharacterAppearance, pose: HumanoidPose, withGun = true): void {
   for (const part of pose.parts) {
     if (part.part === 'previewGun' && !withGun) continue;
+    if (look.outfit === 'cowboy' && paintCowboySkin(ctx, look, pose, part.part)) continue;
     ctx.save(); ctx.translate(part.x, part.y); ctx.rotate(part.rotation); ctx.scale(1, part.scaleY);
     paintHumanoidPart(ctx, look, part.part); ctx.restore();
   }

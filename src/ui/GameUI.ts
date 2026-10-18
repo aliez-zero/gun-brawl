@@ -19,7 +19,12 @@ import { stopAppearancePreview } from './appearance/AppearanceMotionPreview';
 import { drawMapPreviews, mapPicker } from './maps/MapPicker';
 import type { DeepSeekInfo, DeepSeekStatus } from '../adapters/ai/DeepSeekClient';
 import { deepSeekSetup } from './DeepSeekSetup';
+import { isMusicTrack } from '../content/music';
+import type { MusicSettings } from '../content/music';
+import type { MusicStatus } from '../presentation/music/MusicPlayer';
+import { musicSettings, musicStatusText } from './audio/MusicSettings';
 import './deepseek.css';
+import './audio/music.css';
 
 export interface UIActions {
   deepseek: () => void;
@@ -37,6 +42,8 @@ export interface UIActions {
   setAppearance: (slot: HumanSlot, look: CharacterAppearance) => void;
   setMap: (id: string) => void;
   setVolume: (volume: number) => void;
+  setMusic: (settings: Partial<MusicSettings>) => void;
+  toggleMusic: () => void;
   setReducedMotion: (value: boolean) => void;
   setBindings: (bindings: KeyBindings) => void;
   startCustom: (settings: CustomMatchSettings) => void;
@@ -70,8 +77,9 @@ export class GameUI {
   private lastTrainingWeaponId: WeaponId = 'pistol';
   private trainingIntroDismissed = false;
   private readonly listeners = new AbortController();
+  private musicState: MusicStatus = { track: 'menu', state: 'waiting' };
 
-  constructor(root: HTMLElement, private readonly actions: UIActions, private readonly save: SaveData) {
+  constructor(private readonly root: HTMLElement, private readonly actions: UIActions, private readonly save: SaveData) {
     this.selected = save.lastMode;
     root.innerHTML = `
       <div class="app-shell">
@@ -82,6 +90,7 @@ export class GameUI {
           </a>
           <nav aria-label="游戏导航">
             <span class="build-tag"><i></i> READY TO RUMBLE</span>
+            <button type="button" class="text-button music-toggle" data-action="toggleMusic" aria-pressed="${save.settings.music.enabled}" aria-label="${save.settings.music.enabled ? '关闭' : '开启'}背景音乐"><span class="music-icon" aria-hidden="true">♫</span><span class="music-toggle-label">音乐</span></button>
             <button class="text-button" data-action="appearance">角色外观 <span aria-hidden="true">✦</span></button>
             <button class="text-button" data-action="help">操作说明 <span aria-hidden="true">↗</span></button>
             <button class="text-button" data-action="settings">设置 <span aria-hidden="true">⚙</span></button>
@@ -115,6 +124,7 @@ export class GameUI {
       if (action === 'start') { this.actions.start(this.selected); return; }
       if (action === 'deepseek') { this.actions.deepseek(); return; }
       if (action === 'start-deepseek') { this.actions.startDeepSeek(); return; }
+      if (action === 'toggleMusic') { this.actions.toggleMusic(); return; }
       if (action === 'rebind') {
         const slot = Number(button.dataset.slot) as HumanSlot;
         const control = button.dataset.control as ControlAction;
@@ -212,19 +222,30 @@ export class GameUI {
       if (event.target.id === 'volume') {
         const volume = Number(event.target.value) / 100;
         this.actions.setVolume(volume);
-        const output = this.overlay.querySelector('output');
+        const output = this.overlay.querySelector('output[for="volume"]');
+        if (output) output.textContent = `${Math.round(volume * 100)}%`;
+      }
+      if (event.target.id === 'music-enabled') this.actions.setMusic({ enabled: event.target.checked });
+      if (event.target.id === 'music-volume') {
+        const volume = Number(event.target.value) / 100;
+        this.actions.setMusic({ volume });
+        const output = this.overlay.querySelector('output[for="music-volume"]');
         if (output) output.textContent = `${Math.round(volume * 100)}%`;
       }
       if (event.target.id === 'reduced-motion') this.actions.setReducedMotion(event.target.checked);
     }, { signal: this.listeners.signal });
     root.addEventListener('change', (event) => {
+      if (event.target instanceof HTMLSelectElement && event.target.id === 'music-track') {
+        const track = event.target.value;
+        if (track === 'auto' || isMusicTrack(track)) this.actions.setMusic({ track });
+      }
       if (event.target instanceof Element && event.target.closest('#custom-form')) this.refreshCustomValidation();
     }, { signal: this.listeners.signal });
     window.addEventListener('keydown', this.captureBinding, { capture: true, signal: this.listeners.signal });
     root.addEventListener('keydown', (event) => {
       const dialog = this.overlay.querySelector<HTMLElement>('[role="dialog"]');
       if (!dialog || event.key !== 'Tab') return;
-      const controls = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input, [tabindex="0"]')];
+      const controls = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input, select, [tabindex="0"]')];
       const first = controls[0];
       const last = controls.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -560,6 +581,19 @@ export class GameUI {
     if (box) { box.textContent = errors.join(' '); box.classList.add('error'); }
   }
 
+  updateMusic(status: MusicStatus): void {
+    this.musicState = status;
+    const button = this.root.querySelector<HTMLButtonElement>('.music-toggle');
+    if (button) {
+      button.setAttribute('aria-pressed', String(this.save.settings.music.enabled));
+      button.setAttribute('aria-label', `${this.save.settings.music.enabled ? '关闭' : '开启'}背景音乐`);
+    }
+    const current = this.overlay.querySelector<HTMLElement>('#music-status');
+    if (current) { current.textContent = musicStatusText(status); current.dataset.state = status.state; current.dataset.track = status.track; }
+    const enabled = this.overlay.querySelector<HTMLInputElement>('#music-enabled');
+    if (enabled) enabled.checked = this.save.settings.music.enabled;
+  }
+
   showSettings(): void {
     this.pendingBinding = null;
     const bindingRows = ([1, 2] as const).map((slot) => `<div class="binding-player"><strong>玩家 ${slot}</strong>${BINDING_ACTIONS.map(({ action, label }) => {
@@ -567,7 +601,8 @@ export class GameUI {
       return `<div class="binding-row"><span>${label}</span><button class="binding-key" data-action="rebind" data-slot="${slot}" data-control="${action}" aria-label="玩家 ${slot} ${label}，当前 ${escapeLabel(binding.label)}">${escapeLabel(binding.label)}</button></div>`;
     }).join('')}</div>`).join('');
     this.dialog('MAKE IT YOURS', '按你的节奏。', `
-      <div class="setting-row"><label for="volume">音效音量</label><output>${Math.round(this.save.settings.volume * 100)}%</output><input id="volume" type="range" min="0" max="100" value="${Math.round(this.save.settings.volume * 100)}" /></div>
+      <div class="setting-row"><label for="volume">音效音量</label><output for="volume">${Math.round(this.save.settings.volume * 100)}%</output><input id="volume" type="range" min="0" max="100" value="${Math.round(this.save.settings.volume * 100)}" /></div>
+      ${musicSettings(this.save.settings.music, this.musicState)}
       <label class="toggle-row" for="reduced-motion"><span>减少画面震动<small>保留命中反馈，关闭镜头震动。</small></span><input id="reduced-motion" type="checkbox" ${this.save.settings.reducedMotion ? 'checked' : ''} /></label>
       <div class="binding-section"><div class="binding-heading"><span>键位</span><button class="link-button" data-action="reset-bindings">恢复默认</button></div>
         <p class="setting-note" id="binding-status">点击按键后按新键；Esc 取消；冲突键不会保存。系统键与训练 1—8 保留。</p>

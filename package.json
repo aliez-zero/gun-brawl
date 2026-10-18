@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "node scripts/smoke.mjs",
+    "test:music": "node scripts/music-smoke.mjs",
     "test:deepseek": "node scripts/deepseek-smoke.mjs",
     "test:perf": "node scripts/perf.mjs",
     "test:latency": "node scripts/latency.mjs",

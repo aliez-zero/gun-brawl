@@ -1,0 +1,19 @@
+.music-settings { margin-top: 22px; padding: 18px; border: 1px solid #65755c66; border-radius: 5px; background: #12201d80; }
+.music-settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.music-settings h3 { font-size: 15px; font-weight: 600; margin: 0; color: #e1e8d5; }
+.music-switch { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #becab4; }
+.music-switch input { accent-color: var(--lime); }
+.music-status { margin: 12px 0 18px; color: #a8c297; font-size: 12px; }
+.music-status[data-state="playing"] { color: var(--lime); }
+.music-track-label { display: block; margin-bottom: 8px; color: #becab4; font-size: 12px; }
+.music-settings select { width: 100%; min-width: 0; padding: 10px; border-radius: 3px; border: 1px solid #53685b; color: #dce4d5; background: #192b2b; font: inherit; font-size: 12px; }
+.music-settings select:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+.music-settings .setting-row { margin-top: 18px; }
+.music-hint { margin: 14px 0 0; font-size: 11px; line-height: 1.6; color: #8e9f90; }
+.music-toggle[aria-pressed="true"] { color: var(--lime); }
+@media (max-width: 600px) {
+  .site-header nav { gap: 9px; }
+  .music-toggle .music-toggle-label { display: none; }
+  .music-toggle .music-icon { margin: 0; font-size: 17px; }
+  .music-settings { padding: 14px; }
+}

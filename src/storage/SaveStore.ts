@@ -7,6 +7,8 @@ import { isMapId } from '../content/maps';
 import { CAMPAIGN_LEVELS, campaignScore, defaultCampaignProgress, getCampaignLevel, normalizeCampaignProgress } from '../content/campaign';
 import type { CampaignProgress } from '../content/campaign';
 import { TRAINING_TASKS } from '../content/tutorial';
+import { normalizeMusic } from '../content/music';
+import type { MusicSettings } from '../content/music';
 import type {
   CharacterAppearance, GameMode, HumanSlot, MatchResult, TrainingTaskId,
 } from '../game/core/types';
@@ -16,7 +18,7 @@ export const RECENT_RESULT_LIMIT = 20;
 
 export interface SaveData {
   version: typeof SAVE_VERSION;
-  settings: { volume: number; reducedMotion: boolean };
+  settings: { volume: number; reducedMotion: boolean; music: MusicSettings };
   lastMode: GameMode;
   stats: { completed: number; p1Wins: number; p2Wins: number; draws: number };
   lastResultId: string | null;
@@ -40,7 +42,7 @@ export interface StoragePort {
 }
 export const SAVE_KEY = 'gun-brawl:save:v1';
 const defaults = (): SaveData => ({
-  version: SAVE_VERSION, settings: { volume: 0.35, reducedMotion: false },
+  version: SAVE_VERSION, settings: { volume: 0.35, reducedMotion: false, music: normalizeMusic(null) },
   lastMode: 'duel-ai', stats: { completed: 0, p1Wins: 0, p2Wins: 0, draws: 0 }, lastResultId: null,
   selectedMapId: 'sky-citadel', appearances: { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') },
   bindings: cloneBindings(), customMatch: cloneCustomMatch(), trainingCompleted: [], trainingIntroSeen: false,
@@ -70,6 +72,7 @@ export class SaveStore {
       const stats = record(parsed.stats);
       if (typeof settings.volume === 'number' && Number.isFinite(settings.volume)) this.data.settings.volume = Math.max(0, Math.min(1, settings.volume));
       if (typeof settings.reducedMotion === 'boolean') this.data.settings.reducedMotion = settings.reducedMotion;
+      this.data.settings.music = normalizeMusic(settings.music);
       if (isGameMode(parsed.lastMode)) this.data.lastMode = parsed.lastMode;
       this.data.stats = { completed: count(stats.completed), p1Wins: count(stats.p1Wins), p2Wins: count(stats.p2Wins), draws: count(stats.draws) };
       if (typeof parsed.lastResultId === 'string') this.data.lastResultId = parsed.lastResultId;

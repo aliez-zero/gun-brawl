@@ -9,6 +9,9 @@ import { getArena, isMapId } from '../content/maps';
 import { getWeapon } from '../content/weapons';
 import type { BattleEvent, GameMode, MatchState, WeaponId } from '../game/core/types';
 import { SoundEffects } from '../presentation/SoundEffects';
+import { MusicPlayer } from '../presentation/music/MusicPlayer';
+import { normalizeMusic, sceneMusic } from '../content/music';
+import type { MusicSettings } from '../content/music';
 import { ArenaScene } from '../scenes/ArenaScene';
 import { BootScene } from '../scenes/BootScene';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
@@ -21,6 +24,8 @@ const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'app
 export class GameApplication {
   private readonly store = new SaveStore(browserStorage());
   private readonly sound = new SoundEffects();
+  private readonly music = new MusicPlayer();
+  private readonly audioListeners = new AbortController();
   private readonly ui: GameUI;
   private readonly arena: ArenaScene;
   private readonly game: Phaser.Game;
@@ -58,6 +63,8 @@ export class GameApplication {
         this.persist(); this.refreshMenuPreview();
       },
       setVolume: (volume) => { this.sound.volume = volume; this.store.data.settings.volume = volume; this.persist(); this.sound.unlock(); },
+      setMusic: (settings) => this.setMusic(settings),
+      toggleMusic: () => this.setMusic({ enabled: !this.store.data.settings.music.enabled }),
       setReducedMotion: (value) => { this.arena.setReducedMotion(value); this.store.data.settings.reducedMotion = value; this.persist(); },
       setBindings: (bindings) => {
         this.store.data.bindings = bindings;
@@ -84,6 +91,7 @@ export class GameApplication {
         this.arena.setReducedMotion(this.store.data.settings.reducedMotion);
         this.refreshMenuPreview();
         this.ui.setReady();
+        this.syncMusic();
         this.notifyStorage();
       },
       onFrame: (state) => this.frame(state),
@@ -92,6 +100,8 @@ export class GameApplication {
       onExternalAI: (value) => this.ui.updateExternalAI(value),
     }, this.sound, this.store.data.bindings);
     this.sound.volume = this.store.data.settings.volume;
+    this.music.onChange = (status) => this.ui.updateMusic(status);
+    this.music.configure(this.store.data.settings.music);
     this.game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-canvas',
@@ -106,6 +116,10 @@ export class GameApplication {
     });
     window.addEventListener('blur', this.onBlur);
     document.addEventListener('visibilitychange', this.onVisibility);
+    const signal = this.audioListeners.signal;
+    window.addEventListener('pointerdown', this.onAudioGesture, { capture: true, signal });
+    window.addEventListener('keydown', this.onAudioGesture, { capture: true, signal });
+    window.addEventListener('focus', this.onAudioFocus, { signal });
   }
 
   private start(mode: GameMode): void {
@@ -125,6 +139,7 @@ export class GameApplication {
       trainingCompleted: this.store.data.trainingCompleted,
     }));
     this.ui.showMatch(this.arena.matchState!);
+    this.syncMusic();
     (document.activeElement as HTMLElement | null)?.blur();
   }
 
@@ -146,6 +161,7 @@ export class GameApplication {
       appearances: this.store.data.appearances, matchId,
     }));
     this.ui.showMatch(this.arena.matchState!);
+    this.syncMusic();
     (document.activeElement as HTMLElement | null)?.blur();
   }
 
@@ -167,6 +183,7 @@ export class GameApplication {
       appearances: this.store.data.appearances, matchId,
     }));
     this.ui.showMatch(this.arena.matchState!);
+    this.syncMusic();
     (document.activeElement as HTMLElement | null)?.blur();
   }
 
@@ -222,6 +239,7 @@ export class GameApplication {
         mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances, matchId,
       }), session);
       this.ui.showMatch(this.arena.matchState!);
+      this.syncMusic();
       (document.activeElement as HTMLElement | null)?.blur();
       if (document.hidden || !document.hasFocus()) this.pause();
     } catch (error) {
@@ -235,11 +253,13 @@ export class GameApplication {
     this.arena.setBindings(this.store.data.bindings);
     this.arena.setReducedMotion(this.store.data.settings.reducedMotion);
     this.sound.volume = this.store.data.settings.volume;
+    this.music.configure(this.store.data.settings.music);
     this.screen = 'menu';
     this.activeMode = this.store.data.lastMode;
     this.arena.showMenu();
     this.refreshMenuPreview();
     this.ui.showMenu();
+    this.syncMusic();
     this.ui.notify(this.store.available ? '本地存档已清除' : '存档已重置，但本地存储不可写');
   }
 
@@ -274,6 +294,7 @@ export class GameApplication {
         }
         this.notifyStorage();
         this.ui.showResult(event.result);
+        this.syncMusic();
       }
       if (event.type === 'overtime') this.ui.notify('进入决胜加时，每人只剩一条命！');
       if (event.type === 'pickup') {
@@ -288,6 +309,7 @@ export class GameApplication {
     this.arena.pauseMatch();
     this.screen = 'pause';
     this.ui.showPause();
+    this.syncMusic();
   }
 
   private resume(): void {
@@ -296,6 +318,7 @@ export class GameApplication {
     this.screen = 'match';
     this.arena.resumeMatch();
     this.ui.showMatch(this.arena.matchState!);
+    this.syncMusic();
     (document.activeElement as HTMLElement | null)?.blur();
   }
 
@@ -306,6 +329,7 @@ export class GameApplication {
     this.arena.showMenu();
     this.refreshMenuPreview();
     this.ui.showMenu();
+    this.syncMusic();
   }
 
   private openDialog(kind: Dialog): void {
@@ -317,7 +341,7 @@ export class GameApplication {
       this.returnScreen = this.screen === 'pause' ? 'pause' : this.screen === 'result' ? 'result' : 'menu';
       this.screen = kind;
     }
-    if (kind === 'settings') this.ui.showSettings();
+    if (kind === 'settings') { this.ui.showSettings(); this.ui.updateMusic(this.music.status); }
     else if (kind === 'deepseek') { void this.refreshDeepSeek(); }
     else if (kind === 'help') this.ui.showHelp();
     else if (kind === 'appearance') this.ui.showAppearance(this.returnScreen !== 'menu');
@@ -325,6 +349,7 @@ export class GameApplication {
     else if (kind === 'encyclopedia') this.ui.showEncyclopedia();
     else if (kind === 'campaign') this.ui.showCampaign(this.store.data.campaign);
     else this.ui.showMaps(this.returnScreen !== 'menu');
+    this.syncMusic();
   }
 
   private closeDialog(): void {
@@ -334,6 +359,7 @@ export class GameApplication {
     if (this.screen === 'pause') this.ui.showPause();
     else if (this.screen === 'result' && this.arena.matchState?.result) this.ui.showResult(this.arena.matchState.result);
     else this.menu();
+    this.syncMusic();
   }
 
   private handleEscape(): void {
@@ -342,8 +368,25 @@ export class GameApplication {
     else this.closeDialog();
   }
 
-  private readonly onBlur = (): void => { this.pause(); };
-  private readonly onVisibility = (): void => { if (document.hidden) this.pause(); };
+  private readonly onBlur = (): void => { this.pause(); this.music.setPaused(true); };
+  private readonly onVisibility = (): void => { if (document.hidden) this.pause(); this.syncMusic(); };
+  private readonly onAudioFocus = (): void => { this.syncMusic(); };
+  private readonly onAudioGesture = (): void => { void this.music.unlock(); };
+
+  private setMusic(patch: Partial<MusicSettings>): void {
+    this.store.data.settings.music = normalizeMusic({ ...this.store.data.settings.music, ...patch });
+    this.syncMusic(); this.music.configure(this.store.data.settings.music);
+    this.persist(); void this.music.unlock();
+  }
+
+  private syncMusic(): void {
+    const inBattle = this.screen === 'match' || this.screen === 'pause' || (isDialog(this.screen) && this.returnScreen === 'pause');
+    const paused = document.hidden || !document.hasFocus() || (inBattle && this.screen !== 'match');
+    if (paused) this.music.setPaused(true);
+    const map = inBattle ? this.arena.matchState?.config.map.id ?? this.store.data.selectedMapId : this.store.data.selectedMapId;
+    this.music.setTrack(sceneMusic(this.store.data.settings.music.track, inBattle, map));
+    if (!paused) this.music.setPaused(false);
+  }
 
   private refreshMenuPreview(): void {
     if (this.isReady && (this.screen === 'menu' || (isDialog(this.screen) && this.returnScreen === 'menu'))) {
@@ -361,10 +404,12 @@ export class GameApplication {
 
   destroy(): void {
     this.cancelDeepSeekSetup();
+    this.audioListeners.abort();
     window.removeEventListener('blur', this.onBlur);
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.ui.destroy();
     this.sound.destroy();
+    this.music.destroy();
     this.game.destroy(true);
   }
 }

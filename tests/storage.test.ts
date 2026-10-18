@@ -3,6 +3,7 @@ import { cloneBindings, DEFAULT_KEY_BINDINGS, rebind } from '../src/content/cont
 import { cloneCustomMatch } from '../src/content/matches';
 import { SaveStore } from '../src/storage/SaveStore';
 import { presetAppearance } from '../src/content/appearances';
+import { DEFAULT_MUSIC } from '../src/content/music';
 import type { StoragePort } from '../src/storage/SaveStore';
 import type { MatchResult } from '../src/game/core/types';
 
@@ -17,7 +18,7 @@ describe('versioned local saves', () => {
     const store = new SaveStore(memoryStorage(JSON.stringify({ version: 1, settings: { volume: 0.68, reducedMotion: true }, stats: { completed: 9, p1Wins: 6, p2Wins: 2, draws: 1 }, lastMode: 'local-duel', lastResultId: 'old-result' })));
     expect(store.data.selectedMapId).toBe('sky-citadel');
     expect(store.data.appearances).toEqual({ 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') });
-    expect(store.data.settings).toEqual({ volume: 0.68, reducedMotion: true });
+    expect(store.data.settings).toEqual({ volume: 0.68, reducedMotion: true, music: DEFAULT_MUSIC });
     expect(store.data.stats.completed).toBe(9);
     expect(store.data.lastResultId).toBe('old-result');
     expect(store.data.lastMode).toBe('local-duel');
@@ -105,6 +106,7 @@ describe('versioned local saves', () => {
     const storage = memoryStorage();
     const store = new SaveStore(storage);
     store.data.settings.volume = 0.9;
+    store.data.settings.music = { enabled: false, volume: 0.8, track: 'space' };
     store.data.bindings = rebind(DEFAULT_KEY_BINDINGS, 1, 'shoot', 'KeyU').bindings;
     store.data.customMatch.stocks = 9;
     store.data.trainingCompleted = ['move'];
@@ -112,6 +114,8 @@ describe('versioned local saves', () => {
     store.recordResult(result);
     store.clear();
     expect(store.data.settings.volume).toBe(0.35);
+    expect(store.data.settings.music).toEqual(DEFAULT_MUSIC);
+    expect(new SaveStore(storage).data.settings.music).toEqual(DEFAULT_MUSIC);
     expect(store.data.campaign.unlocked).toBe(1);
     expect(store.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);
     expect(store.data.customMatch.stocks).toBe(3);
@@ -140,7 +144,7 @@ describe('versioned local saves', () => {
       version: 1, settings: { volume: 50, reducedMotion: true }, lastMode: 'not-a-mode',
       stats: { completed: -4, p1Wins: '5', p2Wins: 1.2, draws: 2 },
     })));
-    expect(store.data.settings).toEqual({ volume: 1, reducedMotion: true });
+    expect(store.data.settings).toEqual({ volume: 1, reducedMotion: true, music: DEFAULT_MUSIC });
     expect(store.data.lastMode).toBe('duel-ai');
     expect(store.data.stats).toEqual({ completed: 0, p1Wins: 0, p2Wins: 0, draws: 2 });
   });
@@ -149,6 +153,24 @@ describe('versioned local saves', () => {
     for (const raw of ['{broken', '{"version":999}', 'null']) {
       expect(new SaveStore(memoryStorage(raw)).data.stats.completed).toBe(0);
     }
+  });
+
+  it('restores independent music preferences and preserves old v2 audio settings', () => {
+    const storage = memoryStorage();
+    const store = new SaveStore(storage);
+    store.data.settings.volume = 0.61;
+    store.data.settings.music = { enabled: false, volume: 0.17, track: 'city' };
+    store.persist();
+    expect(new SaveStore(storage).data.settings).toEqual({ volume: 0.61, reducedMotion: false, music: { enabled: false, volume: 0.17, track: 'city' } });
+    const old = new SaveStore(memoryStorage(JSON.stringify({ version: 2, settings: { volume: 0, reducedMotion: true } })));
+    expect(old.data.settings).toEqual({ volume: 0, reducedMotion: true, music: DEFAULT_MUSIC });
+  });
+
+  it('repairs individual damaged music fields without discarding valid preferences', () => {
+    const store = new SaveStore(memoryStorage(JSON.stringify({ version: 2, settings: { music: { enabled: false, volume: 5, track: '<invalid>' } } })));
+    expect(store.data.settings.music).toEqual({ enabled: false, volume: 1, track: 'auto' });
+    const invalid = new SaveStore(memoryStorage(JSON.stringify({ version: 2, settings: { music: { enabled: 1, volume: 'loud', track: 'space' } } })));
+    expect(invalid.data.settings.music).toEqual({ ...DEFAULT_MUSIC, track: 'space' });
   });
 
   it('keeps in-memory state usable when localStorage reads or writes throw', () => {

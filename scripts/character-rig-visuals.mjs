@@ -10,7 +10,7 @@ const errors = [];
 try {
   await mkdir('artifacts', { recursive: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => { errors.push(error.message); console.error(error.stack); });
   await page.goto(baseURL, { waitUntil: 'networkidle' });
   await page.locator('[data-action="start"]:not([disabled])').waitFor();
   await page.locator('.site-header [data-action="appearance"]').click();
@@ -43,23 +43,26 @@ try {
     const { createCustomMatchConfig, DEFAULT_CUSTOM_MATCH } = await import('/src/content/matches.ts');
     const { presetAppearance } = await import('/src/content/appearances.ts');
     const { createWeapon, weaponMuzzle } = await import('/src/content/weapons.ts');
-    await new Promise((resolve) => {
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Rig scene did not initialize within 15 seconds')), 15000);
       class RigScene extends Phaser.Scene {
         create() {
-          const renderer = new ArenaRenderer(this), weapons = new WeaponLayer(this);
-          const config = createCustomMatchConfig({ ...DEFAULT_CUSTOM_MATCH, slots: [{ kind: 'human', inputSlot: 1 }, { kind: 'human', inputSlot: 2 }, { kind: 'bot', difficulty: 'normal' }, { kind: 'bot', difficulty: 'normal' }] }, 123);
-          const simulation = new BattleSimulation({ ...config, countdown: 0 });
-          simulation.step(1 / 60, new Map()); simulation.step(1 / 60, new Map());
-          const state = simulation.state;
-          state.actors.forEach((actor, index) => {
-            actor.config = { ...actor.config, appearance: presetAppearance('cowboy') };
-            actor.position = { x: 280 + index * 240, y: 620 }; actor.previous = { ...actor.position };
-            actor.groundedOn = state.config.map.platforms[0].id; actor.facing = index % 2 ? -1 : 1;
-            actor.protectionRemaining = 0; actor.weapon = createWeapon(index % 2 ? 'awm' : 'pistol');
-          });
-          const draw = (seconds = 1 / 60) => { renderer.draw(state, 1, seconds); weapons.draw(state, 1, renderer.weaponMounts); };
-          window.rigCheck = { scene: this, game: this.game, renderer, weapons, state, draw, createWeapon, weaponMuzzle, presetAppearance };
-          draw(); resolve();
+          try {
+            const renderer = new ArenaRenderer(this), weapons = new WeaponLayer(this);
+            const config = createCustomMatchConfig({ ...DEFAULT_CUSTOM_MATCH, slots: [{ kind: 'human', inputSlot: 1 }, { kind: 'human', inputSlot: 2 }, { kind: 'bot', difficulty: 'normal' }, { kind: 'bot', difficulty: 'normal' }] }, 123);
+            const simulation = new BattleSimulation({ ...config, countdown: 0 });
+            simulation.step(1 / 60, new Map()); simulation.step(1 / 60, new Map());
+            const state = simulation.state;
+            state.actors.forEach((actor, index) => {
+              actor.config = { ...actor.config, appearance: presetAppearance('cowboy') };
+              actor.position = { x: 280 + index * 240, y: 620 }; actor.previous = { ...actor.position };
+              actor.groundedOn = state.config.map.platforms[0].id; actor.facing = index % 2 ? -1 : 1;
+              actor.protectionRemaining = 0; actor.weapon = createWeapon(index % 2 ? 'awm' : 'pistol');
+            });
+            const draw = (seconds = 1 / 60) => { renderer.draw(state, 1, seconds); weapons.draw(state, 1, renderer.weaponMounts); };
+            window.rigCheck = { scene: this, game: this.game, renderer, weapons, state, draw, createWeapon, weaponMuzzle, presetAppearance };
+            draw(); clearTimeout(timeout); resolve();
+          } catch (error) { clearTimeout(timeout); reject(error); }
         }
       }
       new Phaser.Game({ type: Phaser.WEBGL, parent: 'rig-scene', width: 1280, height: 720, backgroundColor: '#13202a', scene: RigScene, audio: { noAudio: true }, input: { keyboard: false }, banner: false });
@@ -70,7 +73,7 @@ try {
     const failures = [];
     const check = (condition, message) => { if (!condition) failures.push(message); };
     const images = () => scene.children.list.filter((entry) => entry.texture?.key.startsWith('humanoid-rig-'));
-    const snapshot = () => images().map((entry) => [entry.x, entry.y, entry.rotation, entry.scaleX, entry.scaleY, entry.visible]);
+    const snapshot = () => images().map((entry) => [entry.x, entry.y, entry.rotation, entry.scaleX, entry.scaleY, entry.visible, entry.alpha, entry.vertices ? [...entry.vertices] : null]);
     const initialChildren = scene.children.length;
     for (const style of ['cowboy', 'ronin', 'operative', 'astronaut', 'knight']) {
       state.actors.forEach((actor) => { actor.config.appearance = presetAppearance(style); });
@@ -79,6 +82,13 @@ try {
         const before = JSON.stringify(state);
         draw();
         check(JSON.stringify(state) === before, 'renderer modified combat state');
+        const meshes = images().filter((entry) => entry.type === 'Rope');
+        check(meshes.length === (style === 'cowboy' ? 32 : 0), `incorrect weighted limb count for ${style}`);
+        for (const mesh of meshes) {
+          check([...mesh.vertices].every(Number.isFinite), 'invalid mesh vertices');
+          check(mesh.vertices.length === 32 && !mesh.dirty, 'weighted mesh was regenerated by rope geometry');
+          check([...mesh.uv].every((v, index) => Number.isFinite(v) && v >= (index % 2 ? mesh.frame.v0 : mesh.frame.u0) && v <= (index % 2 ? mesh.frame.v1 : mesh.frame.u1)), 'mesh sampled outside its atlas slot');
+        }
         for (const actor of state.actors) {
           const mount = renderer.weaponMounts.get(actor.config.id), sprite = weapons.sprites.get(actor.config.id);
           check(mount && sprite && Math.hypot(mount.x - sprite.x, mount.y - sprite.y) < 0.001, `detached weapon ${weaponId}/${facing}`);
@@ -99,7 +109,8 @@ try {
         actor.position.x -= 50; actor.previous.x -= 50;
       }
     }
-    state.actors.forEach((actor) => { actor.moveVelocity = 300; actor.reloadRemaining = 0; });
+    renderer.reset(); weapons.reset();
+    state.actors.forEach((actor) => { actor.config.appearance = presetAppearance('cowboy'); actor.moveVelocity = 300; actor.reloadRemaining = 0; });
     for (let i = 0; i < 10; i++) draw();
     state.phase = 'paused'; const frozen = JSON.stringify(snapshot());
     for (let i = 0; i < 10; i++) draw(0.1);
@@ -126,6 +137,12 @@ try {
     renderer.reset(); weapons.reset();
     state.actors.forEach((actor, index) => { actor.config.appearance = presetAppearance(styles[index + 1]); actor.facing = index % 2 ? -1 : 1; actor.weapon = createWeapon(index % 2 ? 'awm' : 'pistol'); });
     draw();
+    window.rigCheck.showCowboy = () => {
+      renderer.reset(); weapons.reset();
+      state.actors.forEach((actor, index) => { actor.config.appearance = presetAppearance('cowboy'); actor.moveVelocity = index < 2 ? 0 : 260; });
+      for (let i = 0; i < 12; i++) draw();
+      scene.cameras.main.setZoom(2.2).centerOn(400, 580);
+    };
     window.rigCheck.verifyDestroy = () => {
       renderer.destroy(); weapons.destroy();
       return { children: scene.children.length, atlases: scene.textures.getTextureKeys().filter((key) => key.startsWith('humanoid-rig-')).length };
@@ -135,6 +152,9 @@ try {
   assert.deepEqual(runtime.failures, []);
   await page.waitForTimeout(80);
   await page.screenshot({ path: 'artifacts/characters-rig-battle.png', fullPage: true });
+  await page.evaluate(() => window.rigCheck.showCowboy());
+  await page.waitForTimeout(80);
+  await page.screenshot({ path: 'artifacts/cowboy-weighted-webgl.png', fullPage: true });
   const destroyed = await page.evaluate(() => window.rigCheck.verifyDestroy());
   assert.deepEqual(destroyed, { children: 0, atlases: 0 });
   await page.evaluate(() => window.rigCheck.game.destroy(true));

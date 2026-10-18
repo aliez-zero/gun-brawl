@@ -46,7 +46,7 @@ export function paintCowboyPart(ctx: Context, look: CharacterAppearance, part: C
       break;
     case 'thighBack': case 'thigh': {
       const back = part === 'thighBack';
-      shape('M-3.8 0 Q-3.8-3 0-3 Q3.7-3 3.9 0 L3.1 14 Q2 17-2.8 15 L-3.8 2Z', gradient(back ? '#526068' : '#718088', back ? '#354752' : '#495d69', '#2a3541', -4, 0, 6, 16));
+      shape('M-3.8 0 Q-3.8-3 0-3 Q3.7-3 3.9 0 L3.1 17.5 Q2 19-2.8 18 L-3.8 2Z', gradient(back ? '#526068' : '#718088', back ? '#354752' : '#495d69', '#2a3541', -4, 0, 6, 16));
       line('M-1.8 1-1.2 11', back ? '#566571' : '#95a09a', 0.55);
       if (!back) line('M2 1 2.2 9', '#b69b7c', 0.5);
       break;
@@ -150,9 +150,9 @@ export function paintCowboyPart(ctx: Context, look: CharacterAppearance, part: C
       }
       break;
     case 'upperBack': case 'upper':
-      shape('M-3.4 1 Q-3.5-2.5 0-2.7 Q3.6-2.7 3.6 1 L2.8 15 Q2 17-2.5 16Z', gradient(lit, cloth, dark, -4, 0, 4, 17));
+      shape('M-3.4 1 Q-3.5-2.5 0-2.7 Q3.6-2.7 3.6 1 L2.8 18 Q2 20-2.5 19Z', gradient(lit, cloth, dark, -4, 0, 4, 17));
       line('M-1.8 1-1.4 11', '#d0a783', 0.5);
-      shape('M-2.8 12.8 3 12.8 2.7 16.5-2.6 16.5Z', leatherLight);
+      shape('M-2.8 12.8 3 12.8 2.7 19-2.6 19Z', leatherLight);
       line('M-1.5 13.8 1.7 13.8', '#dec5a0', 0.45);
       break;
     case 'foreBack': case 'fore':
