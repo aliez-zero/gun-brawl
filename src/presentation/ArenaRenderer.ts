@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { presetAppearance } from '../content/appearances';
 import { TRAINING_ARENA } from '../content/maps';
-import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchState, Vec2 } from '../game/core/types';
+import { getWeapon } from '../content/weapons';
+import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchState, Vec2, WeaponId } from '../game/core/types';
 import { CHARACTER_FRAME, characterKey, colorCss, createCharacterAtlas } from './CharacterArt';
 import { characterFrame } from './CharacterMotion';
 import { paintWorld } from './WorldArt';
 
-interface Effect extends Vec2 { life: number; kind: 'hit' | 'shot' | 'respawn' }
+interface Effect extends Vec2 { life: number; kind: 'hit' | 'shot' | 'respawn'; weaponId?: WeaponId }
 interface CharacterView { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text }
 
 export class ArenaRenderer {
@@ -68,7 +69,9 @@ export class ArenaRenderer {
 
   handle(events: readonly BattleEvent[]): void {
     for (const event of events) {
-      if (event.type === 'hit' || event.type === 'shot' || event.type === 'respawn') this.effects.push({ ...event.position, life: 0.2, kind: event.type });
+      if (event.type === 'hit' || event.type === 'shot' || event.type === 'respawn') {
+        this.effects.push({ ...event.position, life: 0.2, kind: event.type, ...(event.type === 'shot' ? { weaponId: event.weaponId } : {}) });
+      }
       if (event.type === 'hit') this.hitAt.set(event.actorId, this.clock);
       if (event.type === 'respawn') { this.wasAirborne.delete(event.actorId); this.landedAt.delete(event.actorId); this.hitAt.delete(event.actorId); }
       if (event.type === 'ringout' && !this.reducedMotion) this.scene.cameras.main.shake(110, 0.002);
@@ -123,15 +126,46 @@ export class ArenaRenderer {
       const opacity = Math.max(0, effect.life / 0.2);
       const radius = (1 - opacity) * (effect.kind === 'respawn' ? 45 : 20) + 3;
       g.lineStyle(2, effect.kind === 'hit' ? 0xffb595 : 0xffe7a3, opacity);
-      if (effect.kind === 'shot') {
-        for (let i = 0; i < 4; i++) {
-          const angle = i * Math.PI / 2 + 0.3;
-          g.lineBetween(effect.x + Math.cos(angle) * 3, effect.y + Math.sin(angle) * 3,
-            effect.x + Math.cos(angle) * radius, effect.y + Math.sin(angle) * radius);
-        }
-      } else g.strokeCircle(effect.x, effect.y, radius);
+      if (effect.kind === 'shot') this.drawMuzzle(g, effect, opacity, radius);
+      else g.strokeCircle(effect.x, effect.y, radius);
     }
     this.effects = this.effects.filter((effect) => effect.life > 0);
+  }
+
+  private drawMuzzle(g: Phaser.GameObjects.Graphics, effect: Effect, opacity: number, radius: number): void {
+    const family = getWeapon(effect.weaponId ?? 'pistol').family ?? effect.weaponId ?? 'pistol';
+    const color = effect.weaponId === 'cannon' ? 0xff7d8f : family === 'rocket' ? 0xffc45c : 0xffe7a3;
+    g.lineStyle(2, color, opacity);
+    if (family === 'shotgun') {
+      for (let i = -2; i <= 2; i++) g.lineBetween(effect.x, effect.y, effect.x + radius * 1.3, effect.y + i * radius * 0.3);
+      return;
+    }
+    if (family === 'sniper') {
+      g.lineBetween(effect.x - radius * 2, effect.y, effect.x + radius * 1.6, effect.y);
+      g.lineStyle(1, color, opacity * 0.6);
+      g.lineBetween(effect.x, effect.y - radius * 0.5, effect.x + radius, effect.y + radius * 0.4);
+      return;
+    }
+    if (family === 'rocket') {
+      g.lineStyle(3, 0xffb84f, opacity * 0.8);
+      g.strokeCircle(effect.x - radius * 0.5, effect.y + radius * 0.4, radius * 0.8);
+      g.lineBetween(effect.x - radius * 1.8, effect.y + radius * 0.7, effect.x - radius * 0.2, effect.y);
+      return;
+    }
+    if (family === 'gatling' || family === 'cannon') {
+      g.lineStyle(3, color, opacity);
+      g.strokeCircle(effect.x, effect.y, radius * 1.1);
+      for (let i = 0; i < 6; i++) {
+        const angle = i * Math.PI / 3;
+        g.lineBetween(effect.x, effect.y, effect.x + Math.cos(angle) * radius * 1.8, effect.y + Math.sin(angle) * radius * 1.8);
+      }
+      return;
+    }
+    for (let i = 0; i < 4; i++) {
+      const angle = i * Math.PI / 2 + 0.3;
+      g.lineBetween(effect.x + Math.cos(angle) * 3, effect.y + Math.sin(angle) * 3,
+        effect.x + Math.cos(angle) * radius, effect.y + Math.sin(angle) * radius);
+    }
   }
 
   private character(id: string, look: CharacterAppearance, x: number, y: number, facing: -1 | 1, scale: number, frame: number, alpha: number, name: string, identity: number): void {
