@@ -6,7 +6,7 @@ export class KeyboardInput {
   enabled = false;
   private readonly held = new Set<string>();
   private readonly pressed = new Set<string>();
-  private readonly weaponCodes = Array.from({ length: 6 }, (_, index) => `Digit${index + 1}`);
+  private readonly weaponCodes = Array.from({ length: 8 }, (_, index) => `Digit${index + 1}`);
   private readonly allowed = new Set([
     ...Object.values(KEY_BINDINGS).flatMap((bindings) => Object.values(bindings).flatMap((binding) => binding.codes)),
     ...this.weaponCodes,

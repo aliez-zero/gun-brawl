@@ -1,6 +1,6 @@
 # T03 · 投放、箱子与拾取
 
-更新：2026-10-17（北京时间）。分组：战斗 / 投放拾取。状态：核心完成；负责人：当前会话；投放状态机、权重池、自动拾取、T03.5 清理和箱子 / 武器图标表现已交付；拾取 HUD / 音效和正式地图点位仍待。基线 `86070be`。
+更新：2026-10-18（北京时间）。分组：战斗 / 投放拾取。状态：核心完成；负责人：当前会话；投放状态机、权重池、自动拾取、T03.5 清理、箱子 / 武器图标和四图正式点位已交付。基线 `86070be`。
 
 [模块目录](./README.md) · [认领与依赖总看板](../PARALLEL_PLAN.md) · [当前实现状态](../DEVELOPMENT.md)
 
@@ -8,7 +8,7 @@
 
 先读 [AGENTS.md](../../AGENTS.md)、[架构](../ARCHITECTURE.md) 和 [PRD](../PRD.md)。状态、负责人、工作区与分支只在总看板登记；本文复选框用于子任务，不代表集成完成。
 
-T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快照，并确定拾取位于“批量出界之后、胜负之前”；T03 用 `WeaponSystem.equipWeapon` / `refillWeapon` 切枪补满，不改起始配置。T01 六把枪已注册，火箭也已接入 T02 爆炸服务；默认池可以包含 `rocket`，但仍需 T03 的点位 / 状态机与 T02 的爆炸表现。依赖 T01 换枪入口、T04 地图点位和 T00 调度 / 随机约定。可先实现点位筛选与投放状态机；主流程接入须等依赖就绪。
+T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快照，并确定拾取位于“批量出界之后、胜负之前”；T03 用 `WeaponSystem.equipWeapon` / `refillWeapon` 切枪补满，不改起始配置。T01 八把枪已注册（含两类终极武器），火箭也已接入 T02 爆炸服务；默认池可以包含 `rocket` / `gatling` / `cannon`。依赖 T01 换枪入口、T04 地图点位和 T00 调度 / 随机约定。
 
 ## 模块范围与验收
 
@@ -33,7 +33,7 @@ T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快
 
 ### 已实现
 
-- `src/content/drops.ts`：默认池手枪 0 / 冲锋枪 25 / 步枪 30 / 霰弹 20 / 狙击 15 / 火箭 10；`normalizeDropPool` 过滤非正权重，空池合法。
+- `src/content/drops.ts`：默认池手枪 0 / 冲锋枪 25 / 步枪 30 / 霰弹 20 / 狙击 15 / 火箭 10 / 加特林 5 / 重炮狙击枪 2；终极武器合计约 6.5%，普通对局仍以标准枪为主。`normalizeDropPool` 过滤非正权重，空池合法。
 - `src/game/systems/DropSystem.ts`：
   - 首个箱子在可操作第 8 秒，之后每 8 秒；提前 1 秒 incoming，落地后 20 秒寿命，最后 3 秒 `warning`。
   - 场上最多 3 个未拾取箱子；满额跳过本次。
@@ -47,13 +47,13 @@ T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快
 
 ### 检查
 
-- `tests/drops.test.ts` 11 项：8 秒首投 / 1 秒落地、确定性种子、权重 / 空池 / 无安全点、三箱上限、预警 / 到期、满弹拾取、同帧一人、出界排除、旧枪同帧射击、拾取优先到期、暂停 / 倒计时、加时清理。
+- `tests/drops.test.ts` 13 项：8 秒首投 / 1 秒落地、确定性种子、权重 / 空池 / 无安全点、三箱上限、预警 / 到期、满弹拾取、同帧一人、出界排除、旧枪同帧射击、拾取优先到期、暂停 / 倒计时、加时清理，以及四图 `dropPoints` 边界 / 平台 / 出生点距离契约。
 - 类型检查、完整测试、构建和浏览器 smoke 见交付记录。
 
 ### 仍待集成
 
-- 箱子 incoming / active / warning、武器图标、拾取 toast / 音效和炸弹 / 爆炸表现已接入；HUD 武器图标仍待 T10。
-- T04 的真实 `dropPoints` 尚未写入地图；当前用平台下半区派生安全点作为回退，地图负责人可以覆盖。
+- 箱子 incoming / active / warning、武器图标、拾取 toast / 音效、HUD 武器剪影和炸弹 / 爆炸表现已接入。
+- T04 的真实 `dropPoints` 已写入四图（训练台 5 / 古城 4 / 都市 5 / 飞船 6）；自定义地图无该字段时仍回退到平台下半区派生点。
 - T07 自定义武器池 / 空池 UI 未接。
 - T05 AI 已接 340 px 内抢箱；完整绕路 / 四图路线仍未完成。
 

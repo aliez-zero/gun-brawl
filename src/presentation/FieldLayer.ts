@@ -5,6 +5,7 @@ import { createWeaponIconCanvas, weaponIconKey } from './WeaponArt';
 const ACCENT: Record<WeaponId, number> = {
   pistol: 0xaab4b7, smg: 0x4fc3b1, rifle: 0xf0a23a,
   shotgun: 0xe05a4f, sniper: 0xb48ce0, rocket: 0xf2c94c,
+  gatling: 0xf2a23a, cannon: 0xff5d73,
 };
 
 interface Burst { x: number; y: number; radius: number; age: number }

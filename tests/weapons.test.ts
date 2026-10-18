@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
-import { BASIC_PISTOL, RIFLE, ROCKET, SMG, SNIPER, WEAPONS, createWeapon, getWeapon } from '../src/content/weapons';
+import { BASIC_PISTOL, CANNON, GATLING, RIFLE, ROCKET, SHOTGUN, SMG, SNIPER, WEAPONS, createWeapon, getWeapon } from '../src/content/weapons';
 import { BotController } from '../src/game/ai/BotController';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
@@ -30,11 +30,12 @@ function flatMap(): MapDefinition {
 }
 
 describe('T01 weapon registry and ammo', () => {
-  it('registers six usable guns and exposes legal switch / refill entries', () => {
-    expect(Object.keys(WEAPONS).sort()).toEqual(['pistol', 'rifle', 'rocket', 'shotgun', 'smg', 'sniper']);
+  it('registers eight usable guns and exposes legal switch / refill entries', () => {
+    expect(Object.keys(WEAPONS).sort()).toEqual(['cannon', 'gatling', 'pistol', 'rifle', 'rocket', 'shotgun', 'smg', 'sniper']);
     expect(createWeapon('smg').ammoRemaining).toBe(60);
+    expect(createWeapon('gatling').ammoRemaining).toBe(200);
     expect(getWeapon('rocket')).toBe(ROCKET);
-    expect(ROCKET.explosion).toEqual({ radius: 140, centerImpulse: 330, edgeImpulse: 80 });
+    expect(ROCKET.explosion).toEqual({ radius: 150, centerImpulse: 650, edgeImpulse: 200 });
 
     const simulation = active();
     const actor = simulation.state.actors[0]!;
@@ -52,6 +53,58 @@ describe('T01 weapon registry and ammo', () => {
     equipWeapon(actor, 'rocket');
     expect(actor.weapon.definition).toBe(ROCKET);
     expect(actor.weapon.ammoRemaining).toBe(3);
+    equipWeapon(actor, 'cannon');
+    expect(actor.weapon.definition).toBe(CANNON);
+    expect(actor.weapon.ammoRemaining).toBe(3);
+  });
+
+  it('keeps the pistol reference while every standard special hits harder per trigger', () => {
+    expect(RIFLE.knockback).toBeGreaterThan(BASIC_PISTOL.knockback);
+    expect(SHOTGUN.knockback * SHOTGUN.pellets).toBeGreaterThan(BASIC_PISTOL.knockback);
+    expect(SNIPER.knockback).toBeGreaterThan(BASIC_PISTOL.knockback);
+    expect(ROCKET.explosion!.centerImpulse).toBeGreaterThan(BASIC_PISTOL.knockback);
+    expect(GATLING.tier).toBe('ultimate');
+    expect(CANNON.tier).toBe('ultimate');
+    expect(GATLING.interval).toBeLessThan(BASIC_PISTOL.interval);
+    expect(CANNON.interval).toBeGreaterThan(BASIC_PISTOL.interval);
+    expect(CANNON.knockback).toBeGreaterThan(BASIC_PISTOL.knockback * 4);
+  });
+
+  it('cannon launches a full stock in one clean hit', () => {
+    const simulation = active({ map: flatMap() });
+    const [shooter, target] = simulation.state.actors;
+    shooter!.position = { x: 700, y: 500 };
+    target!.position = { x: 800, y: 500 };
+    shooter!.facing = 1;
+    shooter!.protectionRemaining = 0;
+    target!.protectionRemaining = 0;
+    equipWeapon(shooter!, 'cannon');
+    fire(simulation);
+    let ringout = false;
+    for (let frame = 0; frame < 120 && target!.stocks === 3; frame++) {
+      simulation.step(FIXED_STEP, new Map());
+      ringout ||= simulation.drainEvents().some((event) => event.type === 'ringout' && event.actorId === 'p2');
+    }
+    expect(ringout).toBe(true);
+    expect(target!.stocks).toBe(2);
+    expect(target!.status).toBe('respawning');
+  });
+
+  it('gatling fires much faster than the pistol from a 200-round belt', () => {
+    const simulation = active({ map: flatMap() });
+    const shooter = simulation.state.actors[0]!;
+    const target = simulation.state.actors[1]!;
+    shooter.position = { x: 300, y: 500 };
+    target.position = { x: 100, y: 500 };
+    shooter.facing = 1;
+    equipWeapon(shooter, 'gatling');
+    for (let frame = 0; frame < 18; frame++) {
+      simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), shootHeld: true }]]));
+    }
+    expect(shooter.weapon.ammoRemaining).toBeLessThan(200);
+    const gatlingRounds = simulation.state.projectiles.filter((projectile) => projectile.weaponId === 'gatling');
+    expect(gatlingRounds.length, JSON.stringify({ ammo: shooter.weapon.ammoRemaining, cooldown: shooter.fireCooldown, rounds: simulation.state.projectiles.map((projectile) => projectile.weaponId) })).toBeGreaterThan(2);
+
   });
 
   it.each([
@@ -96,8 +149,8 @@ describe('T01 weapon registry and ammo', () => {
     expect(angles[4]).toBeCloseTo(12);
     for (const pellet of pellets) expect(Math.hypot(pellet.velocity.x, pellet.velocity.y)).toBeCloseTo(1200);
     expect(shooter!.weapon.ammoRemaining).toBe(7);
-    expect(shooter!.fireCooldown).toBeCloseTo(0.7);
-    expect(shooter!.impulse.x).toBeCloseTo(-40);
+    expect(shooter!.fireCooldown).toBeCloseTo(0.75);
+    expect(shooter!.impulse.x).toBeCloseTo(-48);
     expect(simulation.drainEvents().filter((event) => event.type === 'shot')).toHaveLength(1);
   });
 
@@ -114,7 +167,7 @@ describe('T01 weapon registry and ammo', () => {
     expect(simulation.state.projectiles.filter((projectile) => projectile.weaponId === 'pistol')).toHaveLength(0);
     expect(shooter.weapon.definition).toBe(BASIC_PISTOL);
     expect(shooter.weapon.ammoRemaining).toBeNull();
-    expect(shooter.fireCooldown).toBeCloseTo(0.7);
+    expect(shooter.fireCooldown).toBeCloseTo(0.75);
 
     // Hold fire through 16 frames (~0.27 s): the old shotgun cadence still blocks the pistol.
     for (let frame = 0; frame < 16; frame++) {
@@ -122,8 +175,8 @@ describe('T01 weapon registry and ammo', () => {
     }
     expect(simulation.state.projectiles.filter((projectile) => projectile.weaponId === 'pistol')).toHaveLength(0);
 
-    // At ~0.7 s the pistol fires exactly once; a same-frame extra shot would make this two.
-    for (let frame = 0; frame < 26; frame++) {
+    // After the 0.75 s shotgun cadence the pistol fires exactly once; a same-frame extra shot would make this two.
+    for (let frame = 0; frame < 30; frame++) {
       simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), shootHeld: true }]]));
     }
     expect(simulation.state.projectiles.filter((projectile) => projectile.weaponId === 'pistol')).toHaveLength(1);
@@ -163,7 +216,7 @@ describe('T01 weapon registry and ammo', () => {
     equipWeapon(shooter!, 'rocket');
     fire(simulation);
     const rocket = simulation.state.projectiles.find((projectile) => projectile.weaponId === 'rocket')!;
-    expect(rocket.explosion).toEqual({ radius: 140, centerImpulse: 330, edgeImpulse: 80 });
+    expect(rocket.explosion).toEqual({ radius: 150, centerImpulse: 650, edgeImpulse: 200 });
 
     // Switching to the pistol must not change the rocket already in flight.
     equipWeapon(shooter!, 'pistol');
@@ -184,7 +237,7 @@ describe('T01 weapon registry and ammo', () => {
     const target = simulation.state.actors[0]!;
     bot.position.x = 300;
     bot.facing = 1;
-    target.position.x = 800;
+    target.position.x = 850;
     target.position.y = bot.position.y;
 
     equipWeapon(bot, 'smg');

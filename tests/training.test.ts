@@ -30,7 +30,7 @@ describe('T08 training hotbar', () => {
     expect(player!.weapon.definition.id).toBe('shotgun');
     expect(dummy!.weapon.definition.id).toBe('pistol');
     expect(simulation.selectTrainingWeapon(0)).toBe(false);
-    expect(simulation.selectTrainingWeapon(7)).toBe(false);
+    expect(simulation.selectTrainingWeapon(9)).toBe(false);
   });
 
   it('is a no-op outside training mode', () => {

@@ -6,7 +6,8 @@ export type ActorStatus = 'alive' | 'respawning' | 'eliminated';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type HumanSlot = 1 | 2;
 /** Stable IDs for the six PRD families. Five non-rocket families have content; rocket waits for T02. */
-export type WeaponId = 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket';
+export type WeaponId = 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket' | 'gatling' | 'cannon';
+export type WeaponTier = 'standard' | 'ultimate';
 export type CharacterStyle = 'cowboy' | 'ronin' | 'operative' | 'astronaut' | 'knight';
 export type Headwear = 'cowboy' | 'straw' | 'beret' | 'space' | 'knight' | 'none';
 export interface CharacterAppearance {
@@ -63,6 +64,8 @@ export interface MapDefinition {
 export interface WeaponDefinition {
   id: WeaponId;
   name: string;
+  /** Ultimate weapons are rare drops / training-only showcases, never the default pistol. */
+  tier: WeaponTier;
   interval: number;
   projectileSpeed: number;
   range: number;
@@ -76,6 +79,8 @@ export interface WeaponDefinition {
   spreadRadians: number;
   /** Rocket-style payload; absent for ordinary bullets. */
   explosion?: ExplosionProfile;
+  /** Optional higher clamp for a single direct hit (cannon-style launch). */
+  impulseCap?: number;
 }
 
 export interface ExplosionProfile {
@@ -150,6 +155,8 @@ export interface Projectile {
   distanceRemaining: number;
   /** Frozen at fire time; rockets explode instead of applying a direct hit. */
   explosion?: ExplosionProfile;
+  /** Frozen clamp override for this projectile's direct hit. */
+  impulseCap?: number;
 }
 
 export interface WeaponDrop {

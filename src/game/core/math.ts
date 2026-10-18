@@ -11,13 +11,13 @@ export const actorRect = (actor: ActorState): Rect => ({
   height: ACTOR_HEIGHT,
 });
 
-export function addImpulse(actor: ActorState, x: number, y: number): void {
+export function addImpulse(actor: ActorState, x: number, y: number, cap: number = MOVEMENT.maxImpulse): void {
   actor.impulse.x += x;
   actor.impulse.y += y;
   const length = Math.hypot(actor.impulse.x, actor.impulse.y);
-  if (length > MOVEMENT.maxImpulse) {
-    actor.impulse.x *= MOVEMENT.maxImpulse / length;
-    actor.impulse.y *= MOVEMENT.maxImpulse / length;
+  if (length > cap) {
+    actor.impulse.x *= cap / length;
+    actor.impulse.y *= cap / length;
   }
 }
 

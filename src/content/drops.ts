@@ -5,13 +5,15 @@ export interface DropPoolEntry {
   weight: number;
 }
 
-/** PRD family weights: SMG 25 / rifle 30 / shotgun 20 / sniper 15 / rocket 10. */
+/** Standard family weights plus rare ultimate weapons. */
 export const DEFAULT_DROP_POOL: readonly DropPoolEntry[] = [
   { weaponId: 'smg', weight: 25 },
   { weaponId: 'rifle', weight: 30 },
   { weaponId: 'shotgun', weight: 20 },
   { weaponId: 'sniper', weight: 15 },
   { weaponId: 'rocket', weight: 10 },
+  { weaponId: 'gatling', weight: 5 },
+  { weaponId: 'cannon', weight: 2 },
 ];
 
 /** Invalid or non-positive weights are ignored; an empty pool is a legal "no drops" rule. */

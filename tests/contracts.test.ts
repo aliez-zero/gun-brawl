@@ -7,7 +7,7 @@ import { createWeaponInstance, idleInput } from '../src/game/core/types';
 import type { ActorInput, MatchConfig, WeaponDefinition } from '../src/game/core/types';
 
 const TEST_SMG: WeaponDefinition = {
-  id: 'smg', name: '测试冲锋枪', interval: 0.1,
+  id: 'smg', name: '测试冲锋枪', tier: 'standard', interval: 0.1,
   projectileSpeed: 900, range: 600, knockback: 120, recoil: 0, maxAmmo: 12,
   pellets: 1, spreadRadians: 0,
 };

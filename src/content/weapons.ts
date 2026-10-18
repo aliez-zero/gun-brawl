@@ -3,50 +3,72 @@ import type { WeaponDefinition, WeaponId, WeaponInstance } from '../game/core/ty
 
 const DEG = Math.PI / 180;
 
+/**
+ * Pistol stays the reference (480 impulse / 0.28 s). Standard specials now beat
+ * that per trigger (shotgun counts all pellets), while the two ultimates are
+ * deliberately stronger and rarer than the starting pistol.
+ */
 export const BASIC_PISTOL: WeaponDefinition = {
-  id: 'pistol', name: '基础手枪', interval: 0.28,
+  id: 'pistol', name: '基础手枪', tier: 'standard', interval: 0.28,
   // Sustained hits must beat inward running, while one hit still permits recovery.
   projectileSpeed: 1200, range: 750, knockback: 480, recoil: 12, maxAmmo: null,
   pellets: 1, spreadRadians: 0,
 };
 
 export const SMG: WeaponDefinition = {
-  id: 'smg', name: '冲锋枪', interval: 0.1,
-  projectileSpeed: 1200, range: 500, knockback: 60, recoil: 7, maxAmmo: 60,
+  id: 'smg', name: '冲锋枪', tier: 'standard', interval: 0.09,
+  projectileSpeed: 1200, range: 520, knockback: 150, recoil: 7, maxAmmo: 60,
   pellets: 1, spreadRadians: 0,
 };
 
 export const RIFLE: WeaponDefinition = {
-  id: 'rifle', name: '突击步枪', interval: 0.18,
-  projectileSpeed: 1200, range: 850, knockback: 95, recoil: 12, maxAmmo: 30,
+  id: 'rifle', name: '突击步枪', tier: 'standard', interval: 0.22,
+  projectileSpeed: 1200, range: 850, knockback: 520, recoil: 18, maxAmmo: 30,
   pellets: 1, spreadRadians: 0,
 };
 
 export const SHOTGUN: WeaponDefinition = {
-  id: 'shotgun', name: '霰弹枪', interval: 0.7,
-  projectileSpeed: 1200, range: 260, knockback: 55, recoil: 40, maxAmmo: 8,
+  id: 'shotgun', name: '霰弹枪', tier: 'standard', interval: 0.75,
+  projectileSpeed: 1200, range: 300, knockback: 120, recoil: 48, maxAmmo: 8,
   pellets: 5, spreadRadians: 12 * DEG,
 };
 
 export const SNIPER: WeaponDefinition = {
-  id: 'sniper', name: '狙击枪', interval: 0.95,
-  projectileSpeed: 1800, range: 1200, knockback: 360, recoil: 55, maxAmmo: 5,
+  id: 'sniper', name: '狙击枪', tier: 'standard', interval: 1,
+  projectileSpeed: 1800, range: 1200, knockback: 1100, recoil: 70, maxAmmo: 5,
   pellets: 1, spreadRadians: 0,
 };
 
 export const ROCKET: WeaponDefinition = {
-  id: 'rocket', name: '火箭筒', interval: 1.1,
-  projectileSpeed: 600, range: 900, knockback: 330, recoil: 65, maxAmmo: 3,
+  id: 'rocket', name: '火箭筒', tier: 'standard', interval: 1.2,
+  projectileSpeed: 600, range: 900, knockback: 650, recoil: 70, maxAmmo: 3,
   pellets: 1, spreadRadians: 0,
-  explosion: { radius: 140, centerImpulse: 330, edgeImpulse: 80 },
+  explosion: { radius: 150, centerImpulse: 650, edgeImpulse: 200 },
 };
 
-/** Training hotbar order; also the stable 1-6 selection order. */
-export const WEAPON_SLOTS: readonly WeaponId[] = ['pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'rocket'];
+/** Ultimate: fastest fire rate in the game, deep 200-round belt. */
+export const GATLING: WeaponDefinition = {
+  id: 'gatling', name: '加特林', tier: 'ultimate', interval: 0.06,
+  projectileSpeed: 1500, range: 700, knockback: 160, recoil: 6, maxAmmo: 200,
+  pellets: 1, spreadRadians: 1.2 * DEG,
+};
 
-/** Six families are registered; the rocket payload is resolved by ExplosionSystem. */
+/** Ultimate: very slow anti-materiel cannon; one clean hit launches a full stock. */
+export const CANNON: WeaponDefinition = {
+  id: 'cannon', name: '重炮狙击枪', tier: 'ultimate', interval: 2.4,
+  projectileSpeed: 2200, range: 1800, knockback: 2600, recoil: 120, maxAmmo: 3,
+  pellets: 1, spreadRadians: 0, impulseCap: 3200,
+};
+
+/** Training hotbar order; also the stable 1-8 selection order. */
+export const WEAPON_SLOTS: readonly WeaponId[] = [
+  'pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'rocket', 'gatling', 'cannon',
+];
+
+/** Eight families are registered; the rocket payload is resolved by ExplosionSystem. */
 export const WEAPONS: Readonly<Partial<Record<WeaponId, WeaponDefinition>>> = {
   pistol: BASIC_PISTOL, smg: SMG, rifle: RIFLE, shotgun: SHOTGUN, sniper: SNIPER, rocket: ROCKET,
+  gatling: GATLING, cannon: CANNON,
 };
 
 export function getWeapon(id: WeaponId): WeaponDefinition {

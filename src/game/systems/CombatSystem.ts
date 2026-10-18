@@ -38,6 +38,7 @@ export class CombatSystem {
           impulse: { x: actor.facing * weapon.knockback, y: -weapon.knockback * 0.2 },
           distanceRemaining: weapon.range,
           ...(weapon.explosion ? { explosion: { ...weapon.explosion } } : {}),
+          ...(weapon.impulseCap ? { impulseCap: weapon.impulseCap } : {}),
         });
       }
       addImpulse(actor, -actor.facing * weapon.recoil, 0);
@@ -82,7 +83,7 @@ export class CombatSystem {
           };
           this.explode(state, projectile, impact, events);
         } else if (target && target.protectionRemaining <= 0) {
-          addImpulse(target, projectile.impulse.x, projectile.impulse.y);
+          addImpulse(target, projectile.impulse.x, projectile.impulse.y, projectile.impulseCap);
           target.lastHit = { by: projectile.owner, at: state.elapsed };
           events.push({ type: 'hit', actorId: target.config.id, position: { ...target.position, y: target.position.y - 28 } });
         }

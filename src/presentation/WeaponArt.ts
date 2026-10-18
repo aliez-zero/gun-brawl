@@ -102,6 +102,38 @@ function sniper(ctx: Ctx): void {
   arc(ctx, 38, 42, 17, 14, 0, Math.PI);
 }
 
+function gatling(ctx: Ctx): void {
+  poly(ctx, [4, 26, 28, 24, 32, 40, 16, 48], '#3d332b');
+  box(ctx, 22, 26, 46, 22, '#4e554d', 2);
+  box(ctx, 28, 48, 48, 22, '#6d5336', 2);
+  line(ctx, 50, 50, 50, 67, '#f2a23a', 1.2);
+  for (let barrel = 0; barrel < 6; barrel++) {
+    const y = 29 + barrel * 3.2;
+    line(ctx, 62, y, 138, y, '#aab4b2', 2.2);
+    line(ctx, 62, y + 1, 138, y + 1, '#394448', 0.7);
+  }
+  box(ctx, 130, 27, 14, 22, '#30383d', 2);
+  line(ctx, 134, 30, 134, 46, '#f2a23a', 1.5);
+  box(ctx, 40, 20, 26, 5, '#76817c', 1);
+  line(ctx, 44, 56, 60, 56, '#c7b184', 1.2);
+}
+
+function cannon(ctx: Ctx): void {
+  poly(ctx, [2, 30, 30, 26, 36, 42, 20, 50], '#4b3540');
+  box(ctx, 30, 24, 44, 24, '#3b4248', 2);
+  box(ctx, 70, 30, 78, 12, '#87939a', 1);
+  box(ctx, 144, 26, 13, 20, '#30383d', 2);
+  line(ctx, 148, 30, 148, 42, '#ff5d73', 1.6);
+  box(ctx, 42, 12, 30, 10, '#20282d', 2);
+  box(ctx, 44, 8, 5, 4, '#20282d');
+  box(ctx, 66, 8, 5, 4, '#20282d');
+  line(ctx, 48, 22, 36, 34, '#9fadb2', 2);
+  line(ctx, 76, 36, 76, 54, '#59646a', 2);
+  line(ctx, 66, 54, 86, 54, '#59646a', 2);
+  line(ctx, 70, 34, 70, 58, '#ff5d73', 1.1);
+  line(ctx, 74, 36, 74, 42, '#ff5d73', 1.1);
+}
+
 function rocket(ctx: Ctx): void {
   poly(ctx, [0, 24, 8, 24, 8, 46, 0, 46], '#3f4740');
   box(ctx, 8, 27, 124, 16, '#5f6248', 2);
@@ -115,7 +147,7 @@ function rocket(ctx: Ctx): void {
 }
 
 const PAINTERS: Record<WeaponId, (ctx: Ctx) => void> = {
-  pistol, smg, rifle, shotgun, sniper, rocket,
+  pistol, smg, rifle, shotgun, sniper, rocket, gatling, cannon,
 };
 
 /** Tight local-space content boxes for HUD / crate icons (no grip-origin margins). */
@@ -126,6 +158,8 @@ const ICON_BOUNDS: Record<WeaponId, { x: number; y: number; width: number; heigh
   shotgun: { x: 4, y: 24, width: 148, height: 48 },
   sniper: { x: 2, y: 10, width: 150, height: 62 },
   rocket: { x: 0, y: 18, width: 158, height: 50 },
+  gatling: { x: 4, y: 18, width: 150, height: 56 },
+  cannon: { x: 0, y: 8, width: 158, height: 62 },
 };
 
 export function weaponArtKey(id: WeaponId): string {
