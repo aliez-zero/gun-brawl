@@ -2,7 +2,7 @@ import { BASIC_PISTOL } from '../../content/weapons';
 import { actorRect, addImpulse, segmentRect } from '../core/math';
 import type { ActorInput, ActorState, BattleEvent, MatchState, Vec2 } from '../core/types';
 import { applyExplosionHits, ExplosionSystem } from './ExplosionSystem';
-import { hasAmmo, revertToPistol } from './WeaponSystem';
+import { hasAmmo, revertToPistol, startReload, tickReload } from './WeaponSystem';
 
 export class CombatSystem {
   private nextProjectile = 0;
@@ -11,10 +11,16 @@ export class CombatSystem {
   update(state: MatchState, inputs: ReadonlyMap<string, ActorInput>, dt: number, events: BattleEvent[]): void {
     for (const actor of state.actors) {
       actor.fireCooldown = Math.max(0, actor.fireCooldown - dt);
-      if (actor.status !== 'alive' || !inputs.get(actor.config.id)?.shootHeld || actor.fireCooldown > 1e-8) continue;
+      if (actor.status !== 'alive') continue;
+      tickReload(actor, dt);
+      const input = inputs.get(actor.config.id);
+      if (!input) continue;
+      if (input.reloadPressed) startReload(actor);
+      if (!input.shootHeld || actor.fireCooldown > 1e-8 || actor.reloadRemaining > 1e-8) continue;
       if (!hasAmmo(actor)) {
-        // A depleted instance can only enter this branch through external state changes;
-        // revert without granting a free pistol shot in the same frame.
+        // Empty magazine: start a reload when reserve is available. Only a truly
+        // depleted loadout reverts, and that frame never grants a free pistol shot.
+        if (startReload(actor)) continue;
         revertToPistol(actor);
         actor.fireCooldown = Math.max(actor.fireCooldown, BASIC_PISTOL.interval);
         continue;
@@ -46,7 +52,7 @@ export class CombatSystem {
 
       if (ammo !== null) {
         actor.weapon.ammoRemaining = ammo - 1;
-        if (actor.weapon.ammoRemaining === 0) {
+        if (actor.weapon.ammoRemaining === 0 && actor.weapon.reserveRemaining === 0) {
           revertToPistol(actor);
           // Preserve cadence: a depleted SMG cannot chain into a pistol shot at 0.1 s.
           actor.fireCooldown = Math.max(actor.fireCooldown, BASIC_PISTOL.interval);

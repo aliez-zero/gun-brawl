@@ -44,7 +44,7 @@ export class KeyboardInput {
     return {
       moveX: ((held(binding.right) ? 1 : 0) - (held(binding.left) ? 1 : 0)) as -1 | 0 | 1,
       jumpPressed: take(binding.jump), dropPressed: take(binding.drop), shootHeld: held(binding.shoot),
-      bombPressed: take(binding.bomb),
+      bombPressed: take(binding.bomb), reloadPressed: take(binding.reload),
     };
   }
 

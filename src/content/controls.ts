@@ -5,7 +5,7 @@ export interface KeyBinding {
   readonly label: string;
 }
 
-type ControlAction = 'left' | 'right' | 'jump' | 'drop' | 'shoot' | 'bomb';
+type ControlAction = 'left' | 'right' | 'jump' | 'drop' | 'shoot' | 'bomb' | 'reload';
 
 export const KEY_BINDINGS: Record<HumanSlot, Record<ControlAction, KeyBinding>> = {
   1: {
@@ -15,6 +15,7 @@ export const KEY_BINDINGS: Record<HumanSlot, Record<ControlAction, KeyBinding>> 
     drop: { codes: ['KeyS'], label: 'S' },
     shoot: { codes: ['KeyJ'], label: 'J' },
     bomb: { codes: ['KeyK'], label: 'K' },
+    reload: { codes: ['KeyR'], label: 'R' },
   },
   2: {
     left: { codes: ['ArrowLeft'], label: '←' },
@@ -23,5 +24,6 @@ export const KEY_BINDINGS: Record<HumanSlot, Record<ControlAction, KeyBinding>> 
     drop: { codes: ['ArrowDown'], label: '↓' },
     shoot: { codes: ['Enter', 'NumpadEnter', 'Numpad0'], label: 'Enter / 小键盘 0' },
     bomb: { codes: ['Numpad1'], label: '小键盘 1' },
+    reload: { codes: ['Numpad2'], label: '小键盘 2' },
   },
 };

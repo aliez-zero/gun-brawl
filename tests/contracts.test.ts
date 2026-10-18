@@ -27,7 +27,7 @@ function tick(simulation: BattleSimulation, frames: number, input?: ActorInput):
 describe('T00 first-batch contracts', () => {
   it('gives every actor a fresh starting weapon and keeps the no-op bomb input default', () => {
     expect(idleInput()).toEqual({
-      moveX: 0, jumpPressed: false, dropPressed: false, shootHeld: false, bombPressed: false,
+      moveX: 0, jumpPressed: false, dropPressed: false, shootHeld: false, bombPressed: false, reloadPressed: false,
     });
     expect(createWeaponInstance(BASIC_PISTOL).ammoRemaining).toBeNull();
     expect(createWeaponInstance(TEST_SMG).ammoRemaining).toBe(12);

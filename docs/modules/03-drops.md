@@ -40,7 +40,7 @@ T00 已冻结 `WeaponInstance` / `MatchConfig.startingWeapon` / `Projectile` 快
   - 安全点优先用 `MapDefinition.dropPoints`，没有时从平台 25% / 50% / 75% 派生；过滤出生点 120 px 内和地图边界；无点跳过。
   - 位置、武器、等距裁定各用独立种子流；同一 seed 可复现。
   - 只拾取 `active` 箱子；排除 `respawning` / `eliminated` 和已在本帧拾取的角色；同帧距离优先，等距用种子流。
-  - 拾取通过 `equipWeapon` 满弹换枪，不改 `fireCooldown`；本帧射击已先结算，旧枪弹丸保留，新枪下一步可用。
+  - 拾取通过 `equipWeapon` 换枪并补满弹匣 + 备弹，不改 `fireCooldown` / `reloadRemaining` 归属；本帧射击已先结算，旧枪弹丸保留，新枪下一步可用。
   - 拾取先于到期；到期帧仍可拾取，未被拾取才 `drop-expired`。
 - `BattleSimulation` 顺序：移动 / 射击 / 炸弹 → 批量出界 → 投放与拾取 → 胜负；暂停 / 倒计时不推进投放；加时清空箱子，DropSystem 重置 8 秒计时。
 - 事件：`drop-incoming`、`drop-landed`、`drop-expired`、`pickup`；状态：`MatchState.drops`。

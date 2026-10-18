@@ -13,7 +13,7 @@ export class BotController {
   sample(actor: ActorState, state: MatchState, dt: number): ActorInput {
     if (actor.status !== 'alive' || state.phase !== 'playing') { this.climbTarget = null; return idleInput(); }
     this.remaining -= dt;
-    if (this.remaining > 0) return { ...this.held, jumpPressed: false, dropPressed: false, bombPressed: false };
+    if (this.remaining > 0) return { ...this.held, jumpPressed: false, dropPressed: false, bombPressed: false, reloadPressed: false };
     const delays = { easy: 0.5, normal: 0.3, hard: 0.18 };
     this.remaining = delays[this.difficulty] * (0.85 + this.random.next() * 0.3);
     const target = state.actors.filter((other) => other !== actor && other.status === 'alive')
@@ -47,7 +47,7 @@ export class BotController {
       this.held = {
         moveX: away as -1 | 1,
         jumpPressed: actor.groundedOn !== null && actor.jumpsRemaining > 0,
-        dropPressed: false, shootHeld: false, bombPressed: false,
+        dropPressed: false, shootHeld: false, bombPressed: false, reloadPressed: false,
       };
       return { ...this.held };
     }
@@ -63,7 +63,7 @@ export class BotController {
       this.held = {
         moveX: Math.abs(crateX) < 10 ? 0 : (crateX > 0 ? 1 : -1),
         jumpPressed: crate.position.y < actor.position.y - 70 && actor.groundedOn !== null && actor.jumpsRemaining > 0,
-        dropPressed: false, shootHeld: false, bombPressed: false,
+        dropPressed: false, shootHeld: false, bombPressed: false, reloadPressed: false,
       };
       return { ...this.held };
     }
@@ -87,6 +87,11 @@ export class BotController {
       && Math.abs(dx) >= 90 && Math.abs(dx) <= 260 && Math.abs(dy) < 80;
     const bombChance = this.difficulty === 'hard' ? 0.75 : this.difficulty === 'normal' ? 0.45 : 0.2;
     const bombPressed = canBomb && this.random.next() < bombChance;
+    const magazine = actor.weapon.ammoRemaining;
+    const capacity = actor.weapon.definition.maxAmmo;
+    const lowMagazine = magazine !== null && capacity !== null
+      && magazine <= Math.max(1, Math.floor(capacity * 0.25))
+      && actor.weapon.reserveRemaining > 0 && actor.reloadRemaining <= 1e-8;
     this.held = {
       moveX,
       jumpPressed: recoveryJump || wantsHeight,
@@ -94,6 +99,7 @@ export class BotController {
       shootHeld: !bombPressed && Math.abs(dy) < 45 && Math.abs(dx) < Math.min(720, actor.weapon.definition.range)
         && actor.facing === Math.sign(dx),
       bombPressed,
+      reloadPressed: lowMagazine && !endangered && !bombPressed,
     };
     return { ...this.held };
   }

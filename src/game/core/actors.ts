@@ -15,7 +15,7 @@ export function createActor(
     facing: spawn.x < centerX ? 1 : -1,
     groundedOn: null, jumpsRemaining: 2, coyoteRemaining: 0, jumpBuffer: 0,
     dropPlatform: null, dropRemaining: 0, stocks, status: 'alive',
-    respawnRemaining: 0, protectionRemaining: PROTECTION_TIME, fireCooldown: 0,
+    respawnRemaining: 0, protectionRemaining: PROTECTION_TIME, fireCooldown: 0, reloadRemaining: 0,
     weapon: createWeaponInstance(startingWeapon),
     bombsRemaining: BOMB.perLife, bombCooldown: 0,
     lastHit: null, stats: { knockouts: 0, falls: 0, selfFalls: 0 },

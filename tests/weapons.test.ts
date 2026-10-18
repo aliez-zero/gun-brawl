@@ -32,8 +32,10 @@ function flatMap(): MapDefinition {
 describe('T01 weapon registry and ammo', () => {
   it('registers eight usable guns and exposes legal switch / refill entries', () => {
     expect(Object.keys(WEAPONS).sort()).toEqual(['cannon', 'gatling', 'pistol', 'rifle', 'rocket', 'shotgun', 'smg', 'sniper']);
-    expect(createWeapon('smg').ammoRemaining).toBe(60);
-    expect(createWeapon('gatling').ammoRemaining).toBe(200);
+    expect(createWeapon('smg').ammoRemaining).toBe(30);
+    expect(createWeapon('smg').reserveRemaining).toBe(90);
+    expect(createWeapon('gatling').ammoRemaining).toBe(100);
+    expect(createWeapon('gatling').reserveRemaining).toBe(100);
     expect(getWeapon('rocket')).toBe(ROCKET);
     expect(ROCKET.explosion).toEqual({ radius: 150, centerImpulse: 650, edgeImpulse: 200 });
 
@@ -52,10 +54,11 @@ describe('T01 weapon registry and ammo', () => {
     expect(actor.fireCooldown).toBe(0.42);
     equipWeapon(actor, 'rocket');
     expect(actor.weapon.definition).toBe(ROCKET);
-    expect(actor.weapon.ammoRemaining).toBe(3);
+    expect(actor.weapon.ammoRemaining).toBe(1);
     equipWeapon(actor, 'cannon');
     expect(actor.weapon.definition).toBe(CANNON);
-    expect(actor.weapon.ammoRemaining).toBe(3);
+    expect(actor.weapon.ammoRemaining).toBe(1);
+    expect(actor.weapon.reserveRemaining).toBe(2);
   });
 
   it('keeps the pistol reference while every standard special hits harder per trigger', () => {
@@ -90,7 +93,7 @@ describe('T01 weapon registry and ammo', () => {
     expect(target!.status).toBe('respawning');
   });
 
-  it('gatling fires much faster than the pistol from a 200-round belt', () => {
+  it('gatling fires much faster than the pistol from a 200-round loadout', () => {
     const simulation = active({ map: flatMap() });
     const shooter = simulation.state.actors[0]!;
     const target = simulation.state.actors[1]!;
@@ -101,14 +104,14 @@ describe('T01 weapon registry and ammo', () => {
     for (let frame = 0; frame < 18; frame++) {
       simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), shootHeld: true }]]));
     }
-    expect(shooter.weapon.ammoRemaining).toBeLessThan(200);
+    expect(shooter.weapon.ammoRemaining).toBeLessThan(100);
     const gatlingRounds = simulation.state.projectiles.filter((projectile) => projectile.weaponId === 'gatling');
     expect(gatlingRounds.length, JSON.stringify({ ammo: shooter.weapon.ammoRemaining, cooldown: shooter.fireCooldown, rounds: simulation.state.projectiles.map((projectile) => projectile.weaponId) })).toBeGreaterThan(2);
 
   });
 
   it.each([
-    ['smg', SMG, 59],
+    ['smg', SMG, 29],
     ['rifle', RIFLE, 29],
     ['sniper', SNIPER, 4],
   ] as const)('fires one straight %s round and consumes exactly one ammo', (id, weapon, remaining) => {
@@ -148,7 +151,7 @@ describe('T01 weapon registry and ammo', () => {
     expect(angles[3]).toBeCloseTo(6);
     expect(angles[4]).toBeCloseTo(12);
     for (const pellet of pellets) expect(Math.hypot(pellet.velocity.x, pellet.velocity.y)).toBeCloseTo(1200);
-    expect(shooter!.weapon.ammoRemaining).toBe(7);
+    expect(shooter!.weapon.ammoRemaining).toBe(5);
     expect(shooter!.fireCooldown).toBeCloseTo(0.75);
     expect(shooter!.impulse.x).toBeCloseTo(-48);
     expect(simulation.drainEvents().filter((event) => event.type === 'shot')).toHaveLength(1);
@@ -161,6 +164,7 @@ describe('T01 weapon registry and ammo', () => {
     shooter.facing = 1;
     equipWeapon(shooter, 'shotgun');
     shooter.weapon.ammoRemaining = 1;
+    shooter.weapon.reserveRemaining = 0;
     fire(simulation);
 
     expect(simulation.state.projectiles.filter((projectile) => projectile.weaponId === 'shotgun')).toHaveLength(5);
@@ -202,7 +206,7 @@ describe('T01 weapon registry and ammo', () => {
     expect(simulation.state.projectiles).toHaveLength(0);
     expect(target!.lastHit?.by).toBe('p1');
     expect(target!.impulse.x).toBeGreaterThan(0);
-    expect(shooter!.weapon.ammoRemaining).toBe(2);
+    expect(shooter!.weapon.ammoRemaining).toBe(0);
   });
 
   it('explodes at max range, keeps the frozen rocket profile after switching guns', () => {

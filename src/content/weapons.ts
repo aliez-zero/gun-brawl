@@ -17,47 +17,47 @@ export const BASIC_PISTOL: WeaponDefinition = {
 
 export const SMG: WeaponDefinition = {
   id: 'smg', name: '冲锋枪', tier: 'standard', interval: 0.09,
-  projectileSpeed: 1200, range: 520, knockback: 150, recoil: 7, maxAmmo: 60,
-  pellets: 1, spreadRadians: 0,
+  projectileSpeed: 1200, range: 520, knockback: 150, recoil: 7, maxAmmo: 30,
+  reserveAmmo: 90, reloadTime: 1.5, pellets: 1, spreadRadians: 0,
 };
 
 export const RIFLE: WeaponDefinition = {
   id: 'rifle', name: '突击步枪', tier: 'standard', interval: 0.22,
   projectileSpeed: 1200, range: 850, knockback: 520, recoil: 18, maxAmmo: 30,
-  pellets: 1, spreadRadians: 0,
+  reserveAmmo: 90, reloadTime: 1.8, pellets: 1, spreadRadians: 0,
 };
 
 export const SHOTGUN: WeaponDefinition = {
   id: 'shotgun', name: '霰弹枪', tier: 'standard', interval: 0.75,
-  projectileSpeed: 1200, range: 300, knockback: 120, recoil: 48, maxAmmo: 8,
-  pellets: 5, spreadRadians: 12 * DEG,
+  projectileSpeed: 1200, range: 300, knockback: 120, recoil: 48, maxAmmo: 6,
+  reserveAmmo: 18, reloadTime: 2, pellets: 5, spreadRadians: 12 * DEG,
 };
 
 export const SNIPER: WeaponDefinition = {
   id: 'sniper', name: '狙击枪', tier: 'standard', interval: 1,
   projectileSpeed: 1800, range: 1200, knockback: 1100, recoil: 70, maxAmmo: 5,
-  pellets: 1, spreadRadians: 0,
+  reserveAmmo: 15, reloadTime: 2.2, pellets: 1, spreadRadians: 0,
 };
 
 export const ROCKET: WeaponDefinition = {
   id: 'rocket', name: '火箭筒', tier: 'standard', interval: 1.2,
-  projectileSpeed: 600, range: 900, knockback: 650, recoil: 70, maxAmmo: 3,
-  pellets: 1, spreadRadians: 0,
+  projectileSpeed: 600, range: 900, knockback: 650, recoil: 70, maxAmmo: 1,
+  reserveAmmo: 3, reloadTime: 2.4, pellets: 1, spreadRadians: 0,
   explosion: { radius: 150, centerImpulse: 650, edgeImpulse: 200 },
 };
 
-/** Ultimate: fastest fire rate in the game, deep 200-round belt. */
+/** Ultimate: fastest fire rate in the game, 100-round magazine + 100 reserve. */
 export const GATLING: WeaponDefinition = {
   id: 'gatling', name: '加特林', tier: 'ultimate', interval: 0.06,
-  projectileSpeed: 1500, range: 700, knockback: 160, recoil: 6, maxAmmo: 200,
-  pellets: 1, spreadRadians: 1.2 * DEG,
+  projectileSpeed: 1500, range: 700, knockback: 160, recoil: 6, maxAmmo: 100,
+  reserveAmmo: 100, reloadTime: 3.2, pellets: 1, spreadRadians: 1.2 * DEG,
 };
 
 /** Ultimate: very slow anti-materiel cannon; one clean hit launches a full stock. */
 export const CANNON: WeaponDefinition = {
   id: 'cannon', name: '重炮狙击枪', tier: 'ultimate', interval: 2.4,
-  projectileSpeed: 2200, range: 1800, knockback: 2600, recoil: 120, maxAmmo: 3,
-  pellets: 1, spreadRadians: 0, impulseCap: 3200,
+  projectileSpeed: 2200, range: 1800, knockback: 2600, recoil: 120, maxAmmo: 1,
+  reserveAmmo: 2, reloadTime: 2.6, pellets: 1, spreadRadians: 0, impulseCap: 3200,
 };
 
 /** Training hotbar order; also the stable 1-8 selection order. */

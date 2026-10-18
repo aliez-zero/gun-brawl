@@ -69,12 +69,26 @@ describe('keyboard controls', () => {
     expect(keyboard.sample(2).bombPressed).toBe(false);
   });
 
-  it('consumes training 1-6 slots once and ignores them while disabled', () => {
+  it('exposes the default reload edge for both players', () => {
+    key('keydown', 'KeyR');
+    expect(keyboard.sample(1).reloadPressed).toBe(true);
+    expect(keyboard.sample(1).reloadPressed).toBe(false);
+    key('keyup', 'KeyR');
+    key('keydown', 'KeyR', true);
+    expect(keyboard.sample(1).reloadPressed).toBe(false);
+
+    expect(keyboard.sample(2).reloadPressed).toBe(false);
+    key('keydown', 'Numpad2');
+    expect(keyboard.sample(2).reloadPressed).toBe(true);
+    expect(keyboard.sample(2).reloadPressed).toBe(false);
+  });
+
+  it('consumes training 1-8 slots once and ignores them while disabled', () => {
     key('keydown', 'Digit3');
     expect(keyboard.consumeWeaponSlot()).toBe(3);
     expect(keyboard.consumeWeaponSlot()).toBeNull();
     keyboard.enabled = false;
-    key('keydown', 'Digit6');
+    key('keydown', 'Digit8');
     expect(keyboard.consumeWeaponSlot()).toBeNull();
   });
 

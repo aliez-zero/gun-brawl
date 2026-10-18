@@ -163,6 +163,7 @@ describe('T03 pickup rules', () => {
     expect(events.some((event) => event.type === 'pickup' && event.actorId === 'p1')).toBe(true);
     expect(actor.weapon.definition.id).toBe(weaponId);
     expect(actor.weapon.ammoRemaining).toBe(getWeapon(weaponId).maxAmmo);
+    expect(actor.weapon.reserveRemaining).toBe(getWeapon(weaponId).reserveAmmo ?? 0);
     expect(simulation.state.drops).toHaveLength(0);
   });
 

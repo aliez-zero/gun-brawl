@@ -35,12 +35,15 @@ export interface ActorInput {
   jumpPressed: boolean;
   dropPressed: boolean;
   shootHeld: boolean;
-  /** Press-edge consumed by T02; the keyboard binding remains T06 until wired. */
+  /** Press-edge consumed by T02; K / Numpad1 are wired by the keyboard adapter. */
   bombPressed: boolean;
+  /** Press-edge; starts a manual reload when magazine and reserve allow it. */
+  reloadPressed: boolean;
 }
 
 export const idleInput = (): ActorInput => ({
   moveX: 0, jumpPressed: false, dropPressed: false, shootHeld: false, bombPressed: false,
+  reloadPressed: false,
 });
 
 export interface Platform extends Rect { id: string; kind: 'one-way' | 'solid' }
@@ -71,8 +74,12 @@ export interface WeaponDefinition {
   range: number;
   knockback: number;
   recoil: number;
-  /** null means infinite ammo. Finite weapons reset to this value on spawn/respawn. */
+  /** Magazine capacity; null means infinite magazine (pistol). */
   maxAmmo: number | null;
+  /** Rounds carried outside the magazine; refilled on pickup / spawn, not by firing. */
+  reserveAmmo?: number;
+  /** Seconds to refill the magazine from reserve. */
+  reloadTime?: number;
   /** Projectiles per trigger; one trigger consumes one ammo even when this is greater than one. */
   pellets: number;
   /** Maximum absolute spread from the facing axis, in radians; 0 means a straight shot. */
@@ -95,11 +102,14 @@ export interface ExplosionProfile {
  */
 export interface WeaponInstance {
   readonly definition: WeaponDefinition;
+  /** Rounds currently in the magazine; null for the infinite pistol. */
   ammoRemaining: number | null;
+  /** Rounds available for reloads; starts at WeaponDefinition.reserveAmmo. */
+  reserveRemaining: number;
 }
 
 export const createWeaponInstance = (definition: WeaponDefinition): WeaponInstance => ({
-  definition, ammoRemaining: definition.maxAmmo,
+  definition, ammoRemaining: definition.maxAmmo, reserveRemaining: definition.reserveAmmo ?? 0,
 });
 
 export interface MatchConfig {
@@ -135,6 +145,8 @@ export interface ActorState {
   respawnRemaining: number;
   protectionRemaining: number;
   fireCooldown: number;
+  /** Seconds left in the current reload; 0 means not reloading. */
+  reloadRemaining: number;
   weapon: WeaponInstance;
   bombsRemaining: number;
   bombCooldown: number;

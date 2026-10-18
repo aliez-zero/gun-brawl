@@ -1,6 +1,6 @@
 # T06 · 改键、冲突检测与设置组件
 
-更新：2026-10-17（北京时间）。分组：交互 / 键位设置。状态：部分完成；负责人：当前会话；默认投弹键 K / 小键盘 1 已接入，改键 UI / 冲突检测 / 设置持久化仍未做。
+更新：2026-10-18（北京时间）。分组：交互 / 键位设置。状态：部分完成；负责人：当前会话；默认投弹键 K / 小键盘 1、换弹键 R / 小键盘 2 已接入，改键 UI / 冲突检测 / 设置持久化仍未做。
 
 [模块目录](./README.md) · [认领与依赖总看板](../PARALLEL_PLAN.md) · [当前实现状态](../DEVELOPMENT.md)
 
@@ -8,14 +8,14 @@
 
 先读 [AGENTS.md](../../AGENTS.md)、[架构](../ARCHITECTURE.md) 和 [PRD](../PRD.md)。状态、负责人、工作区与分支只在总看板登记；本文复选框用于子任务，不代表集成完成。
 
-T00 已冻结 `ActorInput.bombPressed`（按下边沿，默认 false）和设置 / 存档写入边界：设置组件只发回调，不直接写 `SaveStore` / localStorage，应用层统一保存。T02 炸弹可用后，已把默认 K / 小键盘 1 接入 `KEY_BINDINGS` 与 `KeyboardInput`；当前只支持默认映射，尚未提供改键 / 冲突检测 / 设置组件。依赖 T00 设置与输入契约。键位校验和独立设置组件可与玩法并行；持久化交给 T12，主 UI 与应用挂载交集成者。
+T00 已冻结 `ActorInput.bombPressed` / `reloadPressed`（按下边沿，默认 false）和设置 / 存档写入边界：设置组件只发回调，不直接写 `SaveStore` / localStorage，应用层统一保存。T02 / T01 接入后，已把默认投弹 K / 小键盘 1、换弹 R / 小键盘 2 接入 `KEY_BINDINGS` 与 `KeyboardInput`；当前只支持默认映射，尚未提供改键 / 冲突检测 / 设置组件。依赖 T00 设置与输入契约。键位校验和独立设置组件可与玩法并行；持久化交给 T12，主 UI 与应用挂载交集成者。
 
 ## 模块范围与验收
 
 - **目标 / 需求**：F13；A25。支持两名玩家改键、恢复默认、实际响应试用。
 - **拥有路径**：`src/presentation/KeyboardInput.ts`、`src/content/controls.ts`；建议新增 `src/ui/controls/` 组件、独立样式、绑定校验模块与 `tests/bindings.test.ts`。
 - **具体工作**：把默认与实际映射分开；录键期间暂停 / 禁止游戏操作；检查重复动作、两人冲突与保留键；定义别名保留 / 替换规则；提供取消 / 恢复默认与当前键响应预览。
-- **集成契约**：设置数据交 T12 统一持久化；UI 提示消费实际映射；新增投弹默认候选为 P1 K / P2 小键盘 1，功能未接入前不显示已可用；保持 J 和 W / 空格默认。
+- **集成契约**：设置数据交 T12 统一持久化；UI 提示消费实际映射；投弹默认 P1 K / P2 小键盘 1，换弹默认 P1 R / P2 小键盘 2；保持 J 和 W / 空格默认。
 - **验收**：非法映射不能保存且可定位；合法改键即时生效并刷新保留；设置录键不误开火 / 误暂停；按下 / 释放别名、失焦、恢复、双人并行输入均正确。
 - **依赖与边界**：不修改主 UI / SaveStore / 存档版本；提供挂载、保存回调和存档字段需求，由负责人接入。
 
@@ -31,10 +31,10 @@ T00 已冻结 `ActorInput.bombPressed`（按下边沿，默认 false）和设置
 
 ## 当前接入（部分）
 
-- `src/content/controls.ts`：`ControlAction` 增加 `bomb`；P1 `KeyK`，P2 `Numpad1`；帮助 / 底栏读取同一 label。
-- `src/presentation/KeyboardInput.ts`：`bombPressed: take(binding.bomb)`，按下边沿消费，别名不会重复触发。
-- `src/ui/GameUI.ts`：HUD 状态显示 `炸弹 N`；帮助与底栏显示 `K / 小键盘 1 投弹`。
-- 测试：`tests/keyboard.test.ts` 覆盖 P1 / P2 投弹边沿、长按不重复、失焦清理仍适用。
+- `src/content/controls.ts`：`ControlAction` 含 `bomb` / `reload`；P1 `KeyK` / `KeyR`，P2 `Numpad1` / `Numpad2`；帮助 / 底栏读取同一 label。
+- `src/presentation/KeyboardInput.ts`：`bombPressed: take(binding.bomb)`、`reloadPressed: take(binding.reload)`，按下边沿消费，别名不会重复触发。
+- `src/ui/GameUI.ts`：HUD 状态显示 `弹匣/备弹`、换弹倒计时与 `炸弹 N`；帮助与底栏显示投弹 / 换弹键。
+- 测试：`tests/keyboard.test.ts` 覆盖 P1 / P2 投弹 / 换弹边沿、长按不重复、失焦清理仍适用。
 - 未完成：默认 / 运行映射分离、录键组件、冲突 / 保留键校验、恢复默认、试用预览、T12 字段与刷新保留。因此 T06.1—T06.5 仍不勾选。
 
 ## 文件与接口交接

@@ -12,7 +12,7 @@ function training(): BattleSimulation {
 }
 
 describe('T08 training hotbar', () => {
-  it('maps 1-6 to the six real definitions and refills the human player', () => {
+  it('maps 1-8 to the eight real definitions and refills the human player', () => {
     for (let slot = 1; slot <= WEAPON_SLOTS.length; slot++) {
       const simulation = training();
       const actor = simulation.state.actors[0]!;
@@ -20,6 +20,7 @@ describe('T08 training hotbar', () => {
       expect(simulation.selectTrainingWeapon(slot)).toBe(true);
       expect(actor.weapon.definition.id).toBe(WEAPON_SLOTS[slot - 1]);
       expect(actor.weapon.ammoRemaining).toBe(actor.weapon.definition.maxAmmo);
+      expect(actor.weapon.reserveRemaining).toBe(actor.weapon.definition.reserveAmmo ?? 0);
     }
   });
 

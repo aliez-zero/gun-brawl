@@ -33,7 +33,7 @@
 
 - `WEAPON_SLOTS` 固定八格：手枪 / 冲锋枪 / 步枪 / 霰弹枪 / 狙击枪 / 火箭筒 / 加特林 / 重炮狙击枪。
 - 训练场按 `Digit1`—`Digit8` 选择；`KeyboardInput.consumeWeaponSlot()` 只消费一次按下边沿。
-- `BattleSimulation.selectTrainingWeapon(slot)` 仅在 `mode === 'training'` 生效，只改存活的人类玩家，通过 `equipWeapon` 满弹切换；不重置 `fireCooldown`，不直接改 DOM。
+- `BattleSimulation.selectTrainingWeapon(slot)` 仅在 `mode === 'training'` 生效，只改存活的人类玩家，通过 `equipWeapon` 切换并补满弹匣 + 备弹；不重置 `fireCooldown`，不直接改 DOM。
 - 底栏显示 `1—8 试枪`，帮助弹窗说明 7—8 为终极武器；训练假人保持手枪。
 - `tests/training.test.ts` 3 项：八格映射 / 补满、假人不被改 / 非法槽、非训练模式 no-op。
 - 仍缺：静止 / 移动假人、训练内重置、图鉴、教程六任务、T12 完成标记。
