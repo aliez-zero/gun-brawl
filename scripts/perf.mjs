@@ -40,5 +40,24 @@ const sample = await page.evaluate(async () => {
       + document.querySelector('#game-canvas canvas')?.getAttribute('height'),
   };
 });
-console.log(JSON.stringify({ scene: 'local-duel', seconds: 6, ...sample }));
+const heap = async () => page.evaluate(() => {
+  const memory = performance.memory;
+  return memory ? Number((memory.usedJSHeapSize / 1024 / 1024).toFixed(1)) : null;
+});
+const heapStart = await heap();
+const heaps = [heapStart];
+for (let match = 1; match <= 20; match++) {
+  await page.keyboard.press('Escape');
+  const restart = page.locator('[data-action="restart"]');
+  await restart.waitFor({ state: 'visible', timeout: 5000 });
+  await restart.click();
+  await page.locator('.countdown').waitFor({ state: 'hidden', timeout: 12000 });
+  await page.waitForTimeout(120);
+  if (match % 4 === 0) heaps.push(await heap());
+}
+await page.screenshot({ path: 'artifacts/perf-20-matches.png', fullPage: true });
+console.log(JSON.stringify({
+  scene: 'local-duel', seconds: 6, ...sample, matches: 20,
+  heapStart, heapEnd: heaps.at(-1), heapSamples: heaps,
+}));
 await browser.close();

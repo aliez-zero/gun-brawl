@@ -113,7 +113,7 @@
 
 已落地契约：`CharacterAppearance` / `ActorConfig.appearance?`、地图可选主题元数据、`createMatchConfig(mode, seed, selections?)` / `createCustomMatchConfig(settings, seed, selections?)`、`CustomMatchSettings` / `validateCustomMatch`、`MatchConfig.dropMode`、`selectedMapId` / 两玩家 `appearances` / `customMatch`（继续 v1）；T00 新增 `WeaponInstance` / `ActorState.weapon` / `MatchConfig.startingWeapon`、`Projectile.weaponId` / `velocity` / `impulse`、`ActorInput.bombPressed`、`ExplosionRequest` / `ExplosionHit` / `ExplosionResolver`、`MatchConfig.matchId`。主 UI 的换装 / 选图回调由应用统一保存，当前对局保持创建时配置。T05 仅补充基于地图的下层恢复与跳跃落点，完整导航未实现。上述公共文件接线已结束，可由后续负责人继续；不要再按旧的“写死训练台”假设修改。
 
-T11 执行记录：建立 `docs/QA.md` 环境、覆盖矩阵和软件 WebGL 性能采集（`scripts/perf.mjs`，实测约 47.2 FPS / p95 30 ms / 堆 34.2 MiB，明确不是参考 GPU 结论）；新增三人四人出界淘汰 / 最后存活、多人加时、重赛身份独立 3 项回归；当时 178 项 / 18 文件、构建和 Chrome smoke 通过（17 型号追加后为 182 项 / 19 文件）。明确软件 WebGL 不等于真实性能，参考机 / Edge / 硬件键位 / 四人同帧出界仍待，不宣布发布完成。详见 [QA 记录](../QA.md)。
+T11 执行记录：建立 `docs/QA.md` 环境、覆盖矩阵和软件 WebGL 性能采集（`scripts/perf.mjs`，实测约 48.2 FPS / p95 30 ms，连续 20 局堆 32.2→34.6 MiB，明确不是参考 GPU 结论）；新增三人四人出界淘汰 / 最后存活、多人加时、重赛身份独立 3 项回归；当时 178 项 / 18 文件、构建和 Chrome smoke 通过（17 型号追加后为 182 项 / 19 文件）。明确软件 WebGL 不等于真实性能，参考机 / Edge / 硬件键位 / 四人同帧出界仍待，不宣布发布完成。详见 [QA 记录](../QA.md)。
 
 T05 执行记录：新增四图平台导航图（所有平台对可达）、缺口跳 / 穿台 / 下层恢复、1 秒无进展重规划；三档 profile 的反应、追击距离、射程和投弹概率形成可观察差异，困难档近身主动后撤。飞船气闸恢复与人类击出回归保持。3 项新增 AI / 导航测试，175 项 / 17 文件通过。详见 [AI 导航交付](./updates/2026-10-18-ai-navigation.md)。多人集火 / 掩护仍待。
 
