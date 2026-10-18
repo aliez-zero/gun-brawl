@@ -4,7 +4,10 @@ import type { KeyBindings } from '../content/controls';
 import { cloneCustomMatch, normalizeCustomMatch } from '../content/matches';
 import type { CustomMatchSettings } from '../content/matches';
 import { isMapId } from '../content/maps';
-import type { CharacterAppearance, GameMode, HumanSlot, MatchResult } from '../game/core/types';
+import { TRAINING_TASKS } from '../content/tutorial';
+import type {
+  CharacterAppearance, GameMode, HumanSlot, MatchResult, TrainingTaskId,
+} from '../game/core/types';
 
 export interface SaveData {
   version: 1;
@@ -16,6 +19,7 @@ export interface SaveData {
   appearances: Record<HumanSlot, CharacterAppearance>;
   bindings: KeyBindings;
   customMatch: CustomMatchSettings;
+  trainingCompleted: TrainingTaskId[];
 }
 
 export interface StoragePort { getItem(key: string): string | null; setItem(key: string, value: string): void }
@@ -24,7 +28,7 @@ const defaults = (): SaveData => ({
   version: 1, settings: { volume: 0.35, reducedMotion: false },
   lastMode: 'duel-ai', stats: { completed: 0, p1Wins: 0, p2Wins: 0, draws: 0 }, lastResultId: null,
   selectedMapId: 'sky-citadel', appearances: { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') },
-  bindings: cloneBindings(), customMatch: cloneCustomMatch(),
+  bindings: cloneBindings(), customMatch: cloneCustomMatch(), trainingCompleted: [],
 });
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -57,6 +61,12 @@ export class SaveStore {
       this.data.appearances[2] = normalizeAppearance(appearances['2'], this.data.appearances[2]);
       this.data.bindings = normalizeBindings(parsed.bindings);
       this.data.customMatch = normalizeCustomMatch(parsed.customMatch);
+      const trainingIds = new Set(TRAINING_TASKS.map((task) => task.id));
+      if (Array.isArray(parsed.trainingCompleted)) {
+        this.data.trainingCompleted = [
+          ...new Set(parsed.trainingCompleted.filter((id): id is TrainingTaskId => typeof id === 'string' && trainingIds.has(id as TrainingTaskId))),
+        ];
+      }
     } catch (error) { this.available = error instanceof SyntaxError; }
   }
 

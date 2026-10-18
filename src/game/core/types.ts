@@ -5,6 +5,13 @@ export type MatchPhase = 'countdown' | 'playing' | 'paused' | 'finished';
 export type ActorStatus = 'alive' | 'respawning' | 'eliminated';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type DropMode = 'all' | 'standard' | 'none';
+export type TrainingTaskId = 'move' | 'double-jump' | 'drop' | 'hit' | 'ringout' | 'bomb';
+export interface TrainingState {
+  completed: Record<TrainingTaskId, boolean>;
+  completedTasks: TrainingTaskId[];
+  moveTime: number;
+  dummyMoving: boolean;
+}
 export type HumanSlot = 1 | 2;
 /** Stable IDs for the six PRD families. Five non-rocket families have content; rocket waits for T02. */
 export type WeaponId = 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket' | 'gatling' | 'cannon';
@@ -127,6 +134,8 @@ export interface MatchConfig {
   matchId?: string;
   /** Custom matches can disable drops or keep the standard pool only. */
   dropMode?: DropMode;
+  /** Training progress restored from the save file. */
+  trainingCompleted?: TrainingTaskId[];
 }
 
 export interface ActorState {
@@ -245,6 +254,7 @@ export interface MatchState {
   countdownRemaining: number;
   overtime: boolean;
   result: MatchResult | null;
+  training?: TrainingState;
 }
 
 export type BattleEvent =

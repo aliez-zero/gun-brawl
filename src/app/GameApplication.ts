@@ -3,17 +3,17 @@ import { cloneCustomMatch, createCustomMatchConfig, createMatchConfig, validateC
 import type { CustomMatchSettings } from '../content/matches';
 import { normalizeAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
-import { getWeapon } from '../content/weapons';
-import type { BattleEvent, GameMode, MatchState } from '../game/core/types';
+import { getWeapon, WEAPON_SLOTS } from '../content/weapons';
+import type { BattleEvent, GameMode, MatchState, WeaponId } from '../game/core/types';
 import { SoundEffects } from '../presentation/SoundEffects';
 import { ArenaScene } from '../scenes/ArenaScene';
 import { BootScene } from '../scenes/BootScene';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
 import { GameUI } from '../ui/GameUI';
 
-type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom';
+type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia';
 type Screen = 'menu' | 'match' | 'pause' | 'result' | Dialog;
-const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom'].includes(screen);
+const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia'].includes(screen);
 
 export class GameApplication {
   private readonly store = new SaveStore(browserStorage());
@@ -56,6 +56,10 @@ export class GameApplication {
         this.persist();
       },
       startCustom: (settings) => this.startCustom(settings),
+      resetTraining: () => { this.arena.resetTraining(); },
+      setDummyMoving: (value) => { this.arena.setDummyMoving(value); },
+      startTrainingWeapon: (weaponId) => this.startTrainingWeapon(weaponId),
+      encyclopedia: () => this.openDialog('encyclopedia'),
     }, this.store.data);
     this.arena = new ArenaScene({
       onReady: () => {
@@ -98,6 +102,7 @@ export class GameApplication {
     const matchId = crypto.randomUUID();
     this.arena.startMatch(createMatchConfig(mode, seed, {
       mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances, matchId,
+      trainingCompleted: this.store.data.trainingCompleted,
     }));
     this.ui.showMatch(this.arena.matchState!);
     (document.activeElement as HTMLElement | null)?.blur();
@@ -128,7 +133,27 @@ export class GameApplication {
     else this.start(this.activeMode);
   }
 
-  private frame(state: Readonly<MatchState>): void { if (this.screen === 'match') this.ui.updateHUD(state); }
+  private startTrainingWeapon(weaponId: WeaponId): void {
+    this.start('training');
+    if (!this.isReady) return;
+    const slot = WEAPON_SLOTS.indexOf(weaponId) + 1;
+    if (slot > 0) {
+      this.arena.selectTrainingWeapon(slot);
+      this.ui.updateHUD(this.arena.matchState!);
+    }
+  }
+
+  private frame(state: Readonly<MatchState>): void {
+    if (this.screen === 'match') this.ui.updateHUD(state);
+    if (state.config.mode === 'training' && state.training) {
+      const completed = state.training.completedTasks;
+      if (completed.length !== this.store.data.trainingCompleted.length) {
+        this.store.data.trainingCompleted = [...completed];
+        this.persist();
+        this.ui.notify(`训练任务完成 ${completed.length}/6`);
+      }
+    }
+  }
 
   private handleEvents(events: readonly BattleEvent[]): void {
     for (const event of events) {
@@ -182,6 +207,7 @@ export class GameApplication {
     else if (kind === 'help') this.ui.showHelp();
     else if (kind === 'appearance') this.ui.showAppearance(this.returnScreen !== 'menu');
     else if (kind === 'custom') this.ui.showCustomSetup(this.store.data.customMatch);
+    else if (kind === 'encyclopedia') this.ui.showEncyclopedia();
     else this.ui.showMaps(this.returnScreen !== 'menu');
   }
 

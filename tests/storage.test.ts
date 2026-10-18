@@ -70,6 +70,17 @@ describe('versioned local saves', () => {
     ]);
   });
 
+  it('persists training completion and filters unknown task ids', () => {
+    const storage = memoryStorage();
+    const store = new SaveStore(storage);
+    store.data.trainingCompleted = ['move', 'bomb'];
+    store.persist();
+    expect(new SaveStore(storage).data.trainingCompleted).toEqual(['move', 'bomb']);
+
+    const damaged = new SaveStore(memoryStorage(JSON.stringify({ version: 1, trainingCompleted: ['move', 'unknown', 'move'] })));
+    expect(damaged.data.trainingCompleted).toEqual(['move']);
+  });
+
   it('keeps default bindings for old saves', () => {
     const store = new SaveStore(memoryStorage(JSON.stringify({ version: 1, settings: { volume: 0.5 } })));
     expect(store.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);

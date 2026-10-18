@@ -1,5 +1,5 @@
 import type {
-  ActorConfig, CharacterAppearance, Difficulty, DropMode, GameMode, HumanSlot, MatchConfig,
+  ActorConfig, CharacterAppearance, Difficulty, DropMode, GameMode, HumanSlot, MatchConfig, TrainingTaskId,
 } from '../game/core/types';
 import { ARENAS, getArena, isMapId, TRAINING_ARENA } from './maps';
 import { presetAppearance } from './appearances';
@@ -17,6 +17,7 @@ export interface MatchSelections {
   mapId?: string;
   appearances?: Record<HumanSlot, CharacterAppearance>;
   matchId?: string;
+  trainingCompleted?: readonly TrainingTaskId[];
 }
 
 export type CustomSlot =
@@ -187,7 +188,8 @@ export function createMatchConfig(mode: GameMode, seed: number, selections: Matc
     : mode === 'training'
       ? { id: 'dummy', name: '训练假人', control: 'dummy', color: 0xf3ac78 }
       : { id: 'bot', name: '对手 AI', control: 'bot', difficulty: 'normal', color: 0xf3ac78 };
-  const map = selections.mapId ? getArena(selections.mapId) : TRAINING_ARENA;
+  // Practice always uses the dedicated training deck; themed maps are for matches.
+  const map = mode === 'training' ? TRAINING_ARENA : selections.mapId ? getArena(selections.mapId) : TRAINING_ARENA;
   first.appearance = { ...(selections.appearances?.[1] ?? presetAppearance('cowboy')) };
   second.appearance = { ...(mode === 'local-duel'
     ? selections.appearances?.[2] ?? presetAppearance('ronin')
@@ -196,6 +198,7 @@ export function createMatchConfig(mode: GameMode, seed: number, selections: Matc
     mode, map, actors: [first, second], startingWeapon: BASIC_PISTOL,
     stocks: 3, duration: 180, countdown: 3, seed,
     ...(selections.matchId ? { matchId: selections.matchId } : {}),
+    ...(mode === 'training' && selections.trainingCompleted ? { trainingCompleted: [...selections.trainingCompleted] } : {}),
   };
 }
 

@@ -1,5 +1,7 @@
 import { BINDING_ACTIONS, cloneBindings, keyLabel, rebind } from '../content/controls';
 import type { ControlAction, KeyBindings } from '../content/controls';
+import { TRAINING_TASKS } from '../content/tutorial';
+import { getWeapon, WEAPON_SLOTS } from '../content/weapons';
 import { createWeaponIconCanvas } from '../presentation/WeaponArt';
 import {
   CUSTOM_MAP_OPTIONS, CUSTOM_MATCH_LIMITS, DIFFICULTY_LABELS, MODE_LABELS, cloneCustomMatch, validateCustomMatch,
@@ -30,6 +32,10 @@ export interface UIActions {
   setReducedMotion: (value: boolean) => void;
   setBindings: (bindings: KeyBindings) => void;
   startCustom: (settings: CustomMatchSettings) => void;
+  resetTraining: () => void;
+  setDummyMoving: (value: boolean) => void;
+  startTrainingWeapon: (weaponId: WeaponId) => void;
+  encyclopedia: () => void;
 }
 
 export class GameUI {
@@ -47,6 +53,7 @@ export class GameUI {
   private readonly mapLabel: HTMLElement;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingBinding: { slot: HumanSlot; action: ControlAction } | null = null;
+  private trainingDummyMoving = true;
   private readonly listeners = new AbortController();
 
   constructor(root: HTMLElement, private readonly actions: UIActions, private readonly save: SaveData) {
@@ -117,6 +124,20 @@ export class GameUI {
         const errors = validateCustomMatch(settings);
         if (errors.length) { this.showCustomErrors(errors); return; }
         this.actions.startCustom(settings);
+        return;
+      }
+      if (action === 'reset-training') { this.actions.resetTraining(); return; }
+      if (action === 'dummy-toggle') {
+        this.trainingDummyMoving = !this.trainingDummyMoving;
+        this.actions.setDummyMoving(this.trainingDummyMoving);
+        const toggle = this.overlay.querySelector<HTMLElement>('[data-action="dummy-toggle"]');
+        if (toggle) toggle.textContent = this.trainingDummyMoving ? '假人：移动中' : '假人：静止';
+        return;
+      }
+      if (action === 'encyclopedia') { this.actions.encyclopedia(); return; }
+      if (action === 'train-weapon') {
+        const weaponId = button.dataset.weapon as WeaponId;
+        if (WEAPON_SLOTS.includes(weaponId)) this.actions.startTrainingWeapon(weaponId);
         return;
       }
       if (action === 'appearance-slot') {
@@ -229,6 +250,7 @@ export class GameUI {
         </div>
         <p class="mode-description">${descriptions[this.selected]}</p>
         <div class="loadout-actions"><button data-action="appearance"><span>✦ 角色外观</span><small>${look.name} ↗</small></button><button data-action="maps"><span>▧ 更换地图</span><small>${map.name} ↗</small></button></div>
+        <button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>八类枪真实数据 / 直接试枪 ↗</small></button>
         <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${!this.ready ? '正在准备战场' : this.selected === 'custom' ? '配置对局' : '进入战场'}</span><span>↗</span></button>
         <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : this.selected === 'custom' ? '2—4 人自由配置' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : this.selected === 'custom' ? '可关闭特殊投放' : '最后存活者获胜'}</span></div>
       </div>
@@ -248,11 +270,24 @@ export class GameUI {
         <div class="timer-block"><span id="round-label">${MODE_LABELS[state.config.mode]}</span><strong id="round-time">03:00</strong></div>
         <button class="pause-button" data-action="pause" aria-label="暂停对战">Ⅱ <kbd>ESC</kbd></button>
       </div>
-      <div class="countdown" aria-live="polite" hidden><small>准备就绪</small><strong></strong><span>保持移动，远离边缘。</span></div>`;
+      <div class="countdown" aria-live="polite" hidden><small>准备就绪</small><strong></strong><span>保持移动，远离边缘。</span></div>
+      ${state.config.mode === 'training' && state.training ? this.trainingPanel(state) : ''}`;
+    this.trainingDummyMoving = state.training?.dummyMoving ?? true;
     this.setGuide(state.config.mode);
     this.mapLabel.textContent = state.config.map.name + ' / ' + state.config.map.subtitle;
     this.status.innerHTML = `<span class="status-dot"></span> ${MODE_LABELS[state.config.mode]} <span class="status-divider">/</span> ${state.config.map.name}`;
     this.updateHUD(state);
+  }
+
+  private trainingPanel(state: Readonly<MatchState>): string {
+    const training = state.training;
+    const done = training ? training.completedTasks.length : 0;
+    const tasks = TRAINING_TASKS.map((task) => `<li class="training-task ${training?.completed[task.id] ? 'done' : ''}" data-training-task="${task.id}"><b>${task.title}</b><span>${task.hint}</span></li>`).join('');
+    return `<aside class="training-panel" aria-label="训练任务">
+      <div class="training-head"><strong>训练任务 <span id="training-progress">${done}/6</span></strong><span>不扣命 · 不计战绩</span></div>
+      <ul class="training-tasks">${tasks}</ul>
+      <div class="training-actions"><button data-action="dummy-toggle">${training?.dummyMoving ? '假人：移动中' : '假人：静止'}</button><button data-action="reset-training">重置训练</button><button data-action="encyclopedia">武器图鉴</button></div>
+    </aside>`;
   }
 
   updateHUD(state: Readonly<MatchState>): void {
@@ -273,6 +308,14 @@ export class GameUI {
       if (status) status.textContent = actor.status === 'eliminated' ? '已淘汰 · 观战中' : actor.status === 'respawning' ? '正在返回战场' : `${tier}${actor.weapon.definition.name} · ${ammo}${reload} · 炸弹 ${actor.bombsRemaining}`;
       card?.classList.toggle('eliminated', actor.status === 'eliminated');
       this.drawWeaponIcon(actor.config.id, actor.weapon.definition.id);
+    }
+    if (state.training) {
+      const progress = this.overlay.querySelector<HTMLElement>('#training-progress');
+      if (progress) progress.textContent = `${state.training.completedTasks.length}/6`;
+      for (const task of TRAINING_TASKS) {
+        this.overlay.querySelector(`[data-training-task="${task.id}"]`)?.classList.toggle('done', state.training.completed[task.id]);
+      }
+      this.trainingDummyMoving = state.training.dummyMoving;
     }
     const countdown = this.overlay.querySelector<HTMLElement>('.countdown');
     if (countdown) {
@@ -315,6 +358,25 @@ export class GameUI {
       <p class="dialog-copy">${MODE_LABELS[result.mode]} · 用时 ${formatTime(result.duration)}${result.overtime ? ' · 决胜加时' : ''}</p>
       <div class="result-table"><div class="result-row table-label"><span>参战者</span><span>剩余生命</span><span>击出</span><span>出界</span></div>${result.actors.map((actor) => `<div class="result-row ${actor.id === result.winner ? 'winner-row' : ''}"><strong>${actor.name}</strong><span>${actor.stocks}</span><span>${actor.knockouts}</span><span>${actor.falls}</span></div>`).join('')}</div>
       <button class="start-button" data-action="restart"><span>再来一局</span><span>↗</span></button><div class="dialog-actions"><button data-action="menu">返回主菜单</button></div>`);
+  }
+
+  showEncyclopedia(): void {
+    const cards = WEAPON_SLOTS.map((id) => {
+      const weapon = getWeapon(id);
+      const magazine = weapon.maxAmmo === null ? '∞' : `${weapon.maxAmmo}/${weapon.reserveAmmo ?? 0}`;
+      const spread = weapon.pellets > 1
+        ? `${weapon.pellets} 丸 · ±${Math.round(weapon.spreadRadians * 180 / Math.PI)}°`
+        : '单发直线';
+      const blast = weapon.explosion ? ` · 爆炸 ${weapon.explosion.radius}px` : '';
+      return `<article class="weapon-card ${weapon.tier === 'ultimate' ? 'ultimate' : ''}">
+        <div class="weapon-card-head"><strong>${escapeLabel(weapon.name)}</strong><small>${weapon.tier === 'ultimate' ? '终极' : '标准'}</small></div>
+        <p>${magazine} 弹匣 · 换弹 ${weapon.reloadTime ?? '—'}s</p>
+        <p>${Math.round(weapon.interval * 1000)}ms / 发 · ${weapon.range}px · 击退 ${weapon.knockback}</p>
+        <p>${spread}${blast}</p>
+        <button data-action="train-weapon" data-weapon="${id}">用此枪训练 ↗</button>
+      </article>`;
+    }).join('');
+    this.dialog('ARMORY', '八类武器，真实参数。', `<p class="dialog-copy">按真实配置展示弹匣、备弹、换弹、射速、射程与击退；训练中按 1—8 可直接切换。</p><div class="encyclopedia-grid">${cards}</div><div class="dialog-actions"><button data-action="close">返回</button></div>`);
   }
 
   showCustomSetup(settings: CustomMatchSettings): void {

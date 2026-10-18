@@ -140,6 +140,32 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .custom-summary { margin: -4px 0 0; color: var(--lime); font: 10px Consolas, monospace; }
 .custom-form .start-button { margin-top: 2px; }
 .custom-form .dialog-actions { margin-top: 0; }
+.encyclopedia-entry { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px 12px; border: 1px solid #40533a; border-radius: 3px; background: #1e2b24df; text-align: left; }
+.encyclopedia-entry span { color: #d3ddc6; font-size: 12px; }
+.encyclopedia-entry small { color: #8ea181; font-size: 9px; }
+.encyclopedia-entry:hover { border-color: var(--lime); }
+.encyclopedia-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.weapon-card { padding: 10px; border: 1px solid #354832; border-radius: 3px; background: #101811; }
+.weapon-card.ultimate { border-color: #8f6a2f; }
+.weapon-card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.weapon-card-head strong { color: #dce7d2; font-size: 12px; }
+.weapon-card-head small { color: #9fc36b; font-size: 9px; }
+.weapon-card.ultimate .weapon-card-head small { color: #e2ba76; }
+.weapon-card p { margin: 5px 0 0; color: #8fa183; font-size: 9px; line-height: 1.45; }
+.weapon-card button { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--lime); font-size: 9px; }
+.weapon-card button:hover { text-decoration: underline; }
+.training-panel { position: absolute; left: 22px; bottom: 22px; width: min(360px, calc(100% - 44px)); padding: 12px; border: 1px solid #4a5c41; border-radius: 4px; background: #101811ed; pointer-events: auto; }
+.training-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.training-head strong { color: #dce7d2; font-size: 11px; letter-spacing: .5px; }
+.training-head span { color: #7f9272; font-size: 9px; }
+.training-tasks { display: grid; gap: 5px; margin: 9px 0; padding: 0; list-style: none; }
+.training-task { display: grid; grid-template-columns: 74px 1fr; gap: 6px; color: #7f9272; font-size: 9px; }
+.training-task b { color: #aeba9f; font-weight: 400; }
+.training-task.done b { color: var(--lime); }
+.training-task.done b::before { content: '✓ '; }
+.training-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.training-actions button { padding: 5px 7px; border: 1px solid #40533a; border-radius: 2px; background: #172217; color: #b8c8aa; font-size: 9px; }
+.training-actions button:hover { border-color: var(--lime); color: var(--lime); }
 .help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border-block: 1px solid var(--line); padding: 16px 0; }
 .help-grid strong { color: var(--lime); font-size: 12px; }
 .help-grid p { color: #91a086; font-size: 11px; }
@@ -148,5 +174,5 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 @media (min-width: 1500px) { .hero-panel { padding-left: 6%; } h1 { font-size: 66px; } }
 @media (max-width: 1100px) { .app-shell { padding: 0 25px; } .site-header { height: 90px; } nav { gap: 20px; } .build-tag { display: none; } .hero-panel { padding: 3% 0 3% 5%; } h1 { margin-block: 12px; } .hero-copy { margin-bottom: 15px; } .mode-option { padding: 9px; } .mode-option span { font-size: 11px; } .mode-description { margin-bottom: 12px; } .start-button { padding: 13px 17px; } .actor-card { min-width: 115px; padding: 9px 11px; } #control-guide { gap: 12px; } }
 @media (max-width: 800px) { .app-shell { padding: 0 16px; } .site-header { height: 85px; } .brand { font-size: 17px; gap: 10px; } .brand small { font-size: 7px; } nav { gap: 14px; } .arena-shell { aspect-ratio: auto; min-height: 600px; } #game-canvas { display: flex; align-items: center; } .hero-panel { width: min(410px, 85%); padding: 30px; } .menu-overlay { background: linear-gradient(90deg, #101811f5, #10181166); } h1 { font-size: 47px; } .hero-copy { font-size: 12px; margin-bottom: 25px; } .mode-option { padding: 12px; } .mode-description { margin: 15px 0 22px; } .arena-caption { display: none; } .control-strip { flex-direction: column; align-items: flex-start; padding-block: 16px; } #control-guide { flex-wrap: wrap; } .site-footer span:last-child { display: none; } .mobile-note { display: block; } .hud-top { inset: 12px 10px auto; } .actor-cards { flex-direction: column; } .timer-block { left: 62%; } .dialog-panel { padding: 24px; } }
-@media (max-width: 560px) { .binding-grid { grid-template-columns: 1fr; gap: 12px; } .dialog-panel { padding: 20px; } }
+@media (max-width: 560px) { .binding-grid, .encyclopedia-grid { grid-template-columns: 1fr; gap: 12px; } .dialog-panel { padding: 20px; } .training-panel { left: 12px; bottom: 12px; width: calc(100% - 24px); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }

@@ -82,6 +82,9 @@ export class ArenaScene extends Phaser.Scene {
     if (this.keyboard) this.keyboard.setBindings(bindings);
   }
   setReducedMotion(value: boolean): void { this.arenaView.reducedMotion = value; }
+  resetTraining(): void { this.runner?.resetTraining(); this.keyboard.clear(); }
+  setDummyMoving(value: boolean): void { this.runner?.setDummyMoving(value); }
+  selectTrainingWeapon(slot: number): void { this.runner?.simulation.selectTrainingWeapon(slot); }
   get matchState(): Readonly<MatchState> | null { return this.runner?.state ?? null; }
 
   update(_time: number, delta: number): void {
