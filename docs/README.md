@@ -20,6 +20,8 @@
 
 五位角色第一轮精修、22 帧动作与后续 C01—C07 任务见 [角色设计与细节方案](./CHARACTER_DESIGN.md)，实际文件、检查结果与边界见 [角色精修交接](./updates/2026-10-18-character-polish.md)。
 
+牛仔后续分层重绘、连续 2D 骨架、双手 IK、附件动作及五风格编辑器动作 / 朝向 / 1× 预览见 [T10-R 牛仔骨架交接](./updates/2026-10-18-cowboy-rig.md)。其他四种身体的骨架迁移仍待。
+
 外部模型怎样实际参加对局，见 [外部 AI 调研与接入设计](./EXTERNAL_AI.md)。用户随后选择状态接口直接操作，首版 DeepSeek 网关、角色输入和独立入口已接入，配置及真实验证边界见 [DeepSeek 接入说明](./DEEPSEEK.md)；没有密钥时不调用模型，原有本地玩法可继续运行。
 
 | 文档 / 目录 | 内容 | 更新时机 |
@@ -35,6 +37,7 @@
 | [DEEPSEEK.md](./DEEPSEEK.md) | 已接入的 DeepSeek 直接操作、密钥配置、实际协议 / 预算、测试与限制 | DeepSeek 实现、配置或验证结论变化后 |
 | [PARALLEL_PLAN.md](./PARALLEL_PLAN.md) | 唯一认领看板、依赖、公共契约、文件归属、整合规则 | 认领 / 交接 / 集成 / 验收时 |
 | [modules/README.md](./modules/README.md) | 13 个模块入口与分发方式 | 模块范围变化时 |
+| [implementation/README.md](./implementation/README.md) | 本轮武器 / 战斗 / 持枪 / 弹道 / HUD 的分模块实现文档 | 武器功能或口径变化时 |
 | `modules/00-*.md` 至 `modules/12-*.md` | 独立模块任务包、子任务、接口与验收、可复制开发指令 | 模块拆分或范围变化时 |
 
 ## 目录结构
@@ -70,6 +73,19 @@ gun-brawl/
       10-appearance.md
       11-quality.md
       12-save-data.md
+    implementation/           本轮武器 / 战斗 / 表现 / UI 的分模块实现文档
+      README.md
+      combat/
+        01-weapon-content.md
+        02-combat-reload-knockback.md
+      presentation/
+        03-weapon-art-and-holding.md
+        04-muzzle-and-projectiles.md
+      ui/
+        05-hud-armory-training.md
+      engineering/
+        06-tests-build-release.md
+        07-files-interfaces-boundaries.md
 ```
 
 文档中的未来源码路径是任务建议；对应模块尚未开发时，不代表该文件已经存在。当前代码事实以开发现状和实际源码为准。
