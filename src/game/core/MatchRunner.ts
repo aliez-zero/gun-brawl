@@ -17,7 +17,7 @@ export class MatchRunner {
     this.simulation = new BattleSimulation(config);
     config.actors.forEach((actor, index) => {
       if (actor.control === 'bot') this.bots.set(actor.id, new BotController(actor.difficulty, config.seed + index));
-      if (actor.control === 'external') this.external.set(actor.id, new ExternalInputController());
+      if (actor.control === 'external') this.external.set(actor.id, new ExternalInputController(config.seed + index + 10000));
     });
     this.synchronizeExternal();
   }
@@ -49,7 +49,7 @@ export class MatchRunner {
         const input = config.control === 'human'
           ? readHuman(config.inputSlot)
           : config.control === 'external'
-            ? this.external.get(config.id)?.sample(this.playingTick, actor, this.state) ?? idleInput()
+            ? this.external.get(config.id)?.sample(this.playingTick, actor, this.state, dt) ?? idleInput()
           : config.control === 'dummy'
             ? this.dummyInput(actor)
             : this.bots.get(config.id)?.sample(actor, this.simulation.state, dt) ?? idleInput();

@@ -1,12 +1,21 @@
 import { MOVEMENT, ACTOR_HEIGHT, ACTOR_WIDTH } from '../../core/constants';
 import type { ActorInput, MatchState } from '../../core/types';
+import { nearestPlatform, planRoute, platformForActor } from '../Navigation';
 
 export const MAX_OBSERVATION_AGE = 180;
 export const MAX_HOLD_FRAMES = 45;
 export const MAX_RECENT_ACTIONS = 8;
 
 export interface ExternalAction extends ActorInput { holdFrames: number }
-export interface RecentExternalAction extends ExternalAction { tick: number }
+export interface ExternalActionOutcome {
+  observedTick: number;
+  deltaX: number;
+  deltaY: number;
+  platformId: string | null;
+  status: 'alive' | 'respawning' | 'eliminated';
+  grounded: boolean;
+}
+export interface RecentExternalAction extends ExternalAction { tick: number; outcome?: ExternalActionOutcome | null }
 export interface CommandContext { epoch: number; sequence: number; observationTick: number }
 
 export function parseExternalAction(value: unknown): ExternalAction | null {
@@ -46,6 +55,42 @@ export function createObservation(
     ? Math.hypot(nearestEnemy.position.x - self.position.x, nearestEnemy.position.y - self.position.y)
     : null;
   const currentPlatform = map.platforms.find((platform) => platform.id === self.groundedOn);
+  const enemyPlatform = nearestEnemy
+    ? platformForActor(map, nearestEnemy) ?? nearestPlatform(map, nearestEnemy.position.x, nearestEnemy.position.y)
+    : undefined;
+  const routeStep = currentPlatform && enemyPlatform && currentPlatform.id !== enemyPlatform.id
+    ? planRoute(map, currentPlatform.id, enemyPlatform.id)[0]
+    : undefined;
+  const safePlatform = map.platforms
+    .filter((platform) => platform.y >= self.position.y - 8 && platform.y - self.position.y < 280)
+    .sort((left, right) => {
+      const leftGap = Math.max(left.x - self.position.x, 0, self.position.x - (left.x + left.width));
+      const rightGap = Math.max(right.x - self.position.x, 0, self.position.x - (right.x + right.width));
+      return leftGap + Math.abs(left.y - self.position.y) * 0.2 - rightGap - Math.abs(right.y - self.position.y) * 0.2;
+    })[0];
+  const nearestProjectile = state.projectiles
+    .filter((projectile) => projectile.owner !== actorId)
+    .sort((left, right) => Math.hypot(left.position.x - self.position.x, left.position.y - self.position.y)
+      - Math.hypot(right.position.x - self.position.x, right.position.y - self.position.y))[0];
+  const nearestBomb = state.bombs
+    .filter((bomb) => bomb.owner !== actorId)
+    .sort((left, right) => Math.hypot(left.position.x - self.position.x, left.position.y - self.position.y)
+      - Math.hypot(right.position.x - self.position.x, right.position.y - self.position.y))[0];
+  const activeDrop = state.drops
+    .filter((drop) => drop.state === 'active')
+    .sort((left, right) => Math.hypot(left.position.x - self.position.x, left.position.y - self.position.y)
+      - Math.hypot(right.position.x - self.position.x, right.position.y - self.position.y))[0];
+  const threatDistance = nearestProjectile && nearestBomb
+    ? Math.min(Math.hypot(nearestProjectile.position.x - self.position.x, nearestProjectile.position.y - self.position.y), Math.hypot(nearestBomb.position.x - self.position.x, nearestBomb.position.y - self.position.y))
+    : nearestProjectile
+      ? Math.hypot(nearestProjectile.position.x - self.position.x, nearestProjectile.position.y - self.position.y)
+      : nearestBomb
+        ? Math.hypot(nearestBomb.position.x - self.position.x, nearestBomb.position.y - self.position.y)
+        : Infinity;
+  const priority = self.groundedOn === null && self.verticalVelocity > 0 ? 'recover'
+    : threatDistance < 150 ? 'recover'
+      : activeDrop && Math.hypot(activeDrop.position.x - self.position.x, activeDrop.position.y - self.position.y) < 340 ? 'collect'
+        : nearestEnemy ? 'attack' : 'reposition';
   return {
     version: 1 as const, episodeId: state.config.matchId, actorId, tick,
     remaining: round(state.remaining),
@@ -77,6 +122,16 @@ export function createObservation(
       nearestEnemyDistance: nearestDistance === null ? null : round(nearestDistance),
       currentPlatformId: self.groundedOn,
       isFalling: self.groundedOn === null && self.verticalVelocity > 0,
+      routeAction: routeStep?.action ?? 'hold',
+      routePlatformId: routeStep?.platform.id ?? null,
+      routePlatformDx: routeStep ? round(routeStep.platform.x + routeStep.platform.width / 2 - self.position.x) : null,
+      safePlatformId: safePlatform?.id ?? null,
+      safePlatformDx: safePlatform ? round(safePlatform.x + safePlatform.width / 2 - self.position.x) : null,
+      nearestProjectileDx: nearestProjectile ? round(nearestProjectile.position.x - self.position.x) : null,
+      nearestProjectileDistance: nearestProjectile ? round(Math.hypot(nearestProjectile.position.x - self.position.x, nearestProjectile.position.y - self.position.y)) : null,
+      nearestBombDx: nearestBomb ? round(nearestBomb.position.x - self.position.x) : null,
+      nearestBombDistance: nearestBomb ? round(Math.hypot(nearestBomb.position.x - self.position.x, nearestBomb.position.y - self.position.y)) : null,
+      priority,
     },
     recentActions: recentActions.slice(-MAX_RECENT_ACTIONS).map((action) => ({
       tick: action.tick,
@@ -87,6 +142,7 @@ export function createObservation(
       bombPressed: action.bombPressed,
       reloadPressed: action.reloadPressed,
       holdFrames: action.holdFrames,
+      outcome: action.outcome ? { ...action.outcome } : null,
     })),
     enemies: enemies.map((a) => ({
       id: a.config.id, ...position(a.position), vx: round(a.moveVelocity + a.impulse.x),

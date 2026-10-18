@@ -90,6 +90,8 @@ describe('external direct control', () => {
     expect(obs.tactical.edgeDistanceRight).toBeGreaterThan(0);
     expect(obs.tactical.platformEdgeDistanceLeft).toBeGreaterThan(0);
     expect(obs.tactical.platformEdgeDistanceRight).toBeGreaterThan(0);
+    expect(obs.tactical.priority).toBe('attack');
+    expect(obs.tactical.routeAction).toBe('hold');
     expect(obs.recentActions).toHaveLength(MAX_RECENT_ACTIONS);
     expect(obs.recentActions[0]!.tick).toBe(3);
     expect(obs.recentActions.at(-1)!.tick).toBe(10);
@@ -129,6 +131,24 @@ describe('DeepSeek transport lifecycle', () => {
     runner.advance(1000 / 60, idleInput);
     expect(runner.state.actors[1]!.position.x).toBeGreaterThan(before);
     expect(statuses.at(-1)?.decisions).toBe(1);
+    client.destroy();
+  });
+
+  it('feeds the next decision a compact outcome for the previous action', async () => {
+    const runner = externalRunner(); let time = 0; const bodies: Array<{ observation: ReturnType<typeof createObservation> }> = [];
+    const fetcher: typeof fetch = async (_url, options) => {
+      const body = JSON.parse(options!.body as string) as { close?: boolean; observation: ReturnType<typeof createObservation>; sequence: number; epoch: number };
+      if (body.close) return new Response('{}');
+      bodies.push(body);
+      return new Response(JSON.stringify({ action, sequence: body.sequence, epoch: body.epoch, observationTick: body.observation.tick }));
+    };
+    const client = new DeepSeekClient(runner, 'deepseek', session, () => {}, fetcher, () => time);
+    client.update(); await flush();
+    for (let frame = 0; frame < 20; frame++) runner.advance(1000 / 60, idleInput);
+    time = 1000; client.update(); await flush();
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]!.observation.recentActions).toHaveLength(1);
+    expect(bodies[1]!.observation.recentActions[0]!.outcome?.deltaX).toBeGreaterThan(0);
     client.destroy();
   });
 

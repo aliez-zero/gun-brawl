@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { prepareModelContext, resolveContextTokens, MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS } from './context-budget.mjs';
 
 const MAX_BODY = 64 * 1024;
-const SYSTEM = `You control a character in a 2D platform gun brawl. Win by knocking opponents outside map.bounds; there is no HP damage. x goes right, y goes down; actor x/y is feet center. Physics runs at 60 FPS. Platforms may be one-way (drop through) or solid. Two jumps, limited bombs and weapon ammo. Facing follows moveX; shooting is horizontal in facing direction. Reload takes time. Avoid walking beyond a landing platform without jumping. Move toward enemies and shoot when aligned, recover to platforms when falling, collect active weapon drops when useful. Prioritize survival: keep a safe distance from both map edges, steer toward a reachable platform while falling, and jump before crossing an exposed platform edge. When platformEdgeDistanceLeft or platformEdgeDistanceRight is below about 80, brake or jump inward. Use tactical.nearestEnemy* and tactical.currentPlatformId instead of estimating these values from scratch. recentActions is a short memory of your previous commands; use it to avoid repeating a failed jump or firing while facing away. Never assume unseen future events. Use the provided telemetry only.
+const SYSTEM = `You control a character in a 2D platform gun brawl. Win by knocking opponents outside map.bounds; there is no HP damage. x goes right, y goes down; actor x/y is feet center. Physics runs at 60 FPS. Platforms may be one-way (drop through) or solid. Two jumps, limited bombs and weapon ammo. Facing follows moveX; shooting is horizontal in facing direction. Reload takes time. Avoid walking beyond a landing platform without jumping. Move toward enemies and shoot when aligned, recover to platforms when falling, collect active weapon drops when useful. Use this human-like priority loop on every decision: (1) survive threats and recover to a platform, (2) choose the route or height that keeps a landing option, (3) close distance while braking before the platform edge, (4) turn toward an aligned enemy and fire a short burst, (5) reload during a safe gap and use bombs only for a clear nearby opportunity. Prioritize survival: follow tactical.priority first; recover when it says recover, use tactical.safePlatform* or tactical.route* to choose the next landing, collect only when safe, then attack. Keep a safe distance from both map edges, steer toward a reachable platform while falling, and jump before crossing an exposed platform edge. When platformEdgeDistanceLeft or platformEdgeDistanceRight is below about 80, brake or jump inward. Treat a nearby projectile or bomb distance below 150 as an immediate escape signal. Use tactical.nearestEnemy* and tactical.currentPlatformId instead of estimating these values from scratch. recentActions is a short memory of your previous commands; the latest entry may include outcome.deltaX/deltaY and outcome.platformId, which tells you whether the previous decision actually moved or landed. If an action made little progress, change direction or choose a shorter holdFrames. Use 6-18 holdFrames for risky movement, 18-30 for stable travel, and never hold a jump or bomb repeatedly. Do not fire continuously while facing away from the nearest enemy. Never assume unseen future events. Use the provided telemetry only.
 Return ONLY a JSON object with all fields, no explanation:
 {"moveX":1,"jumpPressed":false,"dropPressed":false,"shootHeld":true,"bombPressed":false,"reloadPressed":false,"holdFrames":30}
 moveX must be -1, 0 or 1. The five action flags are booleans. holdFrames is an integer from 1 to 45. Movement and firing are held for holdFrames; jump/drop/bomb/reload trigger ONCE on the first frame. Never jump and drop together. Commands expire and inputs become neutral until the next decision. Requests have network latency: use velocity to anticipate movement. You cannot set coordinates, ammo or lives.`;
@@ -23,13 +23,17 @@ const shape = (fields) => (v) => {
 };
 const xy = { x: number(), y: number() };
 const velocity = { vx: number(), vy: number() };
+const optional = (read, fallback) => (v) => v === undefined ? fallback : read(v);
 const actionHistory = shape({
   tick: integer(), moveX: enumeration(-1, 0, 1), jumpPressed: (v) => typeof v === 'boolean' ? v : fail(),
   dropPressed: (v) => typeof v === 'boolean' ? v : fail(), shootHeld: (v) => typeof v === 'boolean' ? v : fail(),
   bombPressed: (v) => typeof v === 'boolean' ? v : fail(), reloadPressed: (v) => typeof v === 'boolean' ? v : fail(),
   holdFrames: integer(1, 45),
+  outcome: optional(nullable(shape({
+    observedTick: integer(), deltaX: number(), deltaY: number(), platformId: nullable(text),
+    status: enumeration('alive', 'respawning', 'eliminated'), grounded: (v) => typeof v === 'boolean' ? v : fail(),
+  })), null),
 });
-const optional = (read, fallback) => (v) => v === undefined ? fallback : read(v);
 const readObservation = shape({
   version: enumeration(1), episodeId: text, actorId: text, tick: integer(), remaining: number(0, 6000),
   map: shape({
@@ -49,6 +53,11 @@ const readObservation = shape({
     platformEdgeDistanceLeft: nullable(number(0)), platformEdgeDistanceRight: nullable(number(0)),
     nearestEnemyDx: nullable(number()), nearestEnemyDy: nullable(number()), nearestEnemyDistance: nullable(number(0)),
     currentPlatformId: nullable(text), isFalling: (v) => typeof v === 'boolean' ? v : fail(),
+    routeAction: optional(enumeration('walk', 'jump', 'drop', 'hold'), 'hold'), routePlatformId: optional(nullable(text), null), routePlatformDx: optional(nullable(number()), null),
+    safePlatformId: optional(nullable(text), null), safePlatformDx: optional(nullable(number()), null),
+    nearestProjectileDx: optional(nullable(number()), null), nearestProjectileDistance: optional(nullable(number(0)), null),
+    nearestBombDx: optional(nullable(number()), null), nearestBombDistance: optional(nullable(number(0)), null),
+    priority: optional(enumeration('recover', 'attack', 'collect', 'reposition'), 'reposition'),
   }),
   recentActions: optional(list(actionHistory, 8), []),
   enemies: list(shape({ id: text, ...xy, ...velocity, facing: enumeration(-1, 1), stocks: integer(0, 99), status: enumeration('alive', 'respawning', 'eliminated'), weaponId: text }), 3),

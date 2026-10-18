@@ -1,5 +1,5 @@
 import { createObservation, MAX_OBSERVATION_AGE, MAX_RECENT_ACTIONS, parseExternalAction } from '../../game/ai/external/Protocol';
-import type { RecentExternalAction } from '../../game/ai/external/Protocol';
+import type { ExternalActionOutcome, RecentExternalAction } from '../../game/ai/external/Protocol';
 import type { MatchRunner } from '../../game/core/MatchRunner';
 
 export interface DeepSeekInfo {
@@ -64,6 +64,7 @@ export class DeepSeekClient {
   private terminal = false;
   private actionUntilTick = 0;
   private recentActions: RecentExternalAction[] = [];
+  private actionAnchor: { x: number; y: number; tick: number } | null = null;
   private readonly status: DeepSeekStatus = { phase: 'waiting', message: '等待开场', decisions: 0, latencyMs: null, requests: 0, tokens: 0 };
 
   constructor(
@@ -84,6 +85,7 @@ export class DeepSeekClient {
       this.pending?.abort(); this.pending = null;
       this.nextRequestAt = 0;
       this.recentActions = [];
+      this.actionAnchor = null;
     }
     if (state.phase === 'finished') {
       this.publish('finished', '本局结束'); this.stopConnection(); return;
@@ -103,6 +105,7 @@ export class DeepSeekClient {
     const controller = new AbortController(); this.pending = controller;
     const started = this.now();
     this.nextRequestAt = started + this.session.requestIntervalMs;
+    this.refreshActionOutcome();
     const observation = createObservation(this.runner.state, this.actorId, this.runner.tick, this.recentActions);
     const sequence = ++this.sequence;
     this.status.requests++;
@@ -121,6 +124,8 @@ export class DeepSeekClient {
       if (this.runner.applyExternalInput(this.actorId, action, { epoch, sequence, observationTick: observation.tick })) {
         this.status.decisions++;
         this.recentActions = [...this.recentActions, { ...action, tick: observation.tick }].slice(-MAX_RECENT_ACTIONS);
+        const actor = this.runner.state.actors.find((candidate) => candidate.config.id === this.actorId);
+        this.actionAnchor = actor ? { x: actor.position.x, y: actor.position.y, tick: observation.tick } : null;
         this.actionUntilTick = Math.min(this.runner.tick + action.holdFrames, observation.tick + MAX_OBSERVATION_AGE);
         this.publish('executing', `${action.moveX === 1 ? '向右' : action.moveX === -1 ? '向左' : '停步'}${action.shootHeld ? ' · 开火' : ''}${action.jumpPressed ? ' · 跳跃' : ''}`);
       } else {
@@ -137,6 +142,22 @@ export class DeepSeekClient {
       clearTimeout(timer);
       if (this.pending === controller) this.pending = null;
     }
+  }
+
+  private refreshActionOutcome(): void {
+    const latest = this.recentActions.at(-1);
+    const anchor = this.actionAnchor;
+    const actor = this.runner.state.actors.find((candidate) => candidate.config.id === this.actorId);
+    if (!latest || !anchor || !actor || latest.outcome) return;
+    const outcome: ExternalActionOutcome = {
+      observedTick: this.runner.tick,
+      deltaX: Math.round((actor.position.x - anchor.x) * 100) / 100,
+      deltaY: Math.round((actor.position.y - anchor.y) * 100) / 100,
+      platformId: actor.groundedOn,
+      status: actor.status,
+      grounded: actor.groundedOn !== null,
+    };
+    this.recentActions = [...this.recentActions.slice(0, -1), { ...latest, outcome }];
   }
 
   private applyUsage(value: unknown): void {
