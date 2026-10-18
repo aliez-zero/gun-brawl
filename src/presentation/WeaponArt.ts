@@ -49,9 +49,33 @@ function poly(ctx: Ctx, points: number[], fill: string, outline = true): void {
   if (outline) { ctx.strokeStyle = LINE; ctx.lineWidth = 1.2; ctx.stroke(); }
 }
 
+function tint(hex: string, amount: number): string {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const value = Number.parseInt(hex.slice(1), 16);
+  const channel = (shift: number): number => {
+    const base = (value >> shift) & 255;
+    return Math.round(amount >= 0 ? base + (255 - base) * amount : base * (1 + amount));
+  };
+  return `rgb(${channel(16)},${channel(8)},${channel(0)})`;
+}
+
 function box(ctx: Ctx, x: number, y: number, width: number, height: number, fill: string, radius = 1): void {
   ctx.beginPath(); ctx.roundRect(x, y, width, height, radius);
-  ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = LINE; ctx.lineWidth = 1.2; ctx.stroke();
+  if (height > 3 && /^#[0-9a-f]{6}$/i.test(fill)) {
+    const metal = ctx.createLinearGradient(x, y, x + width * 0.15, y + height);
+    metal.addColorStop(0, tint(fill, 0.2));
+    metal.addColorStop(0.48, fill);
+    metal.addColorStop(1, tint(fill, -0.2));
+    ctx.fillStyle = metal;
+  } else {
+    ctx.fillStyle = fill;
+  }
+  ctx.fill();
+  ctx.strokeStyle = LINE; ctx.lineWidth = 1.2; ctx.stroke();
+  if (height >= 4) {
+    ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + width - 1, y + 1);
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 0.65; ctx.stroke();
+  }
 }
 
 function line(ctx: Ctx, x1: number, y1: number, x2: number, y2: number, color: string, width = 1): void {
@@ -302,6 +326,65 @@ export function weaponAccentColor(id: WeaponId): string {
   return MODEL_ACCENTS[id]?.color ?? FAMILY_ACCENT[weaponFamily(id)] ?? '#aab4b7';
 }
 
+/** Small mechanical details: seams, vents, sights, lens glints and wood grain. */
+function drawHardwareDetails(ctx: Ctx, id: WeaponId): void {
+  const family = weaponFamily(id);
+  if (id === 'akm' || id === 'p1911' || id === 'rpg7' || id === 's1897') {
+    const wood = id === 'p1911' ? { x: 38, y: 46, w: 8, h: 13 } : id === 'rpg7' ? { x: 46, y: 26, w: 29, h: 18 } : id === 's1897' ? { x: 76, y: 35, w: 22, h: 11 } : { x: 6, y: 28, w: 22, h: 14 };
+    for (let y = wood.y + 3; y < wood.y + wood.h - 2; y += 4) {
+      line(ctx, wood.x + 2, y, wood.x + wood.w - 2, y + 1, '#3a271c', 0.6);
+    }
+    line(ctx, wood.x + 3, wood.y + 2, wood.x + wood.w - 4, wood.y + 2, '#c49161', 0.55);
+  }
+  if (family === 'pistol') {
+    for (let x = 25; x <= 32; x += 3.5) line(ctx, x, 28, x, 38, '#26343b', 0.8);
+    box(ctx, 46, 29, 11, 4, '#27343a', 0.5);
+    line(ctx, 24, 27, 68, 27, '#c6d2cb', 0.7);
+    line(ctx, 40, 47, 44, 62, '#2c3735', 0.8);
+  } else if (family === 'smg') {
+    for (let x = 38; x <= 46; x += 4) { arc(ctx, x, 34, 3, 3, 0, Math.PI * 2); }
+    for (let y = 48; y <= 62; y += 4) line(ctx, 56, y, 68, y, '#26312f', 0.8);
+    line(ctx, 30, 27, 86, 27, '#b7c8bd', 0.7);
+    box(ctx, 78, 28, 8, 4, '#26343a', 0.5);
+  } else if (family === 'rifle') {
+    for (let x = 86; x <= 112; x += 6) line(ctx, x, 30, x, 38, '#8b826b', 0.7);
+    for (let y = 49; y <= 64; y += 4) line(ctx, 54, y, 66, y, '#29332f', 0.8);
+    box(ctx, 34, 38, 8, 4, '#2f3a3a', 0.5);
+    line(ctx, 30, 26, 80, 26, '#e0d5b4', 0.7);
+    line(ctx, 120, 32, 134, 32, '#e8eee8', 0.6);
+  } else if (family === 'shotgun') {
+    line(ctx, 60, 25, 144, 25, '#d4dfd8', 0.8);
+    for (let x = 80; x <= 96; x += 4) line(ctx, x, 34, x, 43, '#3a3129', 0.8);
+    box(ctx, 100, 30, 5, 5, '#27343a', 0.5);
+    line(ctx, 62, 44, 140, 44, '#222b2c', 0.8);
+  } else if (family === 'sniper') {
+    const lens = ctx.createLinearGradient(68, 14, 74, 22);
+    lens.addColorStop(0, '#d9f4ff'); lens.addColorStop(0.45, '#6f9eb8'); lens.addColorStop(1, '#23343d');
+    ctx.beginPath(); ctx.ellipse(71, 18, 4.5, 4, 0, 0, Math.PI * 2); ctx.fillStyle = lens; ctx.fill();
+    ctx.strokeStyle = '#10191e'; ctx.lineWidth = 1.1; ctx.stroke();
+    line(ctx, 48, 12, 64, 12, '#c8d8d8', 0.7);
+    line(ctx, 38, 34, 32, 30, '#b7c8c7', 1.4);
+    for (let x = 58; x <= 68; x += 3) line(ctx, x, 43, x, 48, '#1b2528', 0.8);
+    line(ctx, 74, 31, 142, 31, '#dce7e5', 0.7);
+  } else if (family === 'rocket') {
+    line(ctx, 16, 28, 126, 28, '#d6dbc0', 0.7);
+    for (let x = 24; x <= 44; x += 10) line(ctx, x, 28, x, 42, '#2f382c', 1.2);
+    line(ctx, 96, 30, 96, 42, '#2f382c', 1);
+    box(ctx, 70, 20, 10, 5, '#252f2b', 0.5);
+    line(ctx, 134, 35, 154, 35, '#f2d36b', 0.9);
+  } else if (family === 'gatling') {
+    for (let barrel = 0; barrel < 6; barrel++) line(ctx, 64, 30 + barrel * 3.2, 136, 30 + barrel * 3.2, '#dce7e5', 0.5);
+    for (let x = 32; x <= 88; x += 7) line(ctx, x, 52, x + 2, 64, '#3b2f24', 0.8);
+    box(ctx, 124, 29, 14, 3, '#1b2528', 1);
+    line(ctx, 128, 33, 128, 46, '#f2a23a', 1.2);
+  } else if (family === 'cannon') {
+    for (let x = 148; x <= 155; x += 3) line(ctx, x, 29, x, 42, '#1b2528', 1.2);
+    line(ctx, 72, 31, 140, 31, '#e3ebe5', 0.8);
+    for (let x = 78; x <= 100; x += 7) line(ctx, x, 34, x, 40, '#6d7c80', 0.7);
+    box(ctx, 54, 17, 14, 4, '#1b2528', 0.5);
+  }
+}
+
 function drawModelAccent(ctx: Ctx, id: WeaponId): void {
   const accent = MODEL_ACCENTS[id];
   if (!accent) return;
@@ -350,5 +433,18 @@ export function createWeaponArtCanvas(id: WeaponId): HTMLCanvasElement {
   paint(ctx);
   MODEL_GEOMETRY[id]?.(ctx);
   drawModelAccent(ctx, id);
+  drawHardwareDetails(ctx, id);
+  // A single top-lit volume pass keeps 17 flat-colour models from reading as
+  // stickers. It is clipped to opaque pixels only, so the transparent margins
+  // and HUD crop stay clean.
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-atop';
+  const volume = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  volume.addColorStop(0, 'rgba(255,246,218,0.20)');
+  volume.addColorStop(0.32, 'rgba(255,255,255,0)');
+  volume.addColorStop(1, 'rgba(4,12,16,0.30)');
+  ctx.fillStyle = volume;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
   return canvas;
 }
