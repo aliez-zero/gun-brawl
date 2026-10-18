@@ -1,10 +1,13 @@
 import { BINDING_ACTIONS, cloneBindings, keyLabel, rebind } from '../content/controls';
 import type { ControlAction, KeyBindings } from '../content/controls';
 import { createWeaponIconCanvas } from '../presentation/WeaponArt';
-import { MODE_LABELS } from '../content/matches';
+import {
+  CUSTOM_MAP_OPTIONS, CUSTOM_MATCH_LIMITS, DIFFICULTY_LABELS, MODE_LABELS, cloneCustomMatch, validateCustomMatch,
+} from '../content/matches';
+import type { CustomMatchSettings, CustomSlot } from '../content/matches';
 import { APPEARANCE_PRESETS, isCharacterStyle, normalizeAppearance, presetAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
-import type { CharacterAppearance, GameMode, HumanSlot, MatchResult, MatchState, WeaponId } from '../game/core/types';
+import type { CharacterAppearance, Difficulty, DropMode, GameMode, HumanSlot, MatchResult, MatchState, WeaponId } from '../game/core/types';
 import { isGameMode } from '../storage/SaveStore';
 import type { SaveData } from '../storage/SaveStore';
 import { appearanceEditor, drawAppearancePreviews } from './appearance/AppearanceEditor';
@@ -26,6 +29,7 @@ export interface UIActions {
   setVolume: (volume: number) => void;
   setReducedMotion: (value: boolean) => void;
   setBindings: (bindings: KeyBindings) => void;
+  startCustom: (settings: CustomMatchSettings) => void;
 }
 
 export class GameUI {
@@ -108,6 +112,13 @@ export class GameUI {
         return;
       }
       if (action !== 'rebind') this.pendingBinding = null;
+      if (action === 'start-custom') {
+        const settings = this.readCustomSettings();
+        const errors = validateCustomMatch(settings);
+        if (errors.length) { this.showCustomErrors(errors); return; }
+        this.actions.startCustom(settings);
+        return;
+      }
       if (action === 'appearance-slot') {
         if (button.dataset.slot === '1' || button.dataset.slot === '2') this.editingSlot = Number(button.dataset.slot) as HumanSlot;
         this.showAppearance(this.editNextRound); return;
@@ -147,6 +158,9 @@ export class GameUI {
         if (output) output.textContent = `${Math.round(volume * 100)}%`;
       }
       if (event.target.id === 'reduced-motion') this.actions.setReducedMotion(event.target.checked);
+    }, { signal: this.listeners.signal });
+    root.addEventListener('change', (event) => {
+      if (event.target instanceof Element && event.target.closest('#custom-form')) this.refreshCustomValidation();
     }, { signal: this.listeners.signal });
     window.addEventListener('keydown', this.captureBinding, { capture: true, signal: this.listeners.signal });
     root.addEventListener('keydown', (event) => {
@@ -203,6 +217,7 @@ export class GameUI {
       'duel-ai': '和 AI 过过招，练一手漂亮的击退。',
       'local-duel': '叫上身边的朋友，一块键盘决胜负。',
       training: '没有时间限制，找回跳跃和开火的手感。',
+      custom: '自选地图、人数、AI 难度、生命、时限与武器池。',
     };
     this.overlay.innerHTML = `
       <div class="hero-panel">
@@ -210,12 +225,12 @@ export class GameUI {
         <h1>枪响，<br>就该<span>飞出去。</span></h1>
         <p class="hero-copy">平台之间，谁能站到最后？<br>跳跃、开火，把对手送出场外。</p>
         <div class="mode-picker" role="group" aria-label="选择游戏模式">
-          ${(['duel-ai', 'local-duel', 'training'] as const).map((mode, index) => `<button class="mode-option ${this.selected === mode ? 'selected' : ''}" data-action="mode" data-mode="${mode}" aria-pressed="${this.selected === mode}"><small>0${index + 1}</small><span>${MODE_LABELS[mode]}</span><i>${mode === 'duel-ai' ? '◈' : mode === 'local-duel' ? '▦' : '◎'}</i></button>`).join('')}
+          ${(['duel-ai', 'local-duel', 'training', 'custom'] as const).map((mode, index) => `<button class="mode-option ${this.selected === mode ? 'selected' : ''}" data-action="mode" data-mode="${mode}" aria-pressed="${this.selected === mode}"><small>0${index + 1}</small><span>${MODE_LABELS[mode]}</span><i>${mode === 'duel-ai' ? '◈' : mode === 'local-duel' ? '▦' : mode === 'training' ? '◎' : '⚙'}</i></button>`).join('')}
         </div>
         <p class="mode-description">${descriptions[this.selected]}</p>
         <div class="loadout-actions"><button data-action="appearance"><span>✦ 角色外观</span><small>${look.name} ↗</small></button><button data-action="maps"><span>▧ 更换地图</span><small>${map.name} ↗</small></button></div>
-        <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${this.ready ? '进入战场' : '正在准备战场'}</span><span>↗</span></button>
-        <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : '最后存活者获胜'}</span></div>
+        <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${!this.ready ? '正在准备战场' : this.selected === 'custom' ? '配置对局' : '进入战场'}</span><span>↗</span></button>
+        <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : this.selected === 'custom' ? '2—4 人自由配置' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : this.selected === 'custom' ? '可关闭特殊投放' : '最后存活者获胜'}</span></div>
       </div>
       <div class="arena-caption"><span class="caption-line"></span><small>${map.subtitle}</small><strong>${map.name}</strong><span>挑个新造型，换座新战场。</span></div>`;
     this.setGuide(this.selected);
@@ -229,7 +244,7 @@ export class GameUI {
     this.overlay.className = 'match-overlay';
     this.overlay.innerHTML = `
       <div class="hud-top">
-        <div class="actor-cards">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${actor.config.name}</span><canvas class="weapon-icon" id="weapon-icon-${actor.config.id}" width="120" height="48" aria-label="当前武器"></canvas></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
+        <div class="actor-cards ${state.actors.length > 2 ? 'many' : ''}">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${actor.config.name}</span><canvas class="weapon-icon" id="weapon-icon-${actor.config.id}" width="120" height="48" aria-label="当前武器"></canvas></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
         <div class="timer-block"><span id="round-label">${MODE_LABELS[state.config.mode]}</span><strong id="round-time">03:00</strong></div>
         <button class="pause-button" data-action="pause" aria-label="暂停对战">Ⅱ <kbd>ESC</kbd></button>
       </div>
@@ -302,6 +317,89 @@ export class GameUI {
       <button class="start-button" data-action="restart"><span>再来一局</span><span>↗</span></button><div class="dialog-actions"><button data-action="menu">返回主菜单</button></div>`);
   }
 
+  showCustomSetup(settings: CustomMatchSettings): void {
+    const custom = cloneCustomMatch(settings);
+    const mapOptions = CUSTOM_MAP_OPTIONS.map((map) => `<option value="${map.id}" ${custom.mapId === map.id ? 'selected' : ''}>${escapeLabel(map.name)}</option>`).join('');
+    const slotRow = (index: number, slot: CustomSlot): string => {
+      if (index === 0) return `<div class="custom-slot fixed"><span><b>槽位 1</b><small>玩家 1 · 本地键盘</small></span><em>固定</em></div>`;
+      const modes = index === 1
+        ? [['human', '玩家 2'], ['bot', 'AI'], ['empty', '关闭']]
+        : [['bot', 'AI'], ['empty', '关闭']];
+      const mode = slot.kind;
+      const difficulty = slot.kind === 'bot' ? slot.difficulty : 'normal';
+      return `<div class="custom-slot"><span><b>槽位 ${index + 1}</b><small data-custom-label="${index}">${mode === 'empty' ? '空置' : mode === 'human' ? '本地键盘 2' : `${DIFFICULTY_LABELS[difficulty]} AI`}</small></span>
+        <select data-custom-slot="${index}" aria-label="槽位 ${index + 1}">${modes.map(([value, label]) => `<option value="${value}" ${mode === value ? 'selected' : ''}>${label}</option>`).join('')}</select>
+        <select data-custom-difficulty="${index}" aria-label="槽位 ${index + 1} AI 难度">${(['easy', 'normal', 'hard'] as const).map((level) => `<option value="${level}" ${difficulty === level ? 'selected' : ''}>${DIFFICULTY_LABELS[level]}</option>`).join('')}</select></div>`;
+    };
+    this.dialog('CUSTOM MATCH', '这一局，你说了算。', `
+      <form id="custom-form" class="custom-form" onsubmit="return false">
+        <div class="custom-grid">
+          <label>地图<select id="custom-map">${mapOptions}</select></label>
+          <label>每人生命<input id="custom-stocks" type="number" min="${CUSTOM_MATCH_LIMITS.minStocks}" max="${CUSTOM_MATCH_LIMITS.maxStocks}" step="1" value="${custom.stocks}" /></label>
+          <label>时限（秒）<input id="custom-duration" type="number" min="${CUSTOM_MATCH_LIMITS.minDuration}" max="${CUSTOM_MATCH_LIMITS.maxDuration}" step="30" value="${custom.duration}" /></label>
+          <label>武器池<select id="custom-drop">${dropModeOptions(custom.dropMode)}</select></label>
+        </div>
+        <div class="custom-slots">${custom.slots.map((slot, index) => slotRow(index, slot)).join('')}</div>
+        <p class="setting-note" id="custom-errors" role="alert"></p>
+        <p class="custom-summary" id="custom-summary"></p>
+        <button type="button" class="start-button" data-action="start-custom"><span>开始对战</span><span>↗</span></button>
+        <div class="dialog-actions"><button type="button" data-action="close">返回</button></div>
+      </form>`);
+    this.refreshCustomValidation();
+  }
+
+  private readCustomSettings(): CustomMatchSettings {
+    const form = this.overlay.querySelector<HTMLFormElement>('#custom-form');
+    if (!form) return cloneCustomMatch();
+    const value = (selector: string): string => form.querySelector<HTMLInputElement | HTMLSelectElement>(selector)?.value ?? '';
+    const slots: CustomSlot[] = [{ kind: 'human', inputSlot: 1 }];
+    for (let index = 1; index < 4; index++) {
+      const mode = value(`[data-custom-slot="${index}"]`);
+      const rawDifficulty = value(`[data-custom-difficulty="${index}"]`);
+      if (index === 1 && mode === 'human') slots.push({ kind: 'human', inputSlot: 2 });
+      else if (mode === 'bot') slots.push({ kind: 'bot', difficulty: (rawDifficulty || 'normal') as Difficulty });
+      else slots.push({ kind: 'empty' });
+    }
+    return {
+      mapId: value('#custom-map'),
+      stocks: Number(value('#custom-stocks')),
+      duration: Number(value('#custom-duration')),
+      dropMode: (value('#custom-drop') || 'all') as DropMode,
+      slots,
+    };
+  }
+
+  private refreshCustomValidation(): void {
+    const settings = this.readCustomSettings();
+    const errors = validateCustomMatch(settings);
+    const errorBox = this.overlay.querySelector<HTMLElement>('#custom-errors');
+    const summary = this.overlay.querySelector<HTMLElement>('#custom-summary');
+    const start = this.overlay.querySelector<HTMLButtonElement>('[data-action="start-custom"]');
+    for (let index = 1; index < 4; index++) {
+      const mode = this.overlay.querySelector<HTMLSelectElement>(`[data-custom-slot="${index}"]`);
+      const difficulty = this.overlay.querySelector<HTMLSelectElement>(`[data-custom-difficulty="${index}"]`);
+      if (mode && difficulty) {
+        difficulty.disabled = mode.value !== 'bot';
+        const label = this.overlay.querySelector<HTMLElement>(`[data-custom-label="${index}"]`);
+        if (label) label.textContent = mode.value === 'empty' ? '空置' : mode.value === 'human' ? '本地键盘 2' : `${DIFFICULTY_LABELS[difficulty.value as Difficulty] ?? '普通'} AI`;
+      }
+    }
+    const active = settings.slots.filter((slot) => slot.kind !== 'empty');
+    const humans = active.filter((slot) => slot.kind === 'human').length;
+    const bots = active.length - humans;
+    if (errorBox) {
+      errorBox.textContent = errors.join(' ');
+      errorBox.classList.toggle('error', errors.length > 0);
+    }
+    if (summary) summary.textContent = `${active.length} 人 · ${humans} 本地 / ${bots} AI · 每人 ${settings.stocks || 0} 命 · ${settings.duration || 0} 秒`;
+    if (start) start.disabled = errors.length > 0;
+  }
+
+  private showCustomErrors(errors: string[]): void {
+    const box = this.overlay.querySelector<HTMLElement>('#custom-errors');
+    if (box) { box.textContent = errors.join(' '); box.classList.add('error'); }
+  }
+
   showSettings(): void {
     this.pendingBinding = null;
     const bindingRows = ([1, 2] as const).map((slot) => `<div class="binding-player"><strong>玩家 ${slot}</strong>${BINDING_ACTIONS.map(({ action, label }) => {
@@ -362,6 +460,15 @@ export class GameUI {
       ? `<span>P1 <kbd>${escapeLabel(p1.left.label)} ${escapeLabel(p1.right.label)}</kbd> 移动 <kbd>${escapeLabel(p1.jump.label)}</kbd> 跳 <kbd>${escapeLabel(p1.drop.label)}</kbd> 穿台 <kbd>${escapeLabel(p1.shoot.label)}</kbd> 开火 <kbd>${escapeLabel(p1.reload.label)}</kbd> 换弹 <kbd>${escapeLabel(p1.bomb.label)}</kbd> 投弹</span><span>P2 <kbd>${escapeLabel(p2.left.label)} ${escapeLabel(p2.right.label)}</kbd> 移动 <kbd>${escapeLabel(p2.jump.label)}</kbd> 跳 <kbd>${escapeLabel(p2.drop.label)}</kbd> 穿台 <kbd>${escapeLabel(p2.shoot.label)}</kbd> 开火 <kbd>${escapeLabel(p2.reload.label)}</kbd> 换弹 <kbd>${escapeLabel(p2.bomb.label)}</kbd> 投弹</span><span><kbd>Esc</kbd> 暂停</span>`
       : `<span><kbd>${escapeLabel(p1.left.label)}</kbd> <kbd>${escapeLabel(p1.right.label)}</kbd> 移动</span><span><kbd>${escapeLabel(p1.jump.label)}</kbd> 二段跳</span><span><kbd>${escapeLabel(p1.drop.label)}</kbd> 穿台</span><span><kbd>${escapeLabel(p1.shoot.label)}</kbd> 开火</span><span><kbd>${escapeLabel(p1.reload.label)}</kbd> 换弹</span><span><kbd>${escapeLabel(p1.bomb.label)}</kbd> 投弹</span><span><kbd>1—8</kbd> 试枪</span><span><kbd>Esc</kbd> 暂停</span>`;
   }
+}
+
+function dropModeOptions(selected: DropMode): string {
+  const options: [DropMode, string][] = [
+    ['all', '全部武器（含终极）'],
+    ['standard', '仅标准武器'],
+    ['none', '关闭特殊投放'],
+  ];
+  return options.map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('');
 }
 
 function escapeLabel(value: string): string {

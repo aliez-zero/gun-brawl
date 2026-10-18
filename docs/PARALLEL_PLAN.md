@@ -102,7 +102,7 @@
 | T04 | 地图注册与古城 / 都市 / 飞船主题 | M1 高 | 投放点对齐 T03，完整导航图由 T05 完善 | 已完成当前地图范围 / 适中难度、投放点、内侧失足恢复与外围击出已验收（D:\Code\gun-brawl / main） |
 | T05 | AI 平台导航与三档决策 | M1 高 | 可先做现有地图导航；完整验收依赖 T01—T04 | 部分完成 / 当前会话（射程、抢箱、投弹 / 威胁规避；完整导航待续） |
 | T06 | 自定义键位与设置子视图 | M2；可提前并行 | T00 设置 / 输入边界已冻结；持久化接入 T12 | 功能完成 / 当前会话（改键 / 冲突 / 恢复默认 / 刷新保留；独立组件未拆） |
-| T07 | 自定义对局、配置校验与 UI | M1 高 | T00 已冻结 `startingWeapon` / `matchId`；完整接入 T01 / T03 / T04 / T05 / T12 | 待领取 / — |
+| T07 | 自定义对局、配置校验与 UI | M1 高 | T00 已冻结 `startingWeapon` / `matchId`；完整接入 T01 / T03 / T04 / T05 / T12 | 核心完成 / 当前会话（2—4 人、逐 AI 难度、规则 / 武器池、最近配置；完整 4 人淘汰验收待 T11） |
 | T08 | 训练教学、试枪与图鉴 | M2 | T01 八枪已提供；投放重置依赖 T03；教学保存依赖 T12 | 部分完成 / 当前会话（训练 1—8 试枪 / 补弹；教程 / 图鉴待续） |
 | T09 | 六关战役、解锁、成绩 | M2 | T01—T05、T07 配置能力、T12 | 待领取 / — |
 | T10 | 多风格外观编辑与角色重绘 | M2 | 箱子 / 炸弹 / 八枪表现依赖 T01—T03 | 部分完成 / 当前会话（换装、八枪外观、HUD 剪影、箱子 / 爆炸已交付） |
@@ -111,7 +111,9 @@
 
 本轮执行记录：T00 在 `D:\Code\gun-brawl` 完成，基线为 `332998d`，文档同步为 `1cc7358`；Git HEAD 已建立并已推送 GitHub。负责人同时承担地图 / 外观集成：独占修改地图配置、角色绘制、地图背景、外观 / 地图选择子视图；统一接入类型、场景、主 UI、应用与保存。用户新增需求优先于旧的双塔 / 断桥规划。T00 首批契约已落地，其他任务按上表接入；T12 只接入兼容旧档的外观与地图字段，其他存档工作仍待领取。
 
-已落地契约：`CharacterAppearance` / `ActorConfig.appearance?`、地图可选主题元数据、`createMatchConfig(mode, seed, selections?)`、`selectedMapId` / 两玩家 `appearances`（继续 v1）；T00 新增 `WeaponInstance` / `ActorState.weapon` / `MatchConfig.startingWeapon`、`Projectile.weaponId` / `velocity` / `impulse`、`ActorInput.bombPressed`、`ExplosionRequest` / `ExplosionHit` / `ExplosionResolver`、`MatchConfig.matchId`。主 UI 的换装 / 选图回调由应用统一保存，当前对局保持创建时配置。T05 仅补充基于地图的下层恢复与跳跃落点，完整导航未实现。上述公共文件接线已结束，可由后续负责人继续；不要再按旧的“写死训练台”假设修改。
+已落地契约：`CharacterAppearance` / `ActorConfig.appearance?`、地图可选主题元数据、`createMatchConfig(mode, seed, selections?)` / `createCustomMatchConfig(settings, seed, selections?)`、`CustomMatchSettings` / `validateCustomMatch`、`MatchConfig.dropMode`、`selectedMapId` / 两玩家 `appearances` / `customMatch`（继续 v1）；T00 新增 `WeaponInstance` / `ActorState.weapon` / `MatchConfig.startingWeapon`、`Projectile.weaponId` / `velocity` / `impulse`、`ActorInput.bombPressed`、`ExplosionRequest` / `ExplosionHit` / `ExplosionResolver`、`MatchConfig.matchId`。主 UI 的换装 / 选图回调由应用统一保存，当前对局保持创建时配置。T05 仅补充基于地图的下层恢复与跳跃落点，完整导航未实现。上述公共文件接线已结束，可由后续负责人继续；不要再按旧的“写死训练台”假设修改。
+
+T07 执行记录：菜单新增自定义对局；共享配置校验器与 2—4 人构建器；最多两名本地玩家、逐 AI 难度、地图、1—9 命、30—600 秒、全部 / 仅标准 / 关闭投放；配置页实时错误并禁用开始；最近配置写入 v1 存档，重赛继续使用实际配置。6 项配置测试与浏览器 4 人 HUD 通过；完整 4 人淘汰 / 观战 / 加时验收待 T11。详见 [自定义对局交付](./updates/2026-10-18-custom-match.md)。
 
 T06 执行记录：两名玩家 7 个动作的改键、冲突 / 保留键校验、Esc 取消、恢复默认、即时生效与刷新保留已接入设置面板；`SaveData.bindings` 写入现有 v1 存档，旧档 / 损坏档回退默认。150 项 / 14 文件通过；浏览器实测 P1 开火改 U 后 J 失效、U 正常扣弹。详见 [改键交付](./updates/2026-10-18-keybindings.md)。独立录键组件与手柄仍未拆 / 未接。
 

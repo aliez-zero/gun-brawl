@@ -3,6 +3,7 @@ import { presetAppearance } from '../content/appearances';
 import { TRAINING_ARENA } from '../content/maps';
 import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchState, Vec2 } from '../game/core/types';
 import { CHARACTER_FRAME, characterKey, colorCss, createCharacterAtlas } from './CharacterArt';
+import { characterFrame } from './CharacterMotion';
 import { paintWorld } from './WorldArt';
 
 interface Effect extends Vec2 { life: number; kind: 'hit' | 'shot' | 'respawn' }
@@ -15,8 +16,9 @@ export class ArenaRenderer {
   private readonly views = new Map<string, CharacterView>();
   private readonly ownedTextures = new Set<string>();
   private readonly appearanceKeys = new Set<string>();
-  private readonly shotAt = new Map<string, number>();
   private readonly hitAt = new Map<string, number>();
+  private readonly landedAt = new Map<string, number>();
+  private readonly wasAirborne = new Set<string>();
   private effects: Effect[] = [];
   private clock = 0;
   private previewLooks: Record<HumanSlot, CharacterAppearance> = { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') };
@@ -57,7 +59,7 @@ export class ArenaRenderer {
 
   reset(): void {
     this.effects = [];
-    this.shotAt.clear(); this.hitAt.clear(); this.clock = 0;
+    this.hitAt.clear(); this.landedAt.clear(); this.wasAirborne.clear(); this.clock = 0;
     for (const view of this.views.values()) { view.sprite.destroy(); view.label.destroy(); }
     this.views.clear(); this.shadows.clear(); this.effectsView.clear();
     this.scene.cameras.main.resetFX();
@@ -67,8 +69,8 @@ export class ArenaRenderer {
   handle(events: readonly BattleEvent[]): void {
     for (const event of events) {
       if (event.type === 'hit' || event.type === 'shot' || event.type === 'respawn') this.effects.push({ ...event.position, life: 0.2, kind: event.type });
-      if (event.type === 'shot') this.shotAt.set(event.actorId, this.clock);
       if (event.type === 'hit') this.hitAt.set(event.actorId, this.clock);
+      if (event.type === 'respawn') { this.wasAirborne.delete(event.actorId); this.landedAt.delete(event.actorId); this.hitAt.delete(event.actorId); }
       if (event.type === 'ringout' && !this.reducedMotion) this.scene.cameras.main.shake(110, 0.002);
     }
     this.effects = this.effects.slice(-40);
@@ -89,13 +91,16 @@ export class ArenaRenderer {
       if (actor.status !== 'alive') {
         this.views.get(id)?.sprite.setVisible(false);
         this.views.get(id)?.label.setVisible(false);
+        this.wasAirborne.delete(id); this.landedAt.delete(id);
         continue;
       }
       const x = frozen ? actor.position.x : Phaser.Math.Linear(actor.previous.x, actor.position.x, alpha);
       const y = frozen ? actor.position.y : Phaser.Math.Linear(actor.previous.y, actor.position.y, alpha);
-      let frame = actor.groundedOn === null ? 7 : Math.abs(actor.moveVelocity) > 15 ? 1 + Math.floor(this.clock * 12) % 6 : 0;
-      if (this.clock - (this.shotAt.get(id) ?? -1) < 0.1) frame = 8;
-      if (this.clock - (this.hitAt.get(id) ?? -1) < 0.12) frame = 9;
+      if (!frozen) {
+        if (actor.groundedOn === null) this.wasAirborne.add(id);
+        else if (this.wasAirborne.delete(id)) this.landedAt.set(id, this.clock);
+      }
+      const frame = characterFrame(actor, this.clock, this.clock - (this.hitAt.get(id) ?? -10), this.clock - (this.landedAt.get(id) ?? -10));
       this.character(id, actor.config.appearance ?? presetAppearance('cowboy'), x, y, actor.facing, 1, frame,
         actor.protectionRemaining > 0 ? 0.78 : 1, actor.config.name, actor.config.color);
       if (actor.protectionRemaining > 0) {
@@ -155,12 +160,12 @@ export class ArenaRenderer {
   }
 
   private trimAtlases(): void {
-    if (this.appearanceKeys.size <= 12) return;
+    if (this.appearanceKeys.size <= 8) return;
     const active = new Set([...this.views.values()].map((view) => view.sprite.texture.key));
     for (const key of this.appearanceKeys) {
       if (active.has(key)) continue;
       this.scene.textures.remove(key); this.appearanceKeys.delete(key); this.ownedTextures.delete(key);
-      if (this.appearanceKeys.size <= 12) break;
+      if (this.appearanceKeys.size <= 8) break;
     }
   }
 

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { MatchState } from '../game/core/types';
 import { createWeaponArtCanvas, WEAPON_ART, weaponArtKey } from './WeaponArt';
+import { CHARACTER_GRIP, weaponPose } from './CharacterMotion';
 
 /**
  * Independent weapon sprites. The character atlas deliberately contains no gun,
@@ -39,10 +40,13 @@ export class WeaponLayer {
       const interpolate = state.phase === 'playing';
       const x = interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, alpha) : actor.position.x;
       const y = interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, alpha) : actor.position.y;
+      const pose = weaponPose(actor);
       sprite
         .setTexture(key)
-        .setPosition(x + actor.facing * WEAPON_ART.handX, y - WEAPON_ART.handY)
+        .setPosition(x + actor.facing * CHARACTER_GRIP.x, y + CHARACTER_GRIP.y)
         .setFlipX(actor.facing < 0)
+        .setRotation(pose.rotation)
+        .setAlpha(pose.alpha)
         .setVisible(true);
     }
     for (const [id, sprite] of this.sprites) if (!visible.has(id)) sprite.setVisible(false);

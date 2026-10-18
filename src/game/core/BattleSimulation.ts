@@ -1,3 +1,4 @@
+import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../../content/drops';
 import { WEAPON_SLOTS } from '../../content/weapons';
 import { createActor } from './actors';
 import { idleInput } from './types';
@@ -14,7 +15,7 @@ export class BattleSimulation {
   readonly state: MatchState;
   private readonly combat = new CombatSystem();
   private readonly grenades = new GrenadeSystem();
-  private readonly drops = new DropSystem();
+  private readonly drops: DropSystem;
   private events: BattleEvent[] = [];
 
   constructor(config: MatchConfig) {
@@ -22,6 +23,9 @@ export class BattleSimulation {
     if (config.actors.length < 2 || config.actors.length > 4 || ids.size !== config.actors.length) throw new Error('参战人数应为 2—4，角色 ID 必须唯一');
     if (!config.actors.some((actor) => actor.control === 'human')) throw new Error('至少需要一名本地玩家');
     if (config.map.spawns.length < config.actors.length || !Number.isFinite(config.duration) || config.duration <= 0 || !Number.isInteger(config.stocks) || config.stocks < 1) throw new Error('地图或对局规则无效');
+    this.drops = new DropSystem(config.dropMode === 'none'
+      ? []
+      : config.dropMode === 'standard' ? STANDARD_DROP_POOL : DEFAULT_DROP_POOL);
     this.state = {
       config, phase: 'countdown', actors: config.actors.map((actor, index) => createActor(
         actor, config.map.spawns[index]!, config.stocks, config.map.width / 2, config.startingWeapon,

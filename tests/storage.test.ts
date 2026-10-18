@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cloneBindings, DEFAULT_KEY_BINDINGS, rebind } from '../src/content/controls';
+import { cloneCustomMatch } from '../src/content/matches';
 import { SaveStore } from '../src/storage/SaveStore';
 import { presetAppearance } from '../src/content/appearances';
 import type { StoragePort } from '../src/storage/SaveStore';
@@ -48,6 +49,25 @@ describe('versioned local saves', () => {
       version: 1, bindings: { 1: { shoot: { codes: ['KeyK'], label: 'K' } } },
     })));
     expect(damaged.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);
+  });
+
+  it('persists the recent custom match and repairs it from bad data', () => {
+    const storage = memoryStorage();
+    const store = new SaveStore(storage);
+    store.data.customMatch = cloneCustomMatch();
+    store.data.customMatch.mapId = 'alien-starship';
+    store.data.customMatch.stocks = 5;
+    store.data.customMatch.slots[1] = { kind: 'human', inputSlot: 2 };
+    store.persist();
+    const restored = new SaveStore(storage);
+    expect(restored.data.customMatch).toEqual(store.data.customMatch);
+    expect(restored.data.lastMode).toBe('duel-ai');
+
+    const damaged = new SaveStore(memoryStorage(JSON.stringify({ version: 1, customMatch: { slots: [] } })));
+    expect(damaged.data.customMatch.slots).toEqual([
+      { kind: 'human', inputSlot: 1 }, { kind: 'bot', difficulty: 'normal' },
+      { kind: 'empty' }, { kind: 'empty' },
+    ]);
   });
 
   it('keeps default bindings for old saves', () => {

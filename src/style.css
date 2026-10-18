@@ -73,6 +73,11 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .hud-top { display: flex; position: absolute; inset: 20px 22px auto; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .actor-cards { display: flex; gap: 10px; }
 .actor-card { padding: 11px 16px; min-width: 150px; border: 1px solid #4a5c414f; border-radius: 4px; background: #101811dd; transition: opacity .2s; }
+.actor-cards.many .actor-card { min-width: 118px; padding: 9px 10px; }
+.actor-cards.many .actor-name { font-size: 11px; gap: 5px; }
+.actor-cards.many .weapon-icon { width: 42px; height: 18px; }
+.actor-cards.many .stocks { font-size: 12px; min-height: 18px; }
+.actor-cards.many .actor-card small { font-size: 9px; }
 .actor-card.eliminated { opacity: .4; }
 .actor-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; }
 .actor-name i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; background: var(--player-color); }
@@ -119,6 +124,22 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .binding-key { min-width: 58px; padding: 4px 7px; border: 1px solid #4a5c41; border-radius: 3px; background: #101811; color: #dce7d2; font: 10px Consolas, monospace; }
 .binding-key:hover { border-color: var(--lime); color: var(--lime); }
 .binding-key.listening { border-color: var(--lime); color: var(--lime); box-shadow: 0 0 0 2px #c4f56b33; }
+.custom-form { display: grid; gap: 15px; }
+.custom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.custom-grid label { display: grid; gap: 5px; color: #aebda2; font-size: 10px; }
+.custom-grid input, .custom-grid select, .custom-slot select { width: 100%; min-height: 31px; padding: 6px 8px; border: 1px solid #40533a; border-radius: 3px; background: #101811; color: #dce7d2; font: 11px Consolas, monospace; }
+.custom-grid input:focus, .custom-grid select:focus, .custom-slot select:focus { outline: 1px solid var(--lime); border-color: var(--lime); }
+.custom-slots { display: grid; gap: 6px; border-top: 1px solid #34452f; padding-top: 12px; }
+.custom-slot { display: grid; grid-template-columns: 1fr 92px 82px; align-items: center; gap: 8px; min-height: 42px; border-bottom: 1px solid #2c3a28; }
+.custom-slot.fixed { grid-template-columns: 1fr auto; }
+.custom-slot span { display: grid; gap: 3px; color: #c4d2b9; font-size: 11px; }
+.custom-slot b { font-weight: 400; }
+.custom-slot small { color: #7e9174; font-size: 9px; }
+.custom-slot em { color: #66785c; font-size: 9px; font-style: normal; }
+.custom-slot select:disabled { opacity: .35; }
+.custom-summary { margin: -4px 0 0; color: var(--lime); font: 10px Consolas, monospace; }
+.custom-form .start-button { margin-top: 2px; }
+.custom-form .dialog-actions { margin-top: 0; }
 .help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border-block: 1px solid var(--line); padding: 16px 0; }
 .help-grid strong { color: var(--lime); font-size: 12px; }
 .help-grid p { color: #91a086; font-size: 11px; }

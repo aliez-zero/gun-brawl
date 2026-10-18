@@ -1,6 +1,8 @@
 import { normalizeAppearance, presetAppearance } from '../content/appearances';
 import { cloneBindings, normalizeBindings } from '../content/controls';
 import type { KeyBindings } from '../content/controls';
+import { cloneCustomMatch, normalizeCustomMatch } from '../content/matches';
+import type { CustomMatchSettings } from '../content/matches';
 import { isMapId } from '../content/maps';
 import type { CharacterAppearance, GameMode, HumanSlot, MatchResult } from '../game/core/types';
 
@@ -13,6 +15,7 @@ export interface SaveData {
   selectedMapId: string;
   appearances: Record<HumanSlot, CharacterAppearance>;
   bindings: KeyBindings;
+  customMatch: CustomMatchSettings;
 }
 
 export interface StoragePort { getItem(key: string): string | null; setItem(key: string, value: string): void }
@@ -21,13 +24,13 @@ const defaults = (): SaveData => ({
   version: 1, settings: { volume: 0.35, reducedMotion: false },
   lastMode: 'duel-ai', stats: { completed: 0, p1Wins: 0, p2Wins: 0, draws: 0 }, lastResultId: null,
   selectedMapId: 'sky-citadel', appearances: { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') },
-  bindings: cloneBindings(),
+  bindings: cloneBindings(), customMatch: cloneCustomMatch(),
 });
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const count = (value: unknown): number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
-export const isGameMode = (value: unknown): value is GameMode => value === 'duel-ai' || value === 'local-duel' || value === 'training';
+export const isGameMode = (value: unknown): value is GameMode => value === 'duel-ai' || value === 'local-duel' || value === 'training' || value === 'custom';
 
 export class SaveStore {
   readonly data: SaveData;
@@ -53,6 +56,7 @@ export class SaveStore {
       this.data.appearances[1] = normalizeAppearance(appearances['1'], this.data.appearances[1]);
       this.data.appearances[2] = normalizeAppearance(appearances['2'], this.data.appearances[2]);
       this.data.bindings = normalizeBindings(parsed.bindings);
+      this.data.customMatch = normalizeCustomMatch(parsed.customMatch);
     } catch (error) { this.available = error instanceof SyntaxError; }
   }
 

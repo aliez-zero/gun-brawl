@@ -1,9 +1,10 @@
 export interface Vec2 { x: number; y: number }
 export interface Rect { x: number; y: number; width: number; height: number }
-export type GameMode = 'duel-ai' | 'local-duel' | 'training';
+export type GameMode = 'duel-ai' | 'local-duel' | 'training' | 'custom';
 export type MatchPhase = 'countdown' | 'playing' | 'paused' | 'finished';
 export type ActorStatus = 'alive' | 'respawning' | 'eliminated';
 export type Difficulty = 'easy' | 'normal' | 'hard';
+export type DropMode = 'all' | 'standard' | 'none';
 export type HumanSlot = 1 | 2;
 /** Stable IDs for the six PRD families. Five non-rocket families have content; rocket waits for T02. */
 export type WeaponId = 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket' | 'gatling' | 'cannon';
@@ -124,6 +125,8 @@ export interface MatchConfig {
   seed: number;
   /** Per-match identity; decoupled from seed so the same seed can produce distinct results. */
   matchId?: string;
+  /** Custom matches can disable drops or keep the standard pool only. */
+  dropMode?: DropMode;
 }
 
 export interface ActorState {

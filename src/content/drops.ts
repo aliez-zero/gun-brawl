@@ -16,6 +16,11 @@ export const DEFAULT_DROP_POOL: readonly DropPoolEntry[] = [
   { weaponId: 'cannon', weight: 2 },
 ];
 
+/** No ultimate weapons; used by custom "standard only" matches. */
+export const STANDARD_DROP_POOL: readonly DropPoolEntry[] = DEFAULT_DROP_POOL.filter(
+  (entry) => entry.weaponId !== 'gatling' && entry.weaponId !== 'cannon',
+);
+
 /** Invalid or non-positive weights are ignored; an empty pool is a legal "no drops" rule. */
 export function normalizeDropPool(pool: readonly DropPoolEntry[]): DropPoolEntry[] {
   return pool

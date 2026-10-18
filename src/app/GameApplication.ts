@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { createMatchConfig } from '../content/matches';
+import { cloneCustomMatch, createCustomMatchConfig, createMatchConfig, validateCustomMatch } from '../content/matches';
+import type { CustomMatchSettings } from '../content/matches';
 import { normalizeAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
 import { getWeapon } from '../content/weapons';
@@ -10,9 +11,9 @@ import { BootScene } from '../scenes/BootScene';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
 import { GameUI } from '../ui/GameUI';
 
-type Dialog = 'settings' | 'help' | 'appearance' | 'maps';
+type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom';
 type Screen = 'menu' | 'match' | 'pause' | 'result' | Dialog;
-const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps'].includes(screen);
+const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom'].includes(screen);
 
 export class GameApplication {
   private readonly store = new SaveStore(browserStorage());
@@ -31,7 +32,7 @@ export class GameApplication {
       start: (mode) => this.start(mode),
       pause: () => this.pause(),
       resume: () => this.resume(),
-      restart: () => this.start(this.activeMode),
+      restart: () => this.restart(),
       menu: () => this.menu(),
       settings: () => this.openDialog('settings'),
       help: () => this.openDialog('help'),
@@ -54,6 +55,7 @@ export class GameApplication {
         this.arena.setBindings(bindings);
         this.persist();
       },
+      startCustom: (settings) => this.startCustom(settings),
     }, this.store.data);
     this.arena = new ArenaScene({
       onReady: () => {
@@ -86,6 +88,7 @@ export class GameApplication {
 
   private start(mode: GameMode): void {
     if (!this.isReady) return;
+    if (mode === 'custom') { this.openDialog('custom'); return; }
     this.sound.unlock();
     this.activeMode = mode;
     this.store.data.lastMode = mode;
@@ -98,6 +101,31 @@ export class GameApplication {
     }));
     this.ui.showMatch(this.arena.matchState!);
     (document.activeElement as HTMLElement | null)?.blur();
+  }
+
+  private startCustom(settings: CustomMatchSettings): void {
+    if (!this.isReady) return;
+    const errors = validateCustomMatch(settings);
+    if (errors.length) { this.ui.notify(errors[0]!); return; }
+    const normalized = cloneCustomMatch(settings);
+    this.sound.unlock();
+    this.activeMode = 'custom';
+    this.store.data.lastMode = 'custom';
+    this.store.data.customMatch = normalized;
+    this.persist();
+    this.screen = 'match';
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
+    const matchId = crypto.randomUUID();
+    this.arena.startMatch(createCustomMatchConfig(normalized, seed, {
+      appearances: this.store.data.appearances, matchId,
+    }));
+    this.ui.showMatch(this.arena.matchState!);
+    (document.activeElement as HTMLElement | null)?.blur();
+  }
+
+  private restart(): void {
+    if (this.activeMode === 'custom') this.startCustom(this.store.data.customMatch);
+    else this.start(this.activeMode);
   }
 
   private frame(state: Readonly<MatchState>): void { if (this.screen === 'match') this.ui.updateHUD(state); }
@@ -153,6 +181,7 @@ export class GameApplication {
     if (kind === 'settings') this.ui.showSettings();
     else if (kind === 'help') this.ui.showHelp();
     else if (kind === 'appearance') this.ui.showAppearance(this.returnScreen !== 'menu');
+    else if (kind === 'custom') this.ui.showCustomSetup(this.store.data.customMatch);
     else this.ui.showMaps(this.returnScreen !== 'menu');
   }
 
