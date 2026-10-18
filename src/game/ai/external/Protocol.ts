@@ -6,7 +6,8 @@ export const MAX_OBSERVATION_AGE = 180;
 export const MAX_HOLD_FRAMES = 45;
 export const MAX_RECENT_ACTIONS = 8;
 
-export interface ExternalAction extends ActorInput { holdFrames: number }
+export type ExternalIntent = 'recover' | 'attack' | 'collect' | 'reposition';
+export interface ExternalAction extends ActorInput { holdFrames: number; intent?: ExternalIntent | null }
 export interface ExternalActionOutcome {
   observedTick: number;
   deltaX: number;
@@ -26,11 +27,15 @@ export function parseExternalAction(value: unknown): ExternalAction | null {
   if (fields.some((field) => typeof v[field] !== 'boolean')) return null;
   if (!Number.isInteger(v.holdFrames) || (v.holdFrames as number) < 1 || (v.holdFrames as number) > MAX_HOLD_FRAMES) return null;
   if (v.jumpPressed && v.dropPressed) return null;
-  return {
+  const action: ExternalAction = {
     moveX: v.moveX, jumpPressed: v.jumpPressed as boolean, dropPressed: v.dropPressed as boolean,
     shootHeld: v.shootHeld as boolean, bombPressed: v.bombPressed as boolean,
     reloadPressed: v.reloadPressed as boolean, holdFrames: v.holdFrames as number,
   };
+  if (v.intent === null || v.intent === undefined) action.intent = null;
+  else if (v.intent === 'recover' || v.intent === 'attack' || v.intent === 'collect' || v.intent === 'reposition') action.intent = v.intent;
+  else return null;
+  return action;
 }
 
 const round = (n: number): number => Math.round(n * 100) / 100;
@@ -142,6 +147,7 @@ export function createObservation(
       bombPressed: action.bombPressed,
       reloadPressed: action.reloadPressed,
       holdFrames: action.holdFrames,
+      ...(action.intent === undefined ? {} : { intent: action.intent }),
       outcome: action.outcome ? { ...action.outcome } : null,
     })),
     enemies: enemies.map((a) => ({

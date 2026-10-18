@@ -80,9 +80,11 @@ export class ExternalInputController {
     const aimCorrection: -1 | 0 | 1 = a.shootHeld && target && Math.abs(targetDy) < 55
       && Math.abs(targetDx) <= actor.weapon.definition.range && a.moveX === 0
       ? (targetDx < 0 ? -1 : 1) : 0;
-    const moveX = stalled ? assist.moveX : aimCorrection || a.moveX;
+    const useTacticalSkill = stalled || a.intent === 'recover' || a.intent === 'collect'
+      || (a.intent === 'reposition' && a.moveX === 0);
+    const moveX = useTacticalSkill ? assist.moveX : aimCorrection || a.moveX;
     return {
-      moveX, shootHeld: a.shootHeld || (assist.shootHeld && aligned),
+      moveX, shootHeld: a.shootHeld || (a.intent === 'attack' && assist.shootHeld && aligned),
       jumpPressed: (edge && a.jumpPressed) || (assist.jumpPressed && actor.groundedOn !== null),
       dropPressed: (edge && a.dropPressed) || (assist.dropPressed && actor.groundedOn !== null),
       bombPressed: edge && a.bombPressed,

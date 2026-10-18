@@ -48,6 +48,8 @@ describe('external direct control', () => {
     expect(runner.applyExternalInput('deepseek', action, { ...c, sequence: 2 })).toBe(false);
     expect(parseExternalAction({ ...action, jumpPressed: true, dropPressed: true })).toBeNull();
     expect(parseExternalAction({ ...action, moveX: '1' })).toBeNull();
+    expect(parseExternalAction({ ...action, intent: 'recover' })?.intent).toBe('recover');
+    expect(parseExternalAction({ ...action, intent: 'teleport' })).toBeNull();
   });
 
   it('invalidates commands on pause, countdown and respawn with no rule-bot takeover', () => {

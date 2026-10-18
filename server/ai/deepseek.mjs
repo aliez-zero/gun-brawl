@@ -4,7 +4,8 @@ import { prepareModelContext, resolveContextTokens, MAX_CONTEXT_TOKENS, MAX_OUTP
 const MAX_BODY = 64 * 1024;
 const SYSTEM = `You control a character in a 2D platform gun brawl. Win by knocking opponents outside map.bounds; there is no HP damage. x goes right, y goes down; actor x/y is feet center. Physics runs at 60 FPS. Platforms may be one-way (drop through) or solid. Two jumps, limited bombs and weapon ammo. Facing follows moveX; shooting is horizontal in facing direction. Reload takes time. Avoid walking beyond a landing platform without jumping. Move toward enemies and shoot when aligned, recover to platforms when falling, collect active weapon drops when useful. Use this human-like priority loop on every decision: (1) survive threats and recover to a platform, (2) choose the route or height that keeps a landing option, (3) close distance while braking before the platform edge, (4) turn toward an aligned enemy and fire a short burst, (5) reload during a safe gap and use bombs only for a clear nearby opportunity. Prioritize survival: follow tactical.priority first; recover when it says recover, use tactical.safePlatform* or tactical.route* to choose the next landing, collect only when safe, then attack. Keep a safe distance from both map edges, steer toward a reachable platform while falling, and jump before crossing an exposed platform edge. When platformEdgeDistanceLeft or platformEdgeDistanceRight is below about 80, brake or jump inward. Treat a nearby projectile or bomb distance below 150 as an immediate escape signal. Use tactical.nearestEnemy* and tactical.currentPlatformId instead of estimating these values from scratch. recentActions is a short memory of your previous commands; the latest entry may include outcome.deltaX/deltaY and outcome.platformId, which tells you whether the previous decision actually moved or landed. If an action made little progress, change direction or choose a shorter holdFrames. Use 6-18 holdFrames for risky movement, 18-30 for stable travel, and never hold a jump or bomb repeatedly. Do not fire continuously while facing away from the nearest enemy. Never assume unseen future events. Use the provided telemetry only.
 Return ONLY a JSON object with all fields, no explanation:
-{"moveX":1,"jumpPressed":false,"dropPressed":false,"shootHeld":true,"bombPressed":false,"reloadPressed":false,"holdFrames":30}
+{"intent":"attack","moveX":1,"jumpPressed":false,"dropPressed":false,"shootHeld":true,"bombPressed":false,"reloadPressed":false,"holdFrames":12}
+intent must be one of recover, attack, collect, reposition. It is a tactical preference, while the other fields are the immediate input.
 moveX must be -1, 0 or 1. The five action flags are booleans. holdFrames is an integer from 1 to 45. Movement and firing are held for holdFrames; jump/drop/bomb/reload trigger ONCE on the first frame. Never jump and drop together. Commands expire and inputs become neutral until the next decision. Requests have network latency: use velocity to anticipate movement. You cannot set coordinates, ammo or lives.`;
 
 class GatewayError extends Error {
@@ -29,6 +30,7 @@ const actionHistory = shape({
   dropPressed: (v) => typeof v === 'boolean' ? v : fail(), shootHeld: (v) => typeof v === 'boolean' ? v : fail(),
   bombPressed: (v) => typeof v === 'boolean' ? v : fail(), reloadPressed: (v) => typeof v === 'boolean' ? v : fail(),
   holdFrames: integer(1, 45),
+  intent: optional(nullable(enumeration('recover', 'attack', 'collect', 'reposition')), null),
   outcome: optional(nullable(shape({
     observedTick: integer(), deltaX: number(), deltaY: number(), platformId: nullable(text),
     status: enumeration('alive', 'respawning', 'eliminated'), grounded: (v) => typeof v === 'boolean' ? v : fail(),
@@ -71,7 +73,10 @@ export function validateAction(value) {
   if (![-1, 0, 1].includes(value.moveX) || !Number.isInteger(value.holdFrames) || value.holdFrames < 1 || value.holdFrames > 45) return null;
   const keys = ['jumpPressed', 'dropPressed', 'shootHeld', 'bombPressed', 'reloadPressed'];
   if (keys.some((key) => typeof value[key] !== 'boolean') || (value.jumpPressed && value.dropPressed)) return null;
-  return { moveX: value.moveX, ...Object.fromEntries(keys.map((key) => [key, value[key]])), holdFrames: value.holdFrames };
+  const action = { moveX: value.moveX, ...Object.fromEntries(keys.map((key) => [key, value[key]])), holdFrames: value.holdFrames };
+  if (value.intent === null || value.intent === undefined) return action;
+  if (!['recover', 'attack', 'collect', 'reposition'].includes(value.intent)) return null;
+  return { intent: value.intent, ...action };
 }
 
 async function readBody(req) {
