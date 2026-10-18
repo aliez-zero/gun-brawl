@@ -4,6 +4,7 @@ import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../src/content/drops';
 import { ARMORY_WEAPONS, WEAPON_MODELS, createWeapon, getWeapon } from '../src/content/weapons';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
+import { supportGrip } from '../src/presentation/WeaponSupport';
 
 function training(): BattleSimulation {
   const simulation = new BattleSimulation({ ...createMatchConfig('training', 42), countdown: 0 });
@@ -39,6 +40,16 @@ describe('T01 17 concrete weapon models', () => {
     expect(simulation.selectTrainingWeapon('akm')).toBe(true);
     expect(simulation.state.actors[0]?.weapon.definition.id).toBe('akm');
     expect(simulation.state.actors[1]?.weapon.definition.id).toBe('pistol');
+  });
+
+  it('keeps pistols one-handed and gives every long-gun family a support grip', () => {
+    expect(supportGrip('pistol')).toBeNull();
+    expect(supportGrip('deagle')).toBeNull();
+    for (const id of ['ump45', 'm416', 's686', 'awm', 'rpg7', 'gatling', 'cannon'] as const) {
+      expect(supportGrip(id), `${id} needs a support hand`).not.toBeNull();
+    }
+    expect(supportGrip('m416')).toEqual(supportGrip('akm'));
+    expect(supportGrip('awm')).toEqual(supportGrip('m24'));
   });
 
   it('places every concrete standard model in drops and keeps ultimates out of standard-only', () => {
