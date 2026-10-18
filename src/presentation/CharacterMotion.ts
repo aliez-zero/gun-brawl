@@ -69,13 +69,15 @@ export function weaponPose(actor: Readonly<ActorState>): { rotation: number; alp
   const motion = RELOAD_MOTION[family] ?? RELOAD_MOTION.pistol!;
   const reload = actor.reloadRemaining > 0 ? Math.max(0, Math.min(1, 1 - actor.reloadRemaining / duration)) : 0;
   const reloadWave = actor.reloadRemaining > 0 ? Math.sin(reload * Math.PI) : 0;
-  const reloadTilt = reloadWave * motion.tilt;
+  // Longer-reloading models sink / travel slightly further than their family base.
+  const modelWeight = Math.min(1.25, Math.max(0.8, duration / 1.8));
+  const reloadTilt = reloadWave * motion.tilt * modelWeight;
   const sinceShot = actor.weapon.definition.interval - actor.fireCooldown;
   const recoil = actor.fireCooldown > 0 && sinceShot >= 0 ? Math.max(0, Math.min(1, 1 - sinceShot / 0.11)) : 0;
   return {
     rotation: (-reloadTilt - recoil * 0.08) * actor.facing,
     alpha: actor.protectionRemaining > 0 ? 0.78 : 1,
-    x: reloadWave * motion.x - recoil * 1.6,
-    y: reloadWave * motion.y,
+    x: reloadWave * motion.x * modelWeight - recoil * 1.6,
+    y: reloadWave * motion.y * modelWeight,
   };
 }

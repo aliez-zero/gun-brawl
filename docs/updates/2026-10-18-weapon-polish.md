@@ -8,6 +8,7 @@
 - `FieldLayer`：箱子 / incoming 使用具体型号识别色。
 - `weaponPose`：换弹倾角按家族区分——手枪 0.34、冲锋枪 0.48、步枪 0.55、狙击 0.64、火箭 0.72、霰弹 0.78 峰值；同时下沉 / 后拉（1.5—4 px），后坐也有水平位移；仍按真实 `reloadTime` 进度。
 - `WeaponLayer`：应用上述换弹位移，不只是旋转；真实换弹进度驱动完整下沉—回位曲线。
+- 逐枪换弹时长还会缩放家族姿势（`duration / 1.8`，限制 0.8—1.25 倍），AWM / AT4 等慢换弹枪比 Vector / UZI 下沉更明显。
 - `ArenaRenderer`：`shot` 事件携带具体 `weaponId`，枪口火光按家族绘制：手枪 / 冲锋枪小星、霰弹扇形、狙击长条、火箭尾焰与烟圈、加特林 / 重炮重闪。
 - `SoundEffects`：逐型号射击音高表；`shot` 事件新增可选 `weaponId`，旧事件兼容。
 - `WeaponSupport` / `WeaponLayer`：手枪保持单手，冲锋枪 / 步枪 / 霰弹 / 狙击 / 火箭 / 重武器在枪管前部增加支撑手 / 前臂纹理；按角色肤色缓存、随枪械旋转 / 后坐 / 换弹位移和左右朝向移动，`reset` / `destroy` 清理。
@@ -17,7 +18,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `pnpm typecheck` | 通过 |
-| `pnpm test` | **184 项 / 19 文件**通过 |
+| `pnpm test` | **185 项 / 19 文件**通过 |
 | `pnpm build` | 通过 |
 | Chrome smoke | 通过 |
 | 图鉴 / AWM | 17 卡；AWM 训练 HUD `AWM · 5/15 · 炸弹 2` |

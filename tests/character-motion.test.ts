@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
+import { createWeapon } from '../src/content/weapons';
 import { idleInput } from '../src/game/core/types';
 import { CHARACTER_ANIMATION, characterFrame, characterPoseForFrame, weaponPose } from '../src/presentation/CharacterMotion';
 
@@ -66,6 +67,14 @@ describe('character presentation consumes movement and combat without changing t
     expect(tilted).toBe(true);
     expect(weaponPose(actor).rotation).toBeCloseTo(0);
     expect(actor.weapon.ammoRemaining).toBe(actor.weapon.definition.maxAmmo);
+  });
+
+  it('scales reload sink by each model reload time', () => {
+    const actor = active().state.actors[0]!;
+    const awm = weaponPose({ ...actor, weapon: createWeapon('awm'), reloadRemaining: 1.3 });
+    const vector = weaponPose({ ...actor, weapon: createWeapon('vector'), reloadRemaining: 0.75 });
+    expect(awm.y).toBeGreaterThan(vector.y);
+    expect(Math.abs(awm.rotation)).toBeGreaterThan(Math.abs(vector.rotation) * 0.5);
   });
 
   it('mirrors recoil and reload around the grip without touching actor state', () => {
