@@ -18,52 +18,57 @@ export const TRAINING_ARENA: MapDefinition = {
 
 export const SKY_CITADEL: MapDefinition = {
   id: 'sky-citadel', name: '云上古城', theme: 'citadel', subtitle: 'CITADEL ABOVE THE CLOUDS',
-  description: '落日、钟塔与云海。沿着悬空石台，争夺古城的最高处。', accent: 0xe2ba76,
+  description: '双塔与窄庭院之间是深谷。抢占断墙，留好二段跳，击退对手越过内侧缺口。', accent: 0xe2ba76,
   width: 1280, height: 720, bounds: { ...TRAINING_ARENA.bounds },
   platforms: [
-    { id: 'citadel-court', x: 150, y: 630, width: 980, height: 28, kind: 'one-way' },
-    { id: 'west-bastion', x: 65, y: 510, width: 285, height: 26, kind: 'one-way' },
-    { id: 'east-bastion', x: 930, y: 510, width: 285, height: 26, kind: 'one-way' },
-    { id: 'clock-bridge', x: 450, y: 495, width: 380, height: 24, kind: 'one-way' },
-    { id: 'west-roof', x: 250, y: 375, width: 235, height: 24, kind: 'one-way' },
-    { id: 'east-roof', x: 795, y: 375, width: 235, height: 24, kind: 'one-way' },
-    { id: 'crown', x: 525, y: 255, width: 230, height: 26, kind: 'one-way' },
+    // The 140px valleys beside the court are lethal below the broken walls.
+    { id: 'citadel-court', x: 510, y: 660, width: 260, height: 30, kind: 'one-way' },
+    { id: 'west-bastion', x: 110, y: 555, width: 260, height: 28, kind: 'one-way' },
+    { id: 'east-bastion', x: 910, y: 555, width: 260, height: 28, kind: 'one-way' },
+    { id: 'west-wall', x: 330, y: 445, width: 180, height: 26, kind: 'one-way' },
+    { id: 'east-wall', x: 770, y: 445, width: 180, height: 26, kind: 'one-way' },
+    { id: 'west-roof', x: 150, y: 320, width: 210, height: 26, kind: 'one-way' },
+    { id: 'east-roof', x: 920, y: 320, width: 210, height: 26, kind: 'one-way' },
+    { id: 'west-crown', x: 185, y: 200, width: 140, height: 24, kind: 'one-way' },
+    { id: 'east-crown', x: 955, y: 200, width: 140, height: 24, kind: 'one-way' },
   ],
-  spawns: [{ x: 320, y: 630 }, { x: 960, y: 630 }, { x: 520, y: 630 }, { x: 760, y: 630 }],
+  spawns: [{ x: 230, y: 555 }, { x: 1050, y: 555 }, { x: 565, y: 660 }, { x: 715, y: 660 }],
 };
 
 export const NEON_CITY: MapDefinition = {
   id: 'neon-city', name: '霓虹天际', theme: 'city', subtitle: 'AFTER HOURS / SKYLINE',
-  description: '雨后的摩天楼与霓虹灯。屋顶高低交错，横穿城市的夜空。', accent: 0x79cdd6,
+  description: '高低屋顶之间留出坠落街巷。借广告牌跨楼，底部只有一座窄维修台可供回跳。', accent: 0x79cdd6,
   width: 1280, height: 720, bounds: { ...TRAINING_ARENA.bounds },
   platforms: [
-    { id: 'avenue', x: 130, y: 635, width: 1020, height: 26, kind: 'one-way' },
-    { id: 'west-rooftop', x: 50, y: 515, width: 330, height: 22, kind: 'one-way' },
-    { id: 'east-rooftop', x: 900, y: 515, width: 330, height: 22, kind: 'one-way' },
-    { id: 'skywalk', x: 455, y: 490, width: 370, height: 20, kind: 'one-way' },
-    { id: 'west-sign', x: 225, y: 380, width: 250, height: 20, kind: 'one-way' },
-    { id: 'east-sign', x: 805, y: 365, width: 250, height: 20, kind: 'one-way' },
-    { id: 'penthouse', x: 520, y: 245, width: 240, height: 24, kind: 'one-way' },
+    // The narrow service island leaves open falls on both sides of the rooftop route.
+    { id: 'west-rooftop', x: 90, y: 610, width: 270, height: 26, kind: 'one-way' },
+    { id: 'market-rooftop', x: 505, y: 485, width: 210, height: 24, kind: 'one-way' },
+    { id: 'penthouse', x: 960, y: 290, width: 230, height: 26, kind: 'one-way' },
+    { id: 'west-sign', x: 190, y: 400, width: 145, height: 18, kind: 'one-way' },
+    { id: 'east-sign', x: 755, y: 200, width: 140, height: 18, kind: 'one-way' },
+    { id: 'skywalk', x: 735, y: 395, width: 215, height: 20, kind: 'one-way' },
+    { id: 'service-bypass', x: 510, y: 690, width: 260, height: 22, kind: 'one-way' },
+    { id: 'east-duct', x: 1025, y: 555, width: 140, height: 22, kind: 'one-way' },
   ],
-  spawns: [{ x: 310, y: 635 }, { x: 970, y: 635 }, { x: 520, y: 635 }, { x: 760, y: 635 }],
+  spawns: [{ x: 235, y: 610 }, { x: 610, y: 485 }, { x: 1075, y: 290 }, { x: 640, y: 690 }],
 };
 
 export const ALIEN_STARSHIP: MapDefinition = {
   id: 'alien-starship', name: '星际方舟', theme: 'starship', subtitle: 'ARK 07 / DEEP SPACE',
-  description: '舷窗外是遥远行星，脚下是悬浮甲板。借助低层通道返回战场。', accent: 0x9bc5fa,
+  description: '窄反应堆连接两侧独立泊台，之间就是太空。气闸只接住核心正下方，失足需尽快回跳。', accent: 0x9bc5fa,
   width: 1280, height: 720, bounds: { ...TRAINING_ARENA.bounds },
   platforms: [
-    { id: 'port-deck', x: 115, y: 610, width: 420, height: 26, kind: 'one-way' },
-    { id: 'starboard-deck', x: 745, y: 610, width: 420, height: 26, kind: 'one-way' },
-    { id: 'lower-airlock', x: 485, y: 675, width: 310, height: 22, kind: 'one-way' },
-    { id: 'port-wing', x: 45, y: 490, width: 300, height: 22, kind: 'one-way' },
-    { id: 'starboard-wing', x: 935, y: 490, width: 300, height: 22, kind: 'one-way' },
-    { id: 'reactor', x: 440, y: 475, width: 400, height: 24, kind: 'one-way' },
-    { id: 'port-array', x: 235, y: 355, width: 230, height: 22, kind: 'one-way' },
-    { id: 'starboard-array', x: 815, y: 355, width: 230, height: 22, kind: 'one-way' },
-    { id: 'observation', x: 525, y: 235, width: 230, height: 24, kind: 'one-way' },
+    // The airlock catches the core only; dock-to-core gaps stay open to space.
+    { id: 'reactor', x: 500, y: 540, width: 280, height: 30, kind: 'one-way' },
+    { id: 'port-deck', x: 125, y: 610, width: 230, height: 26, kind: 'one-way' },
+    { id: 'starboard-deck', x: 925, y: 610, width: 230, height: 26, kind: 'one-way' },
+    { id: 'lower-airlock', x: 540, y: 675, width: 200, height: 22, kind: 'one-way' },
+    { id: 'port-transfer', x: 285, y: 430, width: 180, height: 22, kind: 'one-way' },
+    { id: 'starboard-transfer', x: 815, y: 430, width: 180, height: 22, kind: 'one-way' },
+    { id: 'port-observation', x: 170, y: 285, width: 320, height: 24, kind: 'one-way' },
+    { id: 'starboard-observation', x: 790, y: 285, width: 320, height: 24, kind: 'one-way' },
   ],
-  spawns: [{ x: 300, y: 610 }, { x: 980, y: 610 }, { x: 170, y: 610 }, { x: 1110, y: 610 }],
+  spawns: [{ x: 300, y: 610 }, { x: 980, y: 610 }, { x: 560, y: 540 }, { x: 720, y: 540 }],
 };
 
 export const ARENAS: readonly MapDefinition[] = [SKY_CITADEL, NEON_CITY, ALIEN_STARSHIP, TRAINING_ARENA];

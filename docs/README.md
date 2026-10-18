@@ -10,9 +10,13 @@
 4. 到 [并行计划总看板](./PARALLEL_PLAN.md) 确认依赖和领取状态，登记负责人、工作区与文件范围。
 5. 按模块交付清单开发、验证、交接，再由集成者接入主游戏。
 
-文档归档与模块拆分已经完成。T00 已冻结首批武器 / 弹丸 / 投弹 / 爆炸契约与本地 Git 基线，T01 已交付五把非火箭枪核心，分别见 [T00 接手记录](./updates/2026-10-17-t00-contracts.md)、[T01 接手记录](./updates/2026-10-17-weapons.md)；四图选择与多风格换装见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md)。模块状态以总看板为准。
+文档归档与模块拆分已经完成。T00 已冻结首批武器 / 弹丸 / 投弹 / 爆炸契约与本地 Git 基线，T01 已交付五把非火箭枪核心，分别见 [T00 接手记录](./updates/2026-10-17-t00-contracts.md)、[T01 接手记录](./updates/2026-10-17-weapons.md)；四图选择与多风格换装见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md)。17 个具体枪械型号、弹匣 / 备弹与后坐力方案见 [武器型号设计提案](./WEAPONS.md)，该提案尚未实现。模块状态以总看板为准。
 
 ## 文档职责
+
+地图后续优化见 [差异化布局与建筑交接](./updates/2026-10-17-distinct-map-layouts.md)：双塔庭院、非对称屋顶、反应堆枢纽，以及逐出生点路线检查。
+
+最新 [淘汰节奏调整](./updates/2026-10-17-map-knockout-pace.md) 收窄主题图底台、保留致命缺口，补真实手枪持续击出 / 单发救回回归。
 
 | 文档 / 目录 | 内容 | 更新时机 |
 | --- | --- | --- |
@@ -21,6 +25,7 @@
 | `sources/` | S01—S04 网页文字留档，调研文档中有链接 | 保留原文，新增来源另建文件 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 现有分层、数据流、状态与逻辑时序 | 真实架构变化后 |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | 已完成 / 未完成、代码入口、参数、测试证据和已知限制 | 功能集成或验证结论变化后 |
+| [WEAPONS.md](./WEAPONS.md) | 17 个具体型号、弹匣 / 备弹、射速 / 弹速、后坐力与投放权重提案 | 型号、弹药或平衡方案调整；落地后转为实现文档 |
 | [PARALLEL_PLAN.md](./PARALLEL_PLAN.md) | 唯一认领看板、依赖、公共契约、文件归属、整合规则 | 认领 / 交接 / 集成 / 验收时 |
 | [modules/README.md](./modules/README.md) | 13 个模块入口与分发方式 | 模块范围变化时 |
 | `modules/00-*.md` 至 `modules/12-*.md` | 独立模块任务包、子任务、接口与验收、可复制开发指令 | 模块拆分或范围变化时 |
@@ -37,6 +42,7 @@ gun-brawl/
     RESEARCH.md
     ARCHITECTURE.md
     DEVELOPMENT.md
+    WEAPONS.md
     PARALLEL_PLAN.md
     sources/                 调研来源文字留档
     updates/                 交付与接手记录

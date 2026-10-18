@@ -20,6 +20,7 @@ export class ArenaRenderer {
   private effects: Effect[] = [];
   private clock = 0;
   private previewLooks: Record<HumanSlot, CharacterAppearance> = { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') };
+  private previewFeet: Record<HumanSlot, Vec2> = { 1: { x: 1035, y: 620 }, 2: { x: 807, y: 620 } };
   reducedMotion = false;
 
   constructor(private readonly scene: Phaser.Scene) {
@@ -44,6 +45,14 @@ export class ArenaRenderer {
   setMenuPreview(map: MapDefinition, looks: Record<HumanSlot, CharacterAppearance>): void {
     this.setMap(map);
     this.previewLooks = { 1: { ...looks[1] }, 2: { ...looks[2] } };
+    const landing = (x: number, preferredY: number): Vec2 => {
+      const safeX = (p: MapDefinition['platforms'][number]): number => Math.max(p.x + 35, Math.min(x, p.x + p.width - 35));
+      const distance = (p: MapDefinition['platforms'][number]): number => Math.abs(safeX(p) - x) + Math.abs(p.y - preferredY) * 0.3;
+      const platform = map.platforms.filter((p) => p.width >= 70 && p.y >= 480)
+        .sort((a, b) => distance(a) - distance(b))[0];
+      return platform ? { x: safeX(platform), y: platform.y } : { ...map.spawns.at(-1)! };
+    };
+    this.previewFeet = { 1: landing(1055, 610), 2: landing(807, 540) };
   }
 
   reset(): void {
@@ -69,8 +78,8 @@ export class ArenaRenderer {
     const g = this.effectsView;
     g.clear(); this.shadows.clear();
     if (!state) {
-      this.character('preview-2', this.previewLooks[2], 807, 623, 1, 1.85, 0, 1, '', 0x82d5e3);
-      this.character('preview-1', this.previewLooks[1], 1045, 631, -1, 3.15, 0, 1, '', 0xc4f56b);
+      this.character('preview-2', this.previewLooks[2], this.previewFeet[2].x, this.previewFeet[2].y, 1, 1.85, 0, 1, '', 0x82d5e3);
+      this.character('preview-1', this.previewLooks[1], this.previewFeet[1].x, this.previewFeet[1].y, -1, 3.15, 0, 1, '', 0xc4f56b);
       return;
     }
     const frozen = state.phase !== 'playing';

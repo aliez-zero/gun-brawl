@@ -97,6 +97,7 @@ try {
     await page.locator('[data-action="maps"]').click();
     await page.locator('[data-map="alien-starship"]').click();
     assert.equal(await page.locator('.map-picker-panel').evaluate((panel) => panel.scrollWidth <= panel.clientWidth), true);
+    await page.screenshot({ path: `artifacts/map-picker-${width}.png`, fullPage: true });
     await close(page);
   }
   assert.deepEqual(errors, []);
