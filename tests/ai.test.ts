@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
+import { ARENAS } from '../src/content/maps';
 import { BotController } from '../src/game/ai/BotController';
+import { planRoute } from '../src/game/ai/Navigation';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import type { ActorState, MapDefinition, WeaponDrop } from '../src/game/core/types';
@@ -31,6 +33,36 @@ function setup(): { simulation: BattleSimulation; bot: ActorState } {
 function crate(): WeaponDrop {
   return { id: 7, weaponId: 'rifle', position: { x: 700, y: 500 }, state: 'active', timer: 10, warning: false };
 }
+
+describe('T05 platform navigation and difficulty', () => {
+  it('routes from the training floor to upper platforms with legal jump / drop edges', () => {
+    const map = ARENAS.find((arena) => arena.id === 'training-deck')!;
+    const route = planRoute(map, 'main', 'top');
+    expect(route.length).toBeGreaterThan(0);
+    expect(route.at(-1)?.platform.id).toBe('top');
+    expect(route.some((step) => step.action === 'jump' || step.action === 'drop')).toBe(true);
+  });
+
+  it('has a route between every pair of platforms on each themed arena', () => {
+    for (const map of ARENAS.filter((arena) => arena.id !== 'training-deck')) {
+      for (const from of map.platforms) {
+        for (const to of map.platforms) {
+          if (from.id === to.id) continue;
+          expect(planRoute(map, from.id, to.id), `${map.id}: ${from.id} -> ${to.id}`).not.toHaveLength(0);
+        }
+      }
+    }
+  });
+
+  it('makes easy and hard bots observably different at the same distance', () => {
+    const { simulation, bot } = setup();
+    simulation.state.actors[0]!.position = { x: 900, y: 500 };
+    const input = (difficulty: 'easy' | 'hard', seed: number): boolean =>
+      new BotController(difficulty, seed).sample(bot, simulation.state, 0.25).shootHeld;
+    expect(input('easy', 8)).toBe(false);
+    expect(input('hard', 8)).toBe(true);
+  });
+});
 
 describe('T05 bot weapon / bomb / crate decisions', () => {
   it('throws a bomb at a close target and does not hold the edge down', () => {
