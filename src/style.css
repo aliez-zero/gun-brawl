@@ -92,6 +92,11 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .countdown small { font-size: 12px; letter-spacing: 5px; color: #b2c69f; }
 .countdown strong { font-family: 'Barlow Condensed', Consolas, monospace; font-weight: 800; line-height: 1.15; font-size: clamp(70px, 12vw, 160px); color: var(--lime); text-shadow: 0 8px 40px #0005; }
 .countdown > span { font-size: 11px; color: #9daf8f; letter-spacing: 2px; }
+.spectator-banner { position: absolute; top: 78px; left: 50%; transform: translateX(-50%); z-index: 4; display: grid; gap: 2px; text-align: center; padding: 10px 22px; background: #101811dd; border: 1px solid #4a5b3d; border-radius: 4px; pointer-events: none; }
+.spectator-banner small { font-size: 9px; letter-spacing: 3px; color: var(--lime); }
+.spectator-banner strong { font-size: 14px; color: #e8f0dc; }
+.spectator-banner span { font-size: 10px; color: #9daf8f; }
+.spectator-banner[hidden] { display: none; }
 .dialog-overlay { display: grid; place-items: center; background: #0a100bba; backdrop-filter: blur(6px); padding: 18px; }
 .dialog-panel { pointer-events: auto; width: min(490px, 100%); max-height: 100%; overflow: auto; background: #172017; border: 1px solid #4a5b3d; border-radius: 5px; padding: 32px; box-shadow: 0 24px 70px #0006; }
 .dialog-panel h2 { font-size: 25px; letter-spacing: -1px; line-height: 1.4; margin: 14px 0; }

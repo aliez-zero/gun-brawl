@@ -289,6 +289,7 @@ export class GameUI {
         <button class="pause-button" data-action="pause" aria-label="暂停对战">Ⅱ <kbd>ESC</kbd></button>
       </div>
       <div class="countdown" aria-live="polite" hidden><small>准备就绪</small><strong></strong><span>保持移动，远离边缘。</span></div>
+      <div class="spectator-banner" id="spectator-banner" hidden><small>SPECTATING</small><strong>本地玩家已出局 · 观战中</strong><span>本局结束后可重赛或返回菜单</span></div>
       ${state.config.mode === 'training' && state.training ? this.trainingPanel(state) : ''}`;
     this.trainingDummyMoving = state.training?.dummyMoving ?? true;
     this.setGuide(state.config.mode);
@@ -314,6 +315,11 @@ export class GameUI {
     const label = this.overlay.querySelector('#round-label');
     if (timer) timer.textContent = state.config.mode === 'training' ? '∞' : formatTime(state.remaining);
     if (label) label.textContent = state.overtime ? '决胜加时' : MODE_LABELS[state.config.mode];
+    const spectator = this.overlay.querySelector<HTMLElement>('#spectator-banner');
+    if (spectator) {
+      const humans = state.actors.filter((actor) => actor.config.control === 'human');
+      spectator.hidden = !(state.phase === 'playing' && humans.length > 0 && humans.every((actor) => actor.status !== 'alive'));
+    }
     for (const actor of state.actors) {
       const stocks = this.overlay.querySelector(`#stocks-${actor.config.id}`);
       const status = this.overlay.querySelector(`#actor-status-${actor.config.id}`);

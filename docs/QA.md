@@ -32,13 +32,14 @@ pnpm test:perf      # 默认 SwiftShader；PowerShell 用 $env:PERF_SOFTWARE='0'
 | 训练 / 图鉴 | `training.test.ts`、`storage.test.ts` | 命中 / 击出假人人工 |
 | 战役 | `campaign.test.ts` + 浏览器关卡页 / 开局 | 六关完整平衡 |
 | 存档 / 迁档 / 清档 | `storage.test.ts` + 浏览器清档 | 跨浏览器 profile |
-| 四人淘汰 / 加时 | `quality.test.ts` + 浏览器完整 4 人局 | 四人同帧出界、4 真人观战体验 |
+| 四人淘汰 / 加时 / 观战 | `quality.test.ts` + 浏览器完整 4 人局 + 本地观战横幅 | 4 真人同帧出界、4 真人观战体验 |
 | 暂停 / 失焦 / 设置 | 浏览器 smoke | 多显示器 / 手柄 |
 | 性能 / 资源 | 20 局四人纯模拟耗时守卫（<5s）+ 软件 / 硬件 WebGL 6 秒 RAF / 堆 + 连续 20 局重赛堆采样 | **RTX 3050 Ti 99.8 FPS / p95 10.1 ms / 堆 32.9→32.8 MiB；SwiftShader 48.2 FPS；无参考机 / 低端机** |
 
 ## T11 新增
 
 - 浏览器 4 人完整局：2 真人 + 2 AI、1 命、30 秒、标准池；AI 2 在加时获胜，结果含 4 名参战者，重赛仍为 4 人（`artifacts/custom-4p-result.png`）。
+- 浏览器观战：2 名本地玩家均出局、AI 仍对局时显示“本地玩家已出局 · 观战中”，比赛继续（`artifacts/spectator-banner.png`）。
 - `tests/quality.test.ts`：
   - 四人中一人出界后淘汰，剩余一人时结算且结果含 4 名参战者；
   - 多人进入加时，最后存活者获胜且 `overtime=true`；

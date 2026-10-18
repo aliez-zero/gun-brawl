@@ -14,6 +14,11 @@
 - 用时约 41 秒（含加时），截图 `artifacts/custom-4p-result.png`。
 - 纯逻辑同场景见 `tests/quality.test.ts` 3 项（淘汰 / 加时 / 重赛身份）。
 
+## 观战追加
+
+- 自定义局中 2 名本地玩家均出局、2 名 AI 仍存活时，HUD 显示 `SPECTATING / 本地玩家已出局 · 观战中`，计时继续；截图 `artifacts/spectator-banner.png`。
+- 该验证覆盖本地观战状态，不等同于 4 真人同屏观战体验。
+
 ## 结论
 
 - 4 人配置、HUD、淘汰、加时、结果、重赛主流程通过。
