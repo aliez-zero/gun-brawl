@@ -21,13 +21,13 @@ export const WEAPON_ART = {
  * rifle render at ~160 px instead of ~54 px next to a 96 px character.
  */
 const MODEL_SCALE: Partial<Record<WeaponId, number>> = {
-  pistol: 0.24, p1911: 0.23, deagle: 0.28,
-  smg: 0.27, ump45: 0.28, vector: 0.26, uzi: 0.24,
-  rifle: 0.33, m416: 0.33, akm: 0.34, 'scar-l': 0.35,
-  shotgun: 0.33, s686: 0.32, s1897: 0.35, s12k: 0.31,
-  sniper: 0.39, kar98k: 0.39, m24: 0.4, awm: 0.42,
-  rocket: 0.38, rpg7: 0.38, at4: 0.4,
-  gatling: 0.43, cannon: 0.44,
+  pistol: 0.28, p1911: 0.27, deagle: 0.32,
+  smg: 0.34, ump45: 0.34, vector: 0.32, uzi: 0.3,
+  rifle: 0.4, m416: 0.4, akm: 0.41, 'scar-l': 0.42,
+  shotgun: 0.4, s686: 0.39, s1897: 0.42, s12k: 0.38,
+  sniper: 0.47, kar98k: 0.47, m24: 0.48, awm: 0.48,
+  rocket: 0.45, rpg7: 0.45, at4: 0.47,
+  gatling: 0.5, cannon: 0.51,
 };
 
 export function weaponDisplayScale(id: WeaponId): number {

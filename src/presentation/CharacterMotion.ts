@@ -51,7 +51,7 @@ export function characterFrame(actor: Readonly<ActorState>, time: number, hurtAg
   return CHARACTER_ANIMATION.idle + Math.floor(time * 3) % 4;
 }
 
-export const CHARACTER_GRIP = { x: 16, y: -34 } as const;
+export const CHARACTER_GRIP = { x: 22, y: -32 } as const;
 
 const RELOAD_MOTION: Partial<Record<string, { tilt: number; x: number; y: number }>> = {
   pistol: { tilt: 0.34, x: 0, y: 1.5 },

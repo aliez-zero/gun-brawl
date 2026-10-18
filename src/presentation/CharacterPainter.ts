@@ -250,9 +250,9 @@ export function paintCharacter(ctx: CanvasRenderingContext2D, look: CharacterApp
   const elbowY = -31 + (pose.hurt ? 1 : 0);
   stroke([11, -40 + bounce, 15, elbowY, CHARACTER_GRIP.x, CHARACTER_GRIP.y], LINE, suited || armored ? 11 : 10);
   stroke([11, -40 + bounce, 15, elbowY, CHARACTER_GRIP.x, CHARACTER_GRIP.y], suited ? light : armored ? steel : color, suited || armored ? 8 : 7);
-  box(12, -29, 9, 8, hand, 3);
-  if (armored) { stroke([13, -26, 19, -26], '#e5e8d7', 0.9); }
-  else if (!suited) stroke([14, -25, 18, -25], skinShade, 0.8);
+  box(CHARACTER_GRIP.x - 4, CHARACTER_GRIP.y + 4, 9, 8, hand, 3);
+  if (armored) { stroke([CHARACTER_GRIP.x - 3, CHARACTER_GRIP.y + 7, CHARACTER_GRIP.x + 3, CHARACTER_GRIP.y + 7], '#e5e8d7', 0.9); }
+  else if (!suited) stroke([CHARACTER_GRIP.x - 2, CHARACTER_GRIP.y + 8, CHARACTER_GRIP.x + 2, CHARACTER_GRIP.y + 8], skinShade, 0.8);
   if (pose.reload) {
     const reach = Math.sin(pose.reload * Math.PI);
     stroke([-11, -37, -10 + reach * 13, -24, 9 + reach * 3, -19], LINE, 7);
