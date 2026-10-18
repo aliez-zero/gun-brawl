@@ -40,6 +40,23 @@ describe('T11 four-player match regression', () => {
     expect(simulation.state.result?.winner).toBe('p1');
   });
 
+  it('resolves four simultaneous ringouts in the same frame without order bias', () => {
+    const simulation = fourPlayer();
+    for (const actor of simulation.state.actors) {
+      actor.position = { x: simulation.state.config.map.bounds.right + 80, y: 300 };
+      actor.previous = { ...actor.position };
+    }
+    simulation.step(FIXED_STEP, inputs());
+    for (const actor of simulation.state.actors) {
+      expect(actor.status).toBe('eliminated');
+      expect(actor.stocks).toBe(0);
+    }
+    expect(simulation.state.phase).toBe('finished');
+    expect(simulation.state.result?.actors).toHaveLength(4);
+    expect(simulation.state.result?.winner).toBeNull();
+    expect(simulation.state.result?.actors.every((actor) => actor.falls === 1)).toBe(true);
+  });
+
   it('enters overtime with multiple survivors and finishes with a sole survivor', () => {
     const simulation = fourPlayer();
     simulation.state.remaining = 0;
