@@ -23,16 +23,17 @@ pnpm test:browser   # 需要预览服务与 Chrome
 | 17 型号 / 弹匣 / 终极 | `weapons.test.ts`、`weapons-models.test.ts` | 逐枪手绘动作 / 真实音色 / 人工平衡 |
 | 炸弹 / 爆炸 | `explosives.test.ts`、`ai.test.ts` | 暂停时引信冻结人工复核 |
 | AI 三档 / 导航 | `ai.test.ts`、`map-routes.test.ts` | 困难档完整人工对局 |
-| 自定义 2—4 人 | `match-config.test.ts`、`quality.test.ts` | 2 真人 + 2 AI 浏览器已验；4 真人不可 |
+| 自定义 2—4 人 | `match-config.test.ts`、`quality.test.ts` | **2 真人 + 2 AI 完整 1 命 / 30 秒局实测到加时结算，AI 2 获胜，重赛仍 4 人**；4 真人不可 |
 | 训练 / 图鉴 | `training.test.ts`、`storage.test.ts` | 命中 / 击出假人人工 |
 | 战役 | `campaign.test.ts` + 浏览器关卡页 / 开局 | 六关完整平衡 |
 | 存档 / 迁档 / 清档 | `storage.test.ts` + 浏览器清档 | 跨浏览器 profile |
-| 四人淘汰 / 加时 | `quality.test.ts` | 四人同帧出界、观战体验 |
+| 四人淘汰 / 加时 | `quality.test.ts` + 浏览器完整 4 人局 | 四人同帧出界、4 真人观战体验 |
 | 暂停 / 失焦 / 设置 | 浏览器 smoke | 多显示器 / 手柄 |
 | 性能 / 资源 | 20 局四人纯模拟耗时守卫（<5s），仅逻辑成本 | **无参考机、无真实 GPU、无 20 局浏览器资源数据** |
 
 ## T11 新增
 
+- 浏览器 4 人完整局：2 真人 + 2 AI、1 命、30 秒、标准池；AI 2 在加时获胜，结果含 4 名参战者，重赛仍为 4 人（`artifacts/custom-4p-result.png`）。
 - `tests/quality.test.ts`：
   - 四人中一人出界后淘汰，剩余一人时结算且结果含 4 名参战者；
   - 多人进入加时，最后存活者获胜且 `overtime=true`；
