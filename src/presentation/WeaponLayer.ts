@@ -40,9 +40,9 @@ export class WeaponLayer {
         sprite = this.scene.add.image(0, 0, key)
           .setOrigin(WEAPON_ART.gripX / WEAPON_ART.width, WEAPON_ART.gripY / WEAPON_ART.height)
           .setScale(weaponDisplayScale(definition.id))
-          // Behind the body so the trigger hand closes over the stock instead of
-          // the gun floating on top of the character.
-          .setDepth(1.8);
+          // In front of the body so the silhouette is identical left/right; the
+          // foreground grip hand keeps it from looking like a floating prop.
+          .setDepth(3);
         this.sprites.set(actor.config.id, sprite);
       }
       const interpolate = state.phase === 'playing';

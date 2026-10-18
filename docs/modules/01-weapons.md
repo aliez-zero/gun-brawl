@@ -42,7 +42,7 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 - 投放池改为 16 个标准型号 + 加特林 / 重炮；`STANDARD_DROP_POOL` 过滤终极。
 - 图鉴 17 卡可直接预选任意型号进入训练；HUD 显示具体型号名。
 - `WeaponArt` 家族轮廓 + 型号级几何 / 色带 / 尺寸；`SoundEffects` 按 `weaponId` 使用逐型号射击 / 换弹音高。
-- `tests/weapons-models.test.ts` 6 项 + `tests/knockback.test.ts` 1 项；本次武器改动集 **188 项 / 20 文件**。
+- `tests/weapons-models.test.ts` 6 项 + `tests/knockback.test.ts` 1 项 + `tests/weapons.test.ts` 分数射速 1 项；本次武器改动集 **189 项 / 20 文件**。
 - 仍待：逐型号手绘换弹 / 枪口火光帧、真实音色素材、人工逐枪平衡。
 
 ## T01 交付结果（八枪核心）

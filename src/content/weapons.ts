@@ -18,7 +18,7 @@ export const BASIC_PISTOL: WeaponDefinition = {
 };
 
 export const SMG: WeaponDefinition = {
-  id: 'smg', name: '冲锋枪', tier: 'standard', interval: 0.09,
+  id: 'smg', name: '冲锋枪', tier: 'standard', interval: 0.05,
   projectileSpeed: 1200, range: 520, knockback: 150, recoil: 7, maxAmmo: 30,
   reserveAmmo: 90, reloadTime: 1.5, pellets: 1, spreadRadians: 0,
 };
@@ -79,26 +79,26 @@ export const DEAGLE: WeaponDefinition = {
 };
 
 export const UMP45: WeaponDefinition = {
-  id: 'ump45', name: 'UMP45', family: 'smg', tier: 'standard', interval: 0.1,
+  id: 'ump45', name: 'UMP45', family: 'smg', tier: 'standard', interval: 0.075,
   projectileSpeed: 1150, range: 560, knockback: 420, recoil: 8, recoilY: 2.5,
   maxAmmo: 25, reserveAmmo: 100, reloadTime: 1.6, pellets: 1, spreadRadians: 0,
 };
 
 export const VECTOR: WeaponDefinition = {
-  id: 'vector', name: 'Vector', family: 'smg', tier: 'standard', interval: 0.055,
-  projectileSpeed: 1050, range: 430, knockback: 300, recoil: 5, recoilY: 1.5,
+  id: 'vector', name: 'Vector', family: 'smg', tier: 'standard', interval: 0.05,
+  projectileSpeed: 1050, range: 430, knockback: 320, recoil: 5, recoilY: 1.5,
   maxAmmo: 19, reserveAmmo: 95, reloadTime: 1.5, pellets: 1, spreadRadians: 0,
 };
 
 export const UZI: WeaponDefinition = {
-  id: 'uzi', name: 'UZI', family: 'smg', tier: 'standard', interval: 0.07,
-  projectileSpeed: 1050, range: 390, knockback: 340, recoil: 4, recoilY: 1,
+  id: 'uzi', name: 'UZI', family: 'smg', tier: 'standard', interval: 0.055,
+  projectileSpeed: 1050, range: 390, knockback: 320, recoil: 4, recoilY: 1,
   maxAmmo: 30, reserveAmmo: 120, reloadTime: 1.4, pellets: 1, spreadRadians: 0,
 };
 
 export const M416: WeaponDefinition = {
-  id: 'm416', name: 'M416', family: 'rifle', tier: 'standard', interval: 0.09,
-  projectileSpeed: 1350, range: 860, knockback: 560, recoil: 14, recoilY: 4,
+  id: 'm416', name: 'M416', family: 'rifle', tier: 'standard', interval: 1 / 12,
+  projectileSpeed: 1350, range: 860, knockback: 520, recoil: 14, recoilY: 4,
   maxAmmo: 30, reserveAmmo: 120, reloadTime: 1.8, pellets: 1, spreadRadians: 0,
 };
 

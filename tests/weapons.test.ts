@@ -110,6 +110,27 @@ describe('T01 weapon registry and ammo', () => {
 
   });
 
+  it('keeps fractional cooldown so high-RPM SMGs fire faster than low-RPM ones', () => {
+    const shots = (id: 'ump45' | 'uzi' | 'vector'): number => {
+      const simulation = active({ map: flatMap() });
+      const shooter = simulation.state.actors[0]!;
+      equipWeapon(shooter, id);
+      const before = shooter.weapon.ammoRemaining ?? 0;
+      for (let frame = 0; frame < 30; frame++) {
+        simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), shootHeld: true }]]));
+      }
+      return before - (shooter.weapon.ammoRemaining ?? 0);
+    };
+    const ump = shots('ump45');
+    const uzi = shots('uzi');
+    const vector = shots('vector');
+    expect(ump).toBeGreaterThanOrEqual(5);
+    expect(uzi).toBeGreaterThanOrEqual(7);
+    expect(vector).toBeGreaterThanOrEqual(9);
+    expect(vector).toBeGreaterThan(uzi);
+    expect(uzi).toBeGreaterThan(ump);
+  });
+
   it.each([
     ['smg', SMG, 29],
     ['rifle', RIFLE, 29],
