@@ -1,9 +1,9 @@
 export const MUSIC_TRACKS = [
-  { id: 'menu', name: '荒野开场', mood: '轻快拨弦 · 菜单', bpm: 104, asset: '/audio/menu-awesomeness.wav' },
-  { id: 'citadel', name: '云城行军', mood: '五声音阶 · 古城', bpm: 108, asset: '/audio/citadel-montage.ogg' },
-  { id: 'city', name: '夜行霓虹', mood: '合成器律动 · 都市', bpm: 124, asset: '/audio/city-warped.mp3' },
-  { id: 'space', name: '方舟脉冲', mood: '空灵琶音 · 飞船', bpm: 94, asset: '/audio/space-out-there.ogg' },
-  { id: 'training', name: '热身节拍', mood: '轻松节奏 · 训练', bpm: 112, asset: '/audio/training-fight.ogg' },
+  { id: 'menu', name: '荒野开场', mood: '轻快拨弦 · 菜单', bpm: 104, asset: '/audio/menu-awesomeness.gbm' },
+  { id: 'citadel', name: '云城行军', mood: '五声音阶 · 古城', bpm: 108, asset: '/audio/citadel-montage.gbm' },
+  { id: 'city', name: '夜行霓虹', mood: '合成器律动 · 都市', bpm: 124, asset: '/audio/city-warped.gbm' },
+  { id: 'space', name: '方舟脉冲', mood: '空灵琶音 · 飞船', bpm: 94, asset: '/audio/space-out-there.gbm' },
+  { id: 'training', name: '热身节拍', mood: '轻松节奏 · 训练', bpm: 112, asset: '/audio/training-fight.gbm' },
 ] as const;
 export type MusicTrackId = typeof MUSIC_TRACKS[number]['id'];
 export type MusicSelection = 'auto' | MusicTrackId;

@@ -14,17 +14,17 @@
 
 | 场景 | 本地文件 | 来源页面 |
 | --- | --- | --- |
-| 菜单 | `menu-awesomeness.wav` | [Menu Music](https://opengameart.org/content/menu-music) |
-| 古城 | `citadel-montage.ogg` | [Free Music Pack](https://opengameart.org/content/free-music-pack) |
-| 都市 | `city-warped.mp3` | [Free Music Pack](https://opengameart.org/content/free-music-pack) |
-| 飞船 | `space-out-there.ogg` | [Space Music: Out There](https://opengameart.org/content/space-music-out-there) |
-| 训练 | `training-fight.ogg` | [Fast fight / battle music](https://opengameart.org/content/fast-fight-battle-music) |
+| 菜单 | `menu-awesomeness.gbm` | [Menu Music](https://opengameart.org/content/menu-music) |
+| 古城 | `citadel-montage.gbm` | [Free Music Pack](https://opengameart.org/content/free-music-pack) |
+| 都市 | `city-warped.gbm` | [Free Music Pack](https://opengameart.org/content/free-music-pack) |
+| 飞船 | `space-out-there.gbm` | [Space Music: Out There](https://opengameart.org/content/space-music-out-there) |
+| 训练 | `training-fight.gbm` | [Fast fight / battle music](https://opengameart.org/content/fast-fight-battle-music) |
 
 页面上的作者和授权信息以来源站点为准；如果未来发布渠道要求完整的第三方归属文本，发布包应同时带上本页和这些来源链接。
 
 ## 兼容与回退
 
-播放器优先下载并解码上述本地文件。若浏览器不支持某种编码、文件损坏或资源被替换，会使用 `MusicSynth.ts` 的确定性 PCM 合成回退，因此无法解码音频不会让游戏启动失败。回退曲目仍支持相同的循环、音量、暂停和场景切换逻辑。
+播放器优先下载并解码上述本地文件。文件使用 `.gbm` 游戏专用扩展名，避免 IDM 等下载管理器把音频请求误判成用户下载；文件内部仍是标准 WAV / OGG / MP3 字节，Web Audio 可直接解码。若浏览器不支持某种编码、文件损坏或资源被替换，会使用 `MusicSynth.ts` 的确定性 PCM 合成回退，因此无法解码音频不会让游戏启动失败。回退曲目仍支持相同的循环、音量、暂停和场景切换逻辑。
 
 音频只在用户手势后启动；静音、暂停、隐藏标签页和失焦时不创建持续播放声源。存档只保存开关、音量和选曲，不保存音频二进制。
 
