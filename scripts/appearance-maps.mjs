@@ -62,7 +62,7 @@ try {
     await page.locator('.countdown').waitFor({ state: 'hidden', timeout: 12000 });
     assert.match(await page.locator('#match-status').textContent(), new RegExp(name));
     assert.match(await page.locator('#current-map-label').textContent(), new RegExp(name));
-    assert.equal(await page.locator('canvas').count(), 1);
+    assert.equal(await page.locator('#game-canvas canvas').count(), 1);
     await page.screenshot({ path: `artifacts/map-${id}.png`, fullPage: true });
     await page.keyboard.press('Escape');
     if (id === 'alien-starship') {

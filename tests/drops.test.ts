@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ARENAS } from '../src/content/maps';
 import { createMatchConfig } from '../src/content/matches';
 import { getWeapon } from '../src/content/weapons';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
@@ -125,6 +126,26 @@ describe('T03 drop scheduler and weapon pool', () => {
     simulation.step(FIXED_STEP, new Map());
     expect(simulation.state.drops.some((candidate) => candidate.id === drop.id)).toBe(false);
     expect(simulation.drainEvents().some((event) => event.type === 'drop-expired')).toBe(true);
+  });
+});
+
+describe('T04 drop candidate contract', () => {
+  it('gives every formal arena four spawns and four safe, standable drop points', () => {
+    for (const map of ARENAS) {
+      expect(map.spawns.length).toBeGreaterThanOrEqual(4);
+      expect(map.dropPoints?.length ?? 0).toBeGreaterThanOrEqual(4);
+      for (const point of map.dropPoints ?? []) {
+        expect(point.x).toBeGreaterThanOrEqual(map.bounds.left + 16);
+        expect(point.x).toBeLessThanOrEqual(map.bounds.right - 16);
+        expect(point.y).toBeGreaterThanOrEqual(map.bounds.top + 16);
+        expect(point.y).toBeLessThanOrEqual(map.bounds.bottom - 16);
+        expect(map.platforms.some((platform) => point.y === platform.y
+          && point.x >= platform.x && point.x <= platform.x + platform.width)).toBe(true);
+        for (const spawn of map.spawns) {
+          expect(Math.hypot(spawn.x - point.x, spawn.y - point.y)).toBeGreaterThanOrEqual(120);
+        }
+      }
+    }
   });
 });
 

@@ -112,22 +112,22 @@ describe('arena routes from both sides', () => {
     expect(missingPlatforms(recovered, map), 'legal jumps from the airlock must reconnect to both docks and the upper arena').toEqual([]);
   });
 
-  it('inner gaps require an active jump while themed routes remain distinct', () => {
+  it('inner overruns are caught below while active jumps take distinct themed routes', () => {
     const training = atSpawn(TRAINING_ARENA, 0);
     const trainingFloor = TRAINING_ARENA.platforms.find(({ id }) => id === training.groundedOn)!;
     expect(walkTo(training, TRAINING_ARENA.width / 2, trainingFloor, TRAINING_ARENA)?.groundedOn).toBe('main');
 
     const citadel = atSpawn(SKY_CITADEL, 0);
-    expect(firstLanding(citadel, SKY_CITADEL.width / 2, 'walk', SKY_CITADEL), 'the low courtyard must not automatically catch every missed jump').toBeNull();
+    expect(firstLanding(citadel, SKY_CITADEL.width / 2, 'walk', SKY_CITADEL)?.groundedOn).toBe('citadel-court');
     expect(firstLanding(citadel, SKY_CITADEL.width / 2, -1, SKY_CITADEL)?.groundedOn).toBe('west-wall');
 
     const city = atSpawn(NEON_CITY, 0);
-    expect(firstLanding(city, NEON_CITY.width / 2, 'walk', NEON_CITY), 'the narrow service route must leave a real street gap').toBeNull();
+    expect(firstLanding(city, NEON_CITY.width / 2, 'walk', NEON_CITY)?.groundedOn).toBe('service-bypass');
     const doubleJumps = launchActions.filter((action): action is 14 | 23 | 32 => typeof action === 'number' && action > 0);
     expect(doubleJumps.some((action) => firstLanding(city, NEON_CITY.width / 2, action, NEON_CITY)?.groundedOn === 'market-rooftop')).toBe(true);
 
     const ship = atSpawn(ALIEN_STARSHIP, 0);
-    expect(firstLanding(ship, ALIEN_STARSHIP.width / 2, 'walk', ALIEN_STARSHIP), 'the airlock catches the center rather than covering the dock gaps').toBeNull();
+    expect(firstLanding(ship, ALIEN_STARSHIP.width / 2, 'walk', ALIEN_STARSHIP)?.groundedOn).toBe('lower-airlock');
     expect(firstLanding(ship, ALIEN_STARSHIP.width / 2, -1, ALIEN_STARSHIP)?.groundedOn).toBe('reactor');
   });
 

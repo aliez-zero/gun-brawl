@@ -22,7 +22,7 @@ try {
   await page.goto(baseURL, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: '进入战场' }).waitFor({ state: 'visible' });
   assert.equal(await page.getByRole('button', { name: '进入战场' }).isEnabled(), true);
-  assert.equal(await page.locator('canvas').count(), 1);
+  assert.equal(await page.locator('#game-canvas canvas').count(), 1);
   assert.match(await page.locator('#control-guide').textContent(), /W \/ 空格/);
   assert.match(await page.locator('#control-guide').textContent(), /J.*开火/);
   await page.getByRole('button', { name: '操作说明' }).click();
@@ -36,12 +36,12 @@ try {
   await page.locator('.countdown').waitFor({ state: 'hidden', timeout: 12_000 });
   assert.equal(await page.locator('#round-time').textContent(), '∞');
   await page.waitForTimeout(1700);
-  const before = await page.locator('canvas').screenshot();
+  const before = await page.locator('#game-canvas canvas').screenshot();
   await page.keyboard.down('KeyD');
   await page.waitForTimeout(350);
   await page.keyboard.up('KeyD');
   await page.waitForTimeout(200);
-  const after = await page.locator('canvas').screenshot();
+  const after = await page.locator('#game-canvas canvas').screenshot();
   assert.equal(before.equals(after), false, 'Keyboard input must change the rendered battle');
   await page.keyboard.press('Space');
   await page.keyboard.down('KeyJ');
@@ -84,7 +84,7 @@ try {
   await page.keyboard.up('Numpad0');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '重新开始', exact: true }).click();
-  assert.equal(await page.locator('canvas').count(), 1);
+  assert.equal(await page.locator('#game-canvas canvas').count(), 1);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '返回主菜单', exact: true }).click();
   await page.reload({ waitUntil: 'networkidle' });

@@ -14,12 +14,12 @@ interface EdgeScenario {
 }
 
 const scenarios: EdgeScenario[] = [
-  { name: 'citadel west bastion, toward the inner chasm', map: SKY_CITADEL, platformId: 'west-bastion', direction: 1 },
-  { name: 'citadel east bastion, toward the inner chasm', map: SKY_CITADEL, platformId: 'east-bastion', direction: -1 },
-  { name: 'city west rooftop, toward the street gap', map: NEON_CITY, platformId: 'west-rooftop', direction: 1 },
-  { name: 'city market rooftop, toward the street gap', map: NEON_CITY, platformId: 'market-rooftop', direction: -1 },
-  { name: 'starship port dock, toward the inner void', map: ALIEN_STARSHIP, platformId: 'port-deck', direction: 1 },
-  { name: 'starship starboard dock, toward the inner void', map: ALIEN_STARSHIP, platformId: 'starboard-deck', direction: -1 },
+  { name: 'citadel west outer cliff', map: SKY_CITADEL, platformId: 'west-bastion', direction: -1 },
+  { name: 'citadel east outer cliff', map: SKY_CITADEL, platformId: 'east-bastion', direction: 1 },
+  { name: 'city west outer rooftop', map: NEON_CITY, platformId: 'west-rooftop', direction: -1 },
+  { name: 'city east outer duct', map: NEON_CITY, platformId: 'east-duct', direction: 1 },
+  { name: 'starship port outer dock', map: ALIEN_STARSHIP, platformId: 'port-deck', direction: -1 },
+  { name: 'starship starboard outer dock', map: ALIEN_STARSHIP, platformId: 'starboard-deck', direction: 1 },
 ];
 
 function runEdgeFight(scenario: EdgeScenario, sustained: boolean) {
@@ -45,7 +45,7 @@ function runEdgeFight(scenario: EdgeScenario, sustained: boolean) {
 
   let hits = 0;
   let frames = 0;
-  let crossedInnerEdge = false;
+  let crossedEdge = false;
   let ringout: Extract<BattleEvent, { type: 'ringout' }> | undefined;
   for (; frames < 240 && target!.stocks === 3; frames++) {
     // During sustained fire the defender holds the inward direction on EVERY
@@ -59,27 +59,27 @@ function runEdgeFight(scenario: EdgeScenario, sustained: boolean) {
       ['p2', { ...idleInput(), moveX }],
     ]);
     simulation.step(FIXED_STEP, input);
-    if (direction * (target!.position.x - edge) > ACTOR_WIDTH / 2 && target!.position.y > platform.y) crossedInnerEdge = true;
+    if (direction * (target!.position.x - edge) > ACTOR_WIDTH / 2 && target!.position.y > platform.y) crossedEdge = true;
     for (const event of simulation.drainEvents()) {
       if (event.type === 'hit' && event.actorId === target!.config.id) hits++;
       if (event.type === 'ringout' && event.actorId === target!.config.id) ringout = event;
     }
   }
-  return { simulation, target: target!, platform, edge, frames, hits, crossedInnerEdge, ringout };
+  return { simulation, target: target!, platform, edge, frames, hits, crossedEdge, ringout };
 }
 
-describe('inner gaps create real pistol knockout opportunities', () => {
+describe('moderate maps retain real pistol knockouts at exposed outer edges', () => {
   it.each(scenarios)('$name: sustained hits beat an inward recovery run within four seconds', (scenario) => {
     const result = runEdgeFight(scenario, true);
     const diagnostic = { hits: result.hits, seconds: result.frames * FIXED_STEP, position: result.target.position, support: result.target.groundedOn };
     expect(result.hits, JSON.stringify(diagnostic)).toBeGreaterThan(1);
     expect(result.hits, JSON.stringify(diagnostic)).toBeLessThanOrEqual(8);
-    expect(result.crossedInnerEdge, JSON.stringify(diagnostic)).toBe(true);
+    expect(result.crossedEdge, JSON.stringify(diagnostic)).toBe(true);
     expect(result.target.stocks, JSON.stringify(diagnostic)).toBe(2);
     // Stop on the first real stock loss; respawning elsewhere cannot hide a miss.
     expect(result.target.status).toBe('respawning');
     expect(result.ringout?.creditedTo).toBe('p1');
-    expect(scenario.direction * (result.ringout!.position.x - result.edge), 'the knockout must occur beyond the attacked inner edge, not the far outer edge').toBeGreaterThan(ACTOR_WIDTH / 2);
+    expect(scenario.direction * (result.ringout!.position.x - result.edge), 'the knockout must occur beyond the attacked edge').toBeGreaterThan(ACTOR_WIDTH / 2);
     expect(result.ringout!.position.y).toBeGreaterThan(scenario.map.bounds.bottom);
     expect(result.ringout!.position.x).toBeGreaterThan(scenario.map.bounds.left);
     expect(result.ringout!.position.x).toBeLessThan(scenario.map.bounds.right);
@@ -97,20 +97,68 @@ describe('inner gaps create real pistol knockout opportunities', () => {
     expect(result.target.position.x).toBeLessThan(result.platform.x + result.platform.width);
   });
 
-  it.each([SKY_CITADEL, NEON_CITY, ALIEN_STARSHIP])('$name: walking toward the center without jumping can now miss the narrow safety route', (map) => {
-    const simulation = new BattleSimulation({ ...createMatchConfig('local-duel', 317, { mapId: map.id }), countdown: 0 });
+});
+
+const recoveryScenarios = [
+  { map: SKY_CITADEL, from: 'west-bastion', to: 'citadel-court', direction: 1 },
+  { map: SKY_CITADEL, from: 'east-bastion', to: 'citadel-court', direction: -1 },
+  { map: NEON_CITY, from: 'west-rooftop', to: 'service-bypass', direction: 1 },
+  { map: NEON_CITY, from: 'east-duct', to: 'service-bypass', direction: -1 },
+  { map: ALIEN_STARSHIP, from: 'port-deck', to: 'lower-airlock', direction: 1 },
+  { map: ALIEN_STARSHIP, from: 'starboard-deck', to: 'lower-airlock', direction: -1 },
+] as const;
+
+describe('ordinary navigation mistakes have a recovery route', () => {
+  it.each(recoveryScenarios)('$map.name: overrunning the inner edge of $from is caught by $to and a normal jump returns', ({ map, from, to, direction }) => {
+    const platform = map.platforms.find(({ id }) => id === from)!;
+    const edge = direction === 1 ? platform.x + platform.width : platform.x;
+    const spawns = [{ x: edge - direction * 70, y: platform.y }, map.spawns[1]!];
+    const simulation = new BattleSimulation({ ...createMatchConfig('local-duel', 317, { mapId: map.id }), map: { ...map, spawns }, countdown: 0 });
     const actor = simulation.state.actors[0]!;
-    let ringout: Extract<BattleEvent, { type: 'ringout' }> | undefined;
-    for (let frame = 0; frame < 240 && actor.stocks === 3; frame++) {
-      const moveX = actor.position.x < map.width / 2 ? 1 as const : 0 as const;
-      simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), moveX }]]));
-      ringout ??= simulation.drainEvents().find((event): event is Extract<BattleEvent, { type: 'ringout' }> => event.type === 'ringout' && event.actorId === actor.config.id);
+    for (let frame = 0; frame < 2; frame++) simulation.step(FIXED_STEP, new Map());
+    expect(actor.groundedOn).toBe(from);
+
+    // Walk off without either jump. Keep moving through the fall, so simply
+    // braking on the original platform cannot masquerade as a safe landing.
+    for (let frame = 0; frame < 120 && actor.groundedOn !== to && actor.stocks === 3; frame++) {
+      simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), moveX: direction }]]));
     }
-    expect(actor.stocks).toBe(2);
-    expect(actor.status).toBe('respawning');
-    expect(ringout?.creditedTo).toBeNull();
-    expect(ringout!.position.y).toBeGreaterThan(map.bounds.bottom);
-    expect(ringout!.position.x).toBeGreaterThan(0);
-    expect(ringout!.position.x).toBeLessThan(map.width / 2);
+    expect(actor.stocks).toBe(3);
+    expect(actor.groundedOn).toBe(to);
+
+    const returnX = platform.x + platform.width / 2;
+    let returned = false;
+    for (let frame = 0; frame < 180 && actor.stocks === 3; frame++) {
+      const dx = returnX - actor.position.x;
+      simulation.step(FIXED_STEP, new Map([['p1', {
+        ...idleInput(), moveX: Math.abs(dx) < 8 ? 0 : dx > 0 ? 1 : -1,
+        jumpPressed: frame === 0,
+      }]]));
+      returned ||= actor.groundedOn === from;
+      if (returned && actor.groundedOn === from && Math.abs(dx) < 8 && Math.abs(actor.moveVelocity) < 1) break;
+    }
+    expect(returned, `a normal jump must reconnect the lower route: ${JSON.stringify({ position: actor.position, support: actor.groundedOn, stocks: actor.stocks })}`).toBe(true);
+    expect(actor.groundedOn).toBe(from);
+    expect(actor.stocks).toBe(3);
+    expect(actor.status).toBe('alive');
+  });
+
+  it.each([
+    { map: SKY_CITADEL, from: 'west-bastion', to: 'citadel-court', x: 380 },
+    { map: NEON_CITY, from: 'market-rooftop', to: 'service-bypass', x: 610 },
+    { map: ALIEN_STARSHIP, from: 'reactor', to: 'lower-airlock', x: 640 },
+  ])('$map.name: dropping from $from lands on $to without losing a stock', ({ map, from, to, x }) => {
+    const platform = map.platforms.find(({ id }) => id === from)!;
+    const spawns = [{ x, y: platform.y }, map.spawns[1]!];
+    const simulation = new BattleSimulation({ ...createMatchConfig('local-duel', 317, { mapId: map.id }), map: { ...map, spawns }, countdown: 0 });
+    const actor = simulation.state.actors[0]!;
+    for (let frame = 0; frame < 2; frame++) simulation.step(FIXED_STEP, new Map());
+    expect(actor.groundedOn).toBe(from);
+    for (let frame = 0; frame < 120; frame++) {
+      simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), dropPressed: frame === 0 }]]));
+    }
+    expect(actor.groundedOn).toBe(to);
+    expect(actor.stocks).toBe(3);
+    expect(actor.status).toBe('alive');
   });
 });
