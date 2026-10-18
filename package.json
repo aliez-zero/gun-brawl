@@ -14,6 +14,7 @@
     "test:watch": "vitest",
     "test:browser": "node scripts/smoke.mjs",
     "test:perf": "node scripts/perf.mjs",
+    "test:latency": "node scripts/latency.mjs",
     "test:visual": "node scripts/appearance-maps.mjs"
   },
   "dependencies": {
