@@ -206,7 +206,7 @@ export const WEAPON_ROLES: Readonly<Record<(typeof ARMORY_IDS)[number], string>>
 export interface MuzzleOffset { x: number; y: number }
 
 const FAMILY_MUZZLE: Record<string, MuzzleOffset> = {
-  pistol: { x: 29, y: -36 },
+  pistol: { x: 33, y: -36 },
   smg: { x: 43, y: -37 },
   rifle: { x: 63, y: -37 },
   shotgun: { x: 64, y: -38 },
@@ -217,7 +217,7 @@ const FAMILY_MUZZLE: Record<string, MuzzleOffset> = {
 };
 
 const MODEL_MUZZLE: Readonly<Partial<Record<WeaponId, MuzzleOffset>>> = {
-  p1911: { x: 29, y: -36 }, deagle: { x: 32, y: -36 },
+  p1911: { x: 31, y: -36 }, deagle: { x: 34, y: -36 },
   ump45: { x: 44, y: -37 }, vector: { x: 43, y: -37 }, uzi: { x: 42, y: -37 },
   m416: { x: 62, y: -37 }, akm: { x: 64, y: -37 }, 'scar-l': { x: 64, y: -37 },
   s686: { x: 63, y: -38 }, s1897: { x: 65, y: -38 }, s12k: { x: 61, y: -38 },

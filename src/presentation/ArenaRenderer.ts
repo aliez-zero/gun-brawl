@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { presetAppearance } from '../content/appearances';
 import { TRAINING_ARENA } from '../content/maps';
-import { getWeapon } from '../content/weapons';
+import { getWeapon, weaponBurstImpulse } from '../content/weapons';
 import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchState, Vec2, WeaponId } from '../game/core/types';
 import { CHARACTER_FRAME, characterKey, colorCss, createCharacterAtlas } from './CharacterArt';
 import { characterFrame } from './CharacterMotion';
@@ -9,6 +9,35 @@ import { paintWorld } from './WorldArt';
 
 interface Effect extends Vec2 { life: number; kind: 'hit' | 'shot' | 'respawn'; weaponId?: WeaponId }
 interface CharacterView { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text }
+
+interface TrailStyle { width: number; length: number; color: number; glow: number; glowWidth: number; glowAlpha: number }
+
+const TRAIL_STYLES: Record<string, TrailStyle> = {
+  pistol: { width: 1.5, length: 7, color: 0xfff1c4, glow: 0xffcf78, glowWidth: 4, glowAlpha: 0.13 },
+  smg: { width: 1.8, length: 9, color: 0xffe39a, glow: 0xffc45c, glowWidth: 5, glowAlpha: 0.15 },
+  rifle: { width: 2.4, length: 15, color: 0xffc766, glow: 0xff9a3d, glowWidth: 7, glowAlpha: 0.18 },
+  shotgun: { width: 1.7, length: 8, color: 0xffb56d, glow: 0xff7d3d, glowWidth: 5, glowAlpha: 0.16 },
+  sniper: { width: 3.2, length: 28, color: 0xd8f6ff, glow: 0x8fd9ff, glowWidth: 9, glowAlpha: 0.2 },
+  rocket: { width: 2.4, length: 18, color: 0xffd28a, glow: 0xff6a2d, glowWidth: 10, glowAlpha: 0.2 },
+  gatling: { width: 1.8, length: 10, color: 0xffdf8a, glow: 0xffb347, glowWidth: 5, glowAlpha: 0.14 },
+  cannon: { width: 4.6, length: 38, color: 0xfff4ef, glow: 0xff4f68, glowWidth: 12, glowAlpha: 0.24 },
+};
+
+function trailStyle(id: WeaponId): TrailStyle {
+  const weapon = getWeapon(id);
+  const family = weapon.family ?? id;
+  const base = TRAIL_STYLES[family] ?? TRAIL_STYLES.rifle!;
+  // Bigger single-shot guns get a slightly heavier tracer; shotgun pellets stay small.
+  const boost = family === 'shotgun'
+    ? 1
+    : Math.max(0.8, Math.min(1.6, Math.sqrt(weaponBurstImpulse(weapon) / 500)));
+  return {
+    ...base,
+    width: base.width * boost,
+    length: base.length * boost,
+    glowWidth: base.glowWidth * boost,
+  };
+}
 
 export class ArenaRenderer {
   private readonly background: Phaser.GameObjects.Image;
@@ -113,13 +142,25 @@ export class ArenaRenderer {
     }
     for (const projectile of state.projectiles) {
       const x = frozen ? projectile.position.x : Phaser.Math.Linear(projectile.previous.x, projectile.position.x, alpha);
+      const y = frozen ? projectile.position.y : Phaser.Math.Linear(projectile.previous.y, projectile.position.y, alpha);
       const speed = Math.hypot(projectile.velocity.x, projectile.velocity.y);
       const dx = speed > 1e-8 ? projectile.velocity.x / speed : projectile.direction;
       const dy = speed > 1e-8 ? projectile.velocity.y / speed : 0;
-      g.lineStyle(7, 0xffd38a, 0.18);
-      g.lineBetween(x - dx * 16, projectile.position.y - dy * 16, x + dx * 3, projectile.position.y + dy * 3);
-      g.lineStyle(2.5, 0xffefbf, 1);
-      g.lineBetween(x - dx * 12, projectile.position.y - dy * 12, x + dx * 4, projectile.position.y + dy * 4);
+      const style = trailStyle(projectile.weaponId);
+      const family = getWeapon(projectile.weaponId).family ?? projectile.weaponId;
+      if (family === 'rocket') {
+        g.lineStyle(style.glowWidth, 0xff5b2a, style.glowAlpha);
+        g.lineBetween(x - dx * 26, y - dy * 26, x - dx * 2, y - dy * 2);
+        g.lineStyle(style.width, 0xffb347, 0.95);
+        g.lineBetween(x - dx * 15, y - dy * 15, x + dx * 2, y + dy * 2);
+        g.fillStyle(0x273036, 1).fillCircle(x + dx * 3, y + dy * 3, 4);
+        g.lineStyle(1.2, 0xffdf9a, 1).lineBetween(x - dx * 2, y - dy * 2, x + dx * 7, y + dy * 7);
+        continue;
+      }
+      g.lineStyle(style.glowWidth, style.glow, style.glowAlpha);
+      g.lineBetween(x - dx * style.length, y - dy * style.length, x + dx * 3, y + dy * 3);
+      g.lineStyle(style.width, style.color, 1);
+      g.lineBetween(x - dx * style.length * 0.72, y - dy * style.length * 0.72, x + dx * 4, y + dy * 4);
     }
     for (const effect of this.effects) {
       if (!frozen) effect.life -= seconds;
@@ -133,7 +174,12 @@ export class ArenaRenderer {
   }
 
   private drawMuzzle(g: Phaser.GameObjects.Graphics, effect: Effect, opacity: number, radius: number): void {
-    const family = getWeapon(effect.weaponId ?? 'pistol').family ?? effect.weaponId ?? 'pistol';
+    const weapon = getWeapon(effect.weaponId ?? 'pistol');
+    const family = weapon.family ?? effect.weaponId ?? 'pistol';
+    const flashBoost = family === 'shotgun'
+      ? 1.2
+      : Math.max(0.85, Math.min(1.8, Math.sqrt(weaponBurstImpulse(weapon) / 500)));
+    radius *= flashBoost;
     const color = effect.weaponId === 'cannon' ? 0xff7d8f : family === 'rocket' ? 0xffc45c : 0xffe7a3;
     g.lineStyle(2, color, opacity);
     if (family === 'shotgun') {
