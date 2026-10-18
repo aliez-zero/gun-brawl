@@ -37,7 +37,7 @@ describe('T01 weapon registry and ammo', () => {
     expect(createWeapon('gatling').ammoRemaining).toBe(100);
     expect(createWeapon('gatling').reserveRemaining).toBe(100);
     expect(getWeapon('rocket')).toBe(ROCKET);
-    expect(ROCKET.explosion).toEqual({ radius: 170, centerImpulse: 2400, edgeImpulse: 680 });
+    expect(ROCKET.explosion).toEqual({ radius: 170, centerImpulse: 1800, edgeImpulse: 480 });
 
     const simulation = active();
     const actor = simulation.state.actors[0]!;
@@ -166,15 +166,16 @@ describe('T01 weapon registry and ammo', () => {
     expect(pellets).toHaveLength(5);
     const angles = pellets.map((projectile) => Math.atan2(projectile.velocity.y, projectile.velocity.x) * 180 / Math.PI)
       .sort((a, b) => a - b);
-    expect(angles[0]).toBeCloseTo(-12);
-    expect(angles[1]).toBeCloseTo(-6);
+    const spread = getWeapon('shotgun').spreadRadians * 180 / Math.PI;
+    expect(angles[0]).toBeCloseTo(-spread);
+    expect(angles[1]).toBeCloseTo(-spread / 2);
     expect(angles[2]).toBeCloseTo(0);
-    expect(angles[3]).toBeCloseTo(6);
-    expect(angles[4]).toBeCloseTo(12);
-    for (const pellet of pellets) expect(Math.hypot(pellet.velocity.x, pellet.velocity.y)).toBeCloseTo(1200);
+    expect(angles[3]).toBeCloseTo(spread / 2);
+    expect(angles[4]).toBeCloseTo(spread);
+    for (const pellet of pellets) expect(Math.hypot(pellet.velocity.x, pellet.velocity.y)).toBeCloseTo(getWeapon('shotgun').projectileSpeed);
     expect(shooter!.weapon.ammoRemaining).toBe(5);
     expect(shooter!.fireCooldown).toBeCloseTo(0.75);
-    expect(shooter!.impulse.x).toBeCloseTo(-48);
+    expect(shooter!.impulse.x).toBeCloseTo(-32);
     expect(simulation.drainEvents().filter((event) => event.type === 'shot')).toHaveLength(1);
   });
 
@@ -241,7 +242,7 @@ describe('T01 weapon registry and ammo', () => {
     equipWeapon(shooter!, 'rocket');
     fire(simulation);
     const rocket = simulation.state.projectiles.find((projectile) => projectile.weaponId === 'rocket')!;
-    expect(rocket.explosion).toEqual({ radius: 170, centerImpulse: 2400, edgeImpulse: 680 });
+    expect(rocket.explosion).toEqual({ radius: 170, centerImpulse: 1800, edgeImpulse: 480 });
 
     // Switching to the pistol must not change the rocket already in flight.
     equipWeapon(shooter!, 'pistol');

@@ -26,13 +26,13 @@ describe('T01 17 concrete weapon models', () => {
   });
 
   it('uses per-model magazines, reserves and reload times', () => {
-    expect(createWeapon('vector')).toMatchObject({ ammoRemaining: 19, reserveRemaining: 95 });
-    expect(createWeapon('awm')).toMatchObject({ ammoRemaining: 5, reserveRemaining: 15 });
-    expect(createWeapon('s686')).toMatchObject({ ammoRemaining: 2, reserveRemaining: 10 });
-    expect(getWeapon('awm').reloadTime).toBe(2.6);
-    expect(getWeapon('vector').reloadTime).toBe(1.5);
-    expect(getWeapon('rpg7').explosion).toEqual({ radius: 170, centerImpulse: 2400, edgeImpulse: 680 });
-    expect(getWeapon('at4').recoilY).toBe(24);
+    expect(createWeapon('vector')).toMatchObject({ ammoRemaining: 22, reserveRemaining: 66 });
+    expect(createWeapon('awm')).toMatchObject({ ammoRemaining: 5, reserveRemaining: 25 });
+    expect(createWeapon('s686')).toMatchObject({ ammoRemaining: 2, reserveRemaining: 20 });
+    expect(getWeapon('awm').reloadTime).toBe(1.6);
+    expect(getWeapon('vector').reloadTime).toBe(1.1);
+    expect(getWeapon('rpg7').explosion).toEqual({ radius: 170, centerImpulse: 1800, edgeImpulse: 480 });
+    expect(getWeapon('at4').recoilY).toBe(18);
   });
 
   it('separates models by burst impulse, sustained pressure and role', () => {

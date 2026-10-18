@@ -47,7 +47,9 @@ describe('T01 muzzle alignment', () => {
     for (const id of ids) {
       const muzzle = weaponMuzzle(id);
       expect(muzzle.x, `${id} muzzle x`).toBeGreaterThan(25);
-      expect(muzzle.x, `${id} muzzle x`).toBeLessThan(85);
+      // Longer redrawn barrels push the tip out; the ceiling only has to catch
+      // a muzzle that drifts past the character's own silhouette.
+      expect(muzzle.x, `${id} muzzle x`).toBeLessThan(100);
       expect(muzzle.y, `${id} muzzle y`).toBeGreaterThan(-45);
       expect(muzzle.y, `${id} muzzle y`).toBeLessThan(-30);
 

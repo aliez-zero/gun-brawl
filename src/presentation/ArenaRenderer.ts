@@ -26,7 +26,7 @@ const TRAIL_STYLES: Record<string, TrailStyle> = {
   cannon: { width: 4.6, length: 38, color: 0xfff4ef, glow: 0xff4f68, glowWidth: 12, glowAlpha: 0.24 },
 };
 
-function trailStyle(id: WeaponId): TrailStyle {
+function trailStyle(id: WeaponId, speed: number): TrailStyle {
   const weapon = getWeapon(id);
   const family = weapon.family ?? id;
   const base = TRAIL_STYLES[family] ?? TRAIL_STYLES.rifle!;
@@ -34,11 +34,13 @@ function trailStyle(id: WeaponId): TrailStyle {
   const boost = family === 'shotgun'
     ? 1
     : Math.max(0.8, Math.min(1.6, Math.sqrt(weaponBurstImpulse(weapon) / 500)));
+  // Faster rounds read as longer, tighter streaks; a 720 px/s rocket stays stubby.
+  const pace = Math.max(0.65, Math.min(1.55, speed / 1800));
   return {
     ...base,
-    width: base.width * boost,
-    length: base.length * boost,
-    glowWidth: base.glowWidth * boost,
+    width: base.width * boost * (0.9 + pace * 0.15),
+    length: base.length * boost * (0.6 + pace * 0.6),
+    glowWidth: base.glowWidth * boost * (0.85 + pace * 0.2),
   };
 }
 
@@ -157,7 +159,7 @@ export class ArenaRenderer {
       const speed = Math.hypot(projectile.velocity.x, projectile.velocity.y);
       const dx = speed > 1e-8 ? projectile.velocity.x / speed : projectile.direction;
       const dy = speed > 1e-8 ? projectile.velocity.y / speed : 0;
-      const style = trailStyle(projectile.weaponId);
+      const style = trailStyle(projectile.weaponId, speed);
       const family = getWeapon(projectile.weaponId).family ?? projectile.weaponId;
       // Never draw the trail behind the muzzle on the first frame after firing.
       const origin = projectile.origin ?? projectile.position;

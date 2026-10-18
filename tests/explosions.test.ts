@@ -153,6 +153,9 @@ describe('T02 bomb runtime', () => {
     const p1 = simulation.state.actors[0]!;
     p1.bombsRemaining = 3;
     pressBomb(simulation);
+    // The 1.1 s fuse now expires before the 0.6 s cooldown allows a third throw,
+    // so the two-bomb cap can only be exercised with frozen fuses.
+    for (const bomb of simulation.state.bombs) bomb.fuseRemaining = 99;
     idle(simulation, 37);
     pressBomb(simulation);
     expect(simulation.state.bombs).toHaveLength(2);
@@ -163,6 +166,48 @@ describe('T02 bomb runtime', () => {
     expect(simulation.state.bombs).toHaveLength(2);
     expect(p1.bombsRemaining).toBe(1);
     expect(events.some((event) => event.type === 'bomb-empty')).toBe(true);
+  });
+
+  it('explodes about a second after the throw instead of two', () => {
+    const simulation = active();
+    const p1 = simulation.state.actors[0]!;
+    p1.position = { x: 200, y: 500 };
+    pressBomb(simulation);
+    expect(simulation.state.bombs).toHaveLength(1);
+    let frames = 0;
+    while (simulation.state.bombs.length > 0 && frames < 240) {
+      simulation.step(FIXED_STEP, new Map());
+      frames++;
+    }
+    expect(BOMB.fuse).toBeLessThan(1.5);
+    expect(frames / 60).toBeCloseTo(BOMB.fuse, 1);
+  });
+
+  it('knocks both players, with the thrower taking the same radial falloff', () => {
+    const simulation = active();
+    const [p1, p2] = simulation.state.actors;
+    p1!.position = { x: 500, y: 500 };
+    p2!.position = { x: 620, y: 500 };
+    addBomb(simulation, 'p1', 500, 500 - ACTOR_HEIGHT / 2);
+    simulation.step(FIXED_STEP, new Map());
+    const selfPush = Math.hypot(p1!.impulse.x, p1!.impulse.y);
+    const rivalPush = Math.hypot(p2!.impulse.x, p2!.impulse.y);
+    expect(selfPush).toBeGreaterThan(0);
+    expect(rivalPush).toBeGreaterThan(0);
+    // Same blast, closer body takes the bigger hit.
+    expect(selfPush).toBeGreaterThan(rivalPush);
+    expect(p2!.impulse.x).toBeGreaterThan(0);
+  });
+
+  it('aims the push away from the bomb, not simply sideways', () => {
+    const simulation = active();
+    const p1 = simulation.state.actors[0]!;
+    p1!.position = { x: 500, y: 500 };
+    // Bomb down-right of the body centre: the victim must be thrown up-left.
+    addBomb(simulation, 'p1', 540, 490);
+    simulation.step(FIXED_STEP, new Map());
+    expect(p1!.impulse.x).toBeLessThan(0);
+    expect(p1!.impulse.y).toBeLessThan(0);
   });
 
   it('explodes once after the fuse, applies a hit and attributes it to the owner', () => {

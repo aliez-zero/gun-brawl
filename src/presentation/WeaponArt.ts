@@ -21,13 +21,13 @@ export const WEAPON_ART = {
  * rifle render at ~160 px instead of ~54 px next to a 96 px character.
  */
 const MODEL_SCALE: Partial<Record<WeaponId, number>> = {
-  pistol: 0.37, p1911: 0.36, deagle: 0.4,
-  smg: 0.34, ump45: 0.34, vector: 0.32, uzi: 0.3,
-  rifle: 0.4, m416: 0.4, akm: 0.41, 'scar-l': 0.42,
-  shotgun: 0.4, s686: 0.39, s1897: 0.42, s12k: 0.38,
-  sniper: 0.47, kar98k: 0.47, m24: 0.48, awm: 0.48,
-  rocket: 0.45, rpg7: 0.45, at4: 0.47,
-  gatling: 0.5, cannon: 0.51,
+  pistol: 0.47, p1911: 0.45, deagle: 0.5,
+  smg: 0.4, ump45: 0.4, vector: 0.38, uzi: 0.36,
+  rifle: 0.48, m416: 0.48, akm: 0.49, 'scar-l': 0.5,
+  shotgun: 0.48, s686: 0.46, s1897: 0.5, s12k: 0.45,
+  sniper: 0.55, kar98k: 0.55, m24: 0.56, awm: 0.56,
+  rocket: 0.52, rpg7: 0.52, at4: 0.54,
+  gatling: 0.58, cannon: 0.6,
 };
 
 export function weaponDisplayScale(id: WeaponId): number {
@@ -35,19 +35,20 @@ export function weaponDisplayScale(id: WeaponId): number {
   return scale === undefined ? WEAPON_ART.displayScale : scale / SAMPLE;
 }
 
-const LINE = '#17232c';
+// Higher-contrast palette: the arenas are dark blue-grey, so gunmetal has to be
+// noticeably lighter than the walls or the whole silhouette disappears.
+const OUTLINE = '#0a1116';
+const STEEL_DARK = '#3a4850';
+const STEEL = '#77898f';
+const STEEL_LIGHT = '#afbfc2';
+const POLY_DARK = '#2f3b36';
+const POLY = '#4c5c53';
+const WOOD_DARK = '#5a3a21';
+const WOOD = '#966034';
+const WOOD_LIGHT = '#c0844c';
+const GOLD = '#e8c56a';
 
 type Ctx = CanvasRenderingContext2D;
-
-function poly(ctx: Ctx, points: number[], fill: string, outline = true): void {
-  ctx.beginPath();
-  ctx.moveTo(points[0]!, points[1]!);
-  for (let index = 2; index < points.length; index += 2) ctx.lineTo(points[index]!, points[index + 1]!);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-  if (outline) { ctx.strokeStyle = LINE; ctx.lineWidth = 1.2; ctx.stroke(); }
-}
 
 function tint(hex: string, amount: number): string {
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
@@ -59,342 +60,464 @@ function tint(hex: string, amount: number): string {
   return `rgb(${channel(16)},${channel(8)},${channel(0)})`;
 }
 
-function box(ctx: Ctx, x: number, y: number, width: number, height: number, fill: string, radius = 1): void {
-  ctx.beginPath(); ctx.roundRect(x, y, width, height, radius);
-  if (height > 3 && /^#[0-9a-f]{6}$/i.test(fill)) {
-    const metal = ctx.createLinearGradient(x, y, x + width * 0.15, y + height);
-    metal.addColorStop(0, tint(fill, 0.2));
-    metal.addColorStop(0.48, fill);
-    metal.addColorStop(1, tint(fill, -0.2));
+/** Outlined, top-lit slab: every gun part shares this so the set reads as one kit. */
+function slab(ctx: Ctx, x: number, y: number, width: number, height: number, fill: string, radius = 2): void {
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, radius);
+  if (height > 4 && /^#[0-9a-f]{6}$/i.test(fill)) {
+    const metal = ctx.createLinearGradient(0, y, 0, y + height);
+    metal.addColorStop(0, tint(fill, 0.28));
+    metal.addColorStop(0.34, tint(fill, 0.06));
+    metal.addColorStop(1, tint(fill, -0.28));
     ctx.fillStyle = metal;
   } else {
     ctx.fillStyle = fill;
   }
   ctx.fill();
-  ctx.strokeStyle = LINE; ctx.lineWidth = 1.2; ctx.stroke();
-  if (height >= 4) {
-    ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + width - 1, y + 1);
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 0.65; ctx.stroke();
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  if (height >= 6) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y + 1.1);
+    ctx.lineTo(x + width - radius, y + 1.1);
+    ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
   }
 }
 
-function line(ctx: Ctx, x1: number, y1: number, x2: number, y2: number, color: string, width = 1): void {
-  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+function poly(ctx: Ctx, points: number[], fill: string): void {
+  ctx.beginPath();
+  ctx.moveTo(points[0]!, points[1]!);
+  for (let index = 2; index < points.length; index += 2) ctx.lineTo(points[index]!, points[index + 1]!);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
-function arc(ctx: Ctx, x: number, y: number, width: number, height: number, start: number, end: number): void {
-  ctx.beginPath(); ctx.ellipse(x, y, width / 2, height / 2, 0, start, end);
-  ctx.strokeStyle = LINE; ctx.lineWidth = 1.2; ctx.stroke();
+function line(ctx: Ctx, x1: number, y1: number, x2: number, y2: number, color: string, width = 1.4): void {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
 }
 
-function pistol(ctx: Ctx): void {
-  poly(ctx, [38, 40, 50, 40, 46, 66, 36, 64], '#2b3338');
-  box(ctx, 39, 45, 8, 15, '#6b4a36');
-  poly(ctx, [22, 26, 64, 26, 70, 32, 68, 40, 24, 40], '#44515b');
-  box(ctx, 65, 30, 11, 6, '#9aa8ae');
-  line(ctx, 26, 36, 64, 36, '#e0b45a', 1.4);
-  box(ctx, 26, 21, 6, 5, '#697984');
-  box(ctx, 62, 21, 3, 5, '#697984');
-  arc(ctx, 42, 40, 18, 18, 0, Math.PI);
+function circle(ctx: Ctx, x: number, y: number, radius: number, fill: string, outline = true): void {
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  if (outline) { ctx.strokeStyle = OUTLINE; ctx.lineWidth = 1.6; ctx.stroke(); }
 }
 
-function smg(ctx: Ctx): void {
-  poly(ctx, [8, 30, 28, 30, 30, 40, 16, 48], '#252e33');
-  box(ctx, 28, 26, 60, 18, '#3f4d48', 2);
-  box(ctx, 88, 31, 20, 6, '#8c9a97');
-  box(ctx, 54, 42, 14, 24, '#29312f', 2);
-  box(ctx, 62, 44, 14, 26, '#59645e', 1);
-  line(ctx, 30, 32, 78, 32, '#4fc3b1', 1.5);
-  line(ctx, 60, 47, 60, 66, '#4fc3b1', 1);
-  box(ctx, 34, 21, 42, 4, '#71827b');
+/** Angled box used for grips, magazines and stocks. */
+function wedge(ctx: Ctx, x: number, y: number, width: number, height: number, skew: number, fill: string): void {
+  poly(ctx, [x + skew, y, x + width + skew, y, x + width, y + height, x, y + height], fill);
 }
 
-function rifle(ctx: Ctx): void {
-  poly(ctx, [4, 28, 28, 26, 32, 38, 20, 46], '#2e3638');
-  line(ctx, 28, 33, 10, 33, '#71807a');
-  box(ctx, 28, 24, 56, 20, '#8a7a5c', 2);
-  box(ctx, 82, 27, 44, 12, '#5f594b');
-  box(ctx, 126, 31, 22, 6, '#8d999a');
-  poly(ctx, [54, 44, 68, 44, 66, 70, 52, 68], '#3d423c');
-  poly(ctx, [44, 44, 56, 44, 52, 64, 42, 62], '#2e3638');
-  box(ctx, 32, 19, 50, 4, '#b0a88f');
-  line(ctx, 32, 36, 82, 36, '#f0a23a', 1.5);
-  for (let x = 92; x <= 108; x += 8) line(ctx, x, 30, x, 39, '#8b826b', 0.7);
+interface GunSpec {
+  /** Muzzle tip in art units; the bore sits at `bore`. */
+  tip: number;
+  bore: number;
+  /** Receiver: x, width, height. */
+  rec: readonly [number, number, number];
+  /** Barrel height and vertical centre offset from the bore. */
+  barrel: readonly [number, number];
+  stock: 'none' | 'wood' | 'poly' | 'skeleton' | 'thumbhole';
+  mag: 'none' | 'box' | 'banana' | 'drum' | 'tube' | 'internal';
+  /** Handguard covering most of the barrel: without it every rifle reads as a needle. */
+  guard?: 'wood' | 'poly' | 'none';
+  furniture: string;
+  body: string;
+  accent: string;
+  scope?: readonly [number, number, number];
+  pump?: readonly [number, number];
+  double?: boolean;
+  cone?: boolean;
+  brake?: 'ring' | 'brake' | 'bell' | 'plain';
+  bipod?: boolean;
+  belt?: boolean;
 }
 
-function shotgun(ctx: Ctx): void {
-  poly(ctx, [4, 28, 30, 26, 34, 40, 18, 48], '#8b5a36');
-  box(ctx, 30, 24, 28, 20, '#4a5155', 1);
-  box(ctx, 58, 27, 88, 9, '#8a969b');
-  box(ctx, 58, 38, 80, 6, '#3f474b');
-  box(ctx, 78, 32, 20, 13, '#5e3a26');
-  box(ctx, 146, 28, 3, 8, '#30383d');
-  line(ctx, 34, 34, 46, 34, '#e05a4f', 1.4);
-  arc(ctx, 38, 42, 18, 14, 0, Math.PI);
-}
+const SPECS: Record<WeaponId, GunSpec> = {
+  pistol: {
+    tip: 72, bore: 27, rec: [22, 34, 23], barrel: [11, 0], stock: 'none', mag: 'internal',
+    furniture: STEEL, body: STEEL, accent: GOLD, brake: 'plain',
+  },
+  p1911: {
+    tip: 76, bore: 27, rec: [20, 40, 24], barrel: [11, 0], stock: 'none', mag: 'internal',
+    furniture: WOOD, body: STEEL, accent: GOLD, brake: 'plain',
+  },
+  deagle: {
+    tip: 84, bore: 26, rec: [18, 50, 29], barrel: [15, 0], stock: 'none', mag: 'internal',
+    furniture: POLY_DARK, body: STEEL_LIGHT, accent: GOLD, brake: 'brake',
+  },
+  smg: {
+    tip: 114, bore: 29, rec: [22, 58, 26], barrel: [12, 0], stock: 'poly', mag: 'box',
+    furniture: POLY_DARK, body: POLY, accent: '#4fc3b1', brake: 'ring',
+  },
+  ump45: {
+    tip: 112, bore: 29, rec: [22, 52, 26], barrel: [12, 0], stock: 'poly', mag: 'box',
+    furniture: POLY_DARK, body: POLY, accent: '#4fc3b1', brake: 'ring',
+  },
+  vector: {
+    tip: 104, bore: 28, rec: [24, 54, 29], barrel: [11, 0], stock: 'none', mag: 'box',
+    furniture: POLY_DARK, body: '#95a2a4', accent: '#f0a23a', brake: 'plain',
+  },
+  uzi: {
+    tip: 92, bore: 29, rec: [26, 48, 27], barrel: [10, 0], stock: 'skeleton', mag: 'internal',
+    furniture: POLY_DARK, body: STEEL_DARK, accent: '#e05a4f', brake: 'plain',
+  },
+  rifle: {
+    tip: 146, bore: 30, rec: [22, 62, 27], barrel: [10, 0], stock: 'poly', mag: 'banana',
+    furniture: WOOD, body: '#9b8b68', accent: '#f0a23a', brake: 'ring',
+  },
+  m416: {
+    tip: 146, bore: 30, rec: [22, 66, 27], barrel: [10, 0], stock: 'poly', mag: 'box',
+    furniture: '#867a5a', body: '#b0a17a', accent: '#f0a23a', brake: 'ring',
+  },
+  akm: {
+    tip: 144, bore: 30, rec: [20, 62, 27], barrel: [11, 0], stock: 'wood', mag: 'banana',
+    furniture: WOOD, body: '#77745c', accent: '#e05a4f', brake: 'plain',
+  },
+  'scar-l': {
+    tip: 148, bore: 30, rec: [20, 72, 27], barrel: [10, 0], stock: 'poly', mag: 'box',
+    furniture: '#948a68', body: '#c2b088', accent: '#f0a23a', brake: 'ring',
+  },
+  shotgun: {
+    tip: 148, bore: 30, rec: [24, 34, 25], barrel: [13, 0], stock: 'wood', mag: 'tube',
+    furniture: WOOD, body: STEEL, accent: '#e05a4f', brake: 'ring', pump: [78, 96],
+  },
+  s686: {
+    tip: 144, bore: 29, rec: [26, 30, 27], barrel: [22, 0], stock: 'wood', mag: 'none',
+    furniture: WOOD, body: STEEL, accent: '#e05a4f', double: true, brake: 'ring',
+  },
+  s1897: {
+    tip: 148, bore: 28, rec: [22, 34, 26], barrel: [13, 0], stock: 'wood', mag: 'tube',
+    furniture: WOOD_DARK, body: '#6b797e', accent: '#e05a4f', pump: [80, 100], brake: 'ring',
+  },
+  s12k: {
+    tip: 138, bore: 29, rec: [22, 54, 28], barrel: [14, 0], stock: 'poly', mag: 'box',
+    furniture: POLY, body: '#87906d', accent: '#e05a4f', brake: 'brake',
+  },
+  sniper: {
+    tip: 150, bore: 31, rec: [26, 34, 23], barrel: [9, 0], stock: 'wood', mag: 'internal',
+    furniture: WOOD, body: '#7b8668', accent: '#b48ce0', brake: 'plain',
+  },
+  kar98k: {
+    tip: 150, bore: 31, rec: [24, 34, 23], barrel: [9, 0], stock: 'wood', mag: 'internal',
+    furniture: WOOD, body: '#767a58', accent: '#b48ce0', brake: 'plain',
+  },
+  m24: {
+    tip: 148, bore: 31, rec: [26, 34, 24], barrel: [10, 0], stock: 'poly', mag: 'box',
+    furniture: '#48544e', body: '#63716b', accent: '#b48ce0', scope: [34, 42, 14], brake: 'brake',
+  },
+  awm: {
+    tip: 150, bore: 31, rec: [24, 38, 25], barrel: [11, 0], stock: 'poly', mag: 'box',
+    furniture: '#515a48', body: '#68765f', accent: '#b48ce0', scope: [32, 46, 16], brake: 'brake',
+  },
+  rocket: {
+    tip: 148, bore: 30, rec: [18, 74, 30], barrel: [22, 0], stock: 'none', mag: 'none',
+    furniture: WOOD, body: '#7a8060', accent: '#f2c94c', cone: true, brake: 'bell',
+  },
+  rpg7: {
+    tip: 148, bore: 30, rec: [16, 76, 30], barrel: [22, 0], stock: 'none', mag: 'none',
+    furniture: WOOD, body: '#7c8160', accent: '#f2c94c', cone: true, brake: 'bell',
+  },
+  at4: {
+    tip: 150, bore: 30, rec: [16, 78, 26], barrel: [20, 0], stock: 'none', mag: 'none',
+    furniture: '#988f6c', body: '#a49c72', accent: '#f2c94c', cone: true, brake: 'bell',
+  },
+  gatling: {
+    tip: 144, bore: 31, rec: [24, 56, 36], barrel: [24, 0], stock: 'none', mag: 'drum',
+    furniture: POLY_DARK, body: STEEL_DARK, accent: '#f2a23a', belt: true, brake: 'ring',
+  },
+  cannon: {
+    tip: 150, bore: 31, rec: [20, 46, 32], barrel: [18, 0], stock: 'thumbhole', mag: 'box',
+    furniture: '#454851', body: '#55626d', accent: '#ff5d73', scope: [30, 46, 16], bipod: true, brake: 'brake',
+  },
+};
 
-function sniper(ctx: Ctx): void {
-  poly(ctx, [2, 28, 34, 26, 38, 38, 20, 48], '#59644a');
-  box(ctx, 34, 24, 36, 20, '#343b3f', 1);
-  box(ctx, 70, 30, 80, 6, '#8f9a9b');
-  box(ctx, 44, 14, 28, 9, '#1e2629', 2);
-  box(ctx, 46, 11, 5, 4, '#1e2629');
-  box(ctx, 64, 11, 5, 4, '#1e2629');
-  line(ctx, 46, 42, 54, 30, '#8f9a9b', 2);
-  line(ctx, 36, 36, 68, 36, '#b48ce0', 1.3);
-  box(ctx, 146, 27, 4, 7, '#30383d');
-  arc(ctx, 38, 42, 17, 14, 0, Math.PI);
-}
+/** Stock sits behind the receiver; drawn first so the receiver overlaps it. */
+/** Handguard material per model; pistols, double barrels and launchers have none. */
+const GUARDS: Partial<Record<WeaponId, 'wood' | 'poly'>> = {
+  rifle: 'poly', m416: 'poly', akm: 'wood', 'scar-l': 'poly',
+  smg: 'poly', ump45: 'poly', s12k: 'poly',
+  shotgun: 'wood', s1897: 'wood', sniper: 'wood', kar98k: 'wood',
+  m24: 'poly', awm: 'poly', cannon: 'poly',
+};
 
-function gatling(ctx: Ctx): void {
-  poly(ctx, [4, 26, 28, 24, 32, 40, 16, 48], '#3d332b');
-  box(ctx, 22, 26, 46, 22, '#4e554d', 2);
-  box(ctx, 28, 48, 48, 22, '#6d5336', 2);
-  line(ctx, 50, 50, 50, 67, '#f2a23a', 1.2);
-  for (let barrel = 0; barrel < 6; barrel++) {
-    const y = 29 + barrel * 3.2;
-    line(ctx, 62, y, 138, y, '#aab4b2', 2.2);
-    line(ctx, 62, y + 1, 138, y + 1, '#394448', 0.7);
+function drawStock(ctx: Ctx, spec: GunSpec, recX: number): void {
+  const midY = spec.bore;
+  switch (spec.stock) {
+    case 'wood':
+      // Comb + toe: a straight slab reads as a plank, the notch reads as a stock.
+      poly(ctx, [2, midY - 2, 12, midY - 7, recX + 12, midY - 7, recX + 12, midY + 10, 10, midY + 18, 2, midY + 14], spec.furniture);
+      line(ctx, 14, midY - 4, recX + 8, midY - 4, 'rgba(255,235,200,0.35)', 1.4);
+      break;
+    case 'poly':
+      poly(ctx, [2, midY - 6, recX + 8, midY - 7, recX + 8, midY + 8, 4, midY + 12, 2, midY + 6], spec.furniture);
+      break;
+    case 'skeleton':
+      line(ctx, 6, midY - 4, recX, midY - 4, STEEL_DARK, 3.4);
+      line(ctx, 6, midY + 6, recX, midY + 2, STEEL_DARK, 3.4);
+      line(ctx, 6, midY - 4, 6, midY + 6, STEEL_DARK, 3);
+      break;
+    case 'thumbhole':
+      poly(ctx, [2, midY - 8, recX + 6, midY - 8, recX + 6, midY + 10, 10, midY + 18, 2, midY + 14], spec.furniture);
+      circle(ctx, recX - 4, midY + 6, 4, OUTLINE, false);
+      break;
+    default:
+      break;
   }
-  box(ctx, 130, 27, 14, 22, '#30383d', 2);
-  line(ctx, 134, 30, 134, 46, '#f2a23a', 1.5);
-  box(ctx, 40, 20, 26, 5, '#76817c', 1);
-  line(ctx, 44, 56, 60, 56, '#c7b184', 1.2);
 }
 
-function cannon(ctx: Ctx): void {
-  poly(ctx, [2, 30, 30, 26, 36, 42, 20, 50], '#4b3540');
-  box(ctx, 30, 24, 44, 24, '#3b4248', 2);
-  box(ctx, 70, 30, 78, 12, '#87939a', 1);
-  box(ctx, 144, 26, 13, 20, '#30383d', 2);
-  line(ctx, 148, 30, 148, 42, '#ff5d73', 1.6);
-  box(ctx, 42, 12, 30, 10, '#20282d', 2);
-  box(ctx, 44, 8, 5, 4, '#20282d');
-  box(ctx, 66, 8, 5, 4, '#20282d');
-  line(ctx, 48, 22, 36, 34, '#9fadb2', 2);
-  line(ctx, 76, 36, 76, 54, '#59646a', 2);
-  line(ctx, 66, 54, 86, 54, '#59646a', 2);
-  line(ctx, 70, 34, 70, 58, '#ff5d73', 1.1);
-  line(ctx, 74, 36, 74, 42, '#ff5d73', 1.1);
+function drawMagazine(ctx: Ctx, spec: GunSpec, recX: number, recW: number): void {
+  const top = spec.bore + spec.rec[2] / 2 - 1;
+  switch (spec.mag) {
+    case 'box':
+      wedge(ctx, recX + recW * 0.5, top, 13, 22, -2, POLY_DARK);
+      line(ctx, recX + recW * 0.5 + 1, top + 16, recX + recW * 0.5 + 12, top + 15, spec.accent, 1.6);
+      break;
+    case 'banana':
+      poly(ctx, [
+        recX + recW * 0.46, top,
+        recX + recW * 0.46 + 16, top,
+        recX + recW * 0.46 + 19, top + 16,
+        recX + recW * 0.46 + 11, top + 27,
+        recX + recW * 0.46 - 6, top + 25,
+        recX + recW * 0.46 - 5, top + 9,
+      ], '#5b452e');
+      break;
+    case 'drum':
+      circle(ctx, recX + 18, top + 10, 13, POLY_DARK);
+      circle(ctx, recX + 18, top + 10, 5, '#1d2529', false);
+      break;
+    case 'tube':
+      slab(ctx, recX + 10, top - 1, 62, 7, '#5a676c', 3);
+      break;
+    case 'internal':
+      break;
+    default:
+      break;
+  }
 }
 
-function rocket(ctx: Ctx): void {
-  poly(ctx, [0, 24, 8, 24, 8, 46, 0, 46], '#3f4740');
-  box(ctx, 8, 27, 124, 16, '#5f6248', 2);
-  box(ctx, 45, 25, 30, 20, '#7a4b2e', 2);
-  poly(ctx, [132, 20, 156, 35, 132, 50], '#6b7050');
-  box(ctx, 58, 42, 14, 24, '#2e3530', 2);
-  box(ctx, 78, 20, 13, 5, '#30383d');
-  line(ctx, 10, 32, 40, 32, '#f2c94c', 1.6);
-  line(ctx, 55, 30, 55, 43, '#f2c94c', 1);
-  arc(ctx, 50, 42, 18, 16, 0, Math.PI);
+function drawGrip(ctx: Ctx, spec: GunSpec, recX: number, recW: number): void {
+  const top = spec.bore + spec.rec[2] / 2 - 2;
+  const x = recX + recW * 0.34;
+  wedge(ctx, x, top, 12, 20, -3, spec.furniture);
+  line(ctx, x + 1, top + 5, x + 10, top + 5, 'rgba(0,0,0,0.45)', 1);
+  line(ctx, x, top + 9, x + 10, top + 9, 'rgba(0,0,0,0.35)', 1);
+  // trigger guard
+  ctx.beginPath();
+  ctx.arc(x + 11, top + 2, 6, 0.1, Math.PI - 0.1);
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
-const PAINTERS: Partial<Record<WeaponId, (ctx: Ctx) => void>> = {
-  pistol, smg, rifle, shotgun, sniper, rocket, gatling, cannon,
-};
+function drawScope(ctx: Ctx, spec: GunSpec): void {
+  if (!spec.scope) return;
+  const [x, width, height] = spec.scope;
+  const y = spec.bore - spec.rec[2] / 2 - height + 3;
+  slab(ctx, x + 4, y + height / 2 - 1.5, 4, 6, STEEL_DARK, 1);
+  slab(ctx, x + width - 8, y + height / 2 - 1.5, 4, 6, STEEL_DARK, 1);
+  slab(ctx, x, y, width, height, '#232d32', height / 2);
+  const lens = ctx.createLinearGradient(x + 3, y + 2, x + 3, y + height - 2);
+  lens.addColorStop(0, '#dff6ff');
+  lens.addColorStop(0.5, '#6fa6c4');
+  lens.addColorStop(1, '#1d2f3a');
+  ctx.beginPath();
+  ctx.ellipse(x + 5, y + height / 2, 3, height / 2 - 3, 0, 0, Math.PI * 2);
+  ctx.fillStyle = lens;
+  ctx.fill();
+  line(ctx, x + 9, y + height / 2, x + width - 4, y + height / 2, 'rgba(255,255,255,0.18)', 1);
+}
 
-/** Tight local-space content boxes for HUD / crate icons (no grip-origin margins). */
-const ICON_BOUNDS: Partial<Record<WeaponId, { x: number; y: number; width: number; height: number }>> = {
-  pistol: { x: 18, y: 16, width: 62, height: 54 },
-  smg: { x: 8, y: 19, width: 102, height: 54 },
-  rifle: { x: 4, y: 17, width: 146, height: 55 },
-  shotgun: { x: 4, y: 24, width: 148, height: 48 },
-  sniper: { x: 2, y: 10, width: 150, height: 62 },
-  rocket: { x: 0, y: 18, width: 158, height: 50 },
-  gatling: { x: 4, y: 18, width: 150, height: 56 },
-  cannon: { x: 0, y: 8, width: 158, height: 62 },
-};
+function drawMuzzle(ctx: Ctx, spec: GunSpec, tip: number, h: number): void {
+  if (spec.cone) {
+    // Rocket warhead: bright cone so the launcher reads at a glance.
+    const coneY = spec.bore - spec.barrel[0] / 2;
+    poly(ctx, [tip - 22, coneY - 2, tip, spec.bore, tip - 22, coneY + h + 2], '#8a8f68');
+    line(ctx, tip - 20, spec.bore, tip - 2, spec.bore, spec.accent, 2);
+    return;
+  }
+  switch (spec.brake) {
+    case 'brake':
+      slab(ctx, tip - 12, spec.bore - h / 2 - 2, 12, h + 4, STEEL_DARK, 2);
+      line(ctx, tip - 9, spec.bore - h / 2 - 1, tip - 9, spec.bore + h / 2 + 1, 'rgba(0,0,0,0.5)', 1.4);
+      line(ctx, tip - 5, spec.bore - h / 2 - 1, tip - 5, spec.bore + h / 2 + 1, 'rgba(0,0,0,0.5)', 1.4);
+      break;
+    case 'ring':
+      circle(ctx, tip - 2, spec.bore, h / 2 + 1.6, STEEL_LIGHT, true);
+      circle(ctx, tip - 2, spec.bore, h / 2 - 1, '#141c21', false);
+      break;
+    case 'bell':
+      slab(ctx, tip - 12, spec.bore - h / 2 - 4, 12, h + 8, '#4d5a48', 3);
+      break;
+    default:
+      break;
+  }
+  line(ctx, tip - 4, spec.bore - h / 2 + 1, tip - 4, spec.bore + h / 2 - 1, 'rgba(255,255,255,0.30)', 1);
+}
 
-/** Silhouette-level changes so each model reads beyond its family + accent color. */
-const MODEL_GEOMETRY: Partial<Record<WeaponId, (ctx: Ctx) => void>> = {
-  p1911: (ctx) => {
-    box(ctx, 20, 25, 38, 15, '#4b565c', 2);
-    box(ctx, 56, 28, 10, 7, '#9aa8ae');
-    box(ctx, 34, 43, 10, 20, '#7a5539', 1);
-  },
-  deagle: (ctx) => {
-    box(ctx, 20, 22, 48, 19, '#3e4a52', 2);
-    box(ctx, 66, 24, 16, 12, '#b8a16a', 1);
-    line(ctx, 24, 25, 62, 25, '#d8b45a', 1.4);
-  },
-  ump45: (ctx) => {
-    poly(ctx, [2, 27, 26, 26, 28, 40, 12, 48], '#252e33');
-    box(ctx, 26, 25, 58, 19, '#394842', 2);
-    box(ctx, 54, 42, 16, 24, '#29312f', 2);
-  },
-  vector: (ctx) => {
-    poly(ctx, [4, 32, 26, 27, 30, 42, 10, 48], '#252e33');
-    box(ctx, 28, 24, 52, 20, '#384640', 2);
-    box(ctx, 50, 42, 14, 19, '#29312f', 2);
-  },
-  uzi: (ctx) => {
-    box(ctx, 34, 22, 48, 18, '#303b40', 2);
-    box(ctx, 54, 38, 12, 28, '#29312f', 2);
-    box(ctx, 82, 30, 14, 6, '#8c9a97');
-  },
-  m416: (ctx) => {
-    box(ctx, 2, 27, 26, 11, '#4b4e44', 1);
-    box(ctx, 30, 22, 54, 21, '#7f765d', 1);
-    box(ctx, 82, 28, 48, 11, '#5f594b');
-  },
-  akm: (ctx) => {
-    poly(ctx, [2, 26, 28, 25, 32, 42, 14, 48], '#7c5a39');
-    box(ctx, 28, 23, 56, 20, '#7b6445', 1);
-    poly(ctx, [52, 43, 68, 43, 64, 70, 52, 66], '#3d423c');
-  },
-  'scar-l': (ctx) => {
-    poly(ctx, [2, 28, 28, 25, 32, 40, 16, 48], '#595b4e');
-    box(ctx, 30, 22, 70, 22, '#8b826b', 1);
-    box(ctx, 100, 28, 28, 9, '#5f594b');
-  },
-  s686: (ctx) => {
-    box(ctx, 58, 24, 88, 8, '#8a969b', 2);
-    box(ctx, 58, 33, 88, 8, '#8a969b', 2);
-    box(ctx, 30, 22, 30, 22, '#4a5155', 1);
-  },
-  s1897: (ctx) => {
-    box(ctx, 58, 26, 82, 8, '#8a969b', 1);
-    box(ctx, 76, 35, 24, 13, '#6b4a32', 2);
-    box(ctx, 58, 42, 82, 5, '#3f474b');
-  },
-  s12k: (ctx) => {
-    box(ctx, 58, 25, 62, 8, '#8a969b', 1);
-    box(ctx, 64, 38, 20, 22, '#2e3538', 2);
-    box(ctx, 30, 22, 30, 22, '#4a5155', 1);
-  },
-  kar98k: (ctx) => {
-    poly(ctx, [2, 27, 34, 25, 38, 42, 18, 49], '#6b5236');
-    box(ctx, 34, 23, 38, 21, '#3b413d', 1);
-    line(ctx, 50, 34, 60, 27, '#c7b184', 2);
-  },
-  m24: (ctx) => {
-    box(ctx, 34, 22, 38, 22, '#30383b', 1);
-    box(ctx, 70, 30, 82, 5, '#9aa5a6');
-    box(ctx, 42, 12, 38, 8, '#1e2629', 2);
-  },
-  awm: (ctx) => {
-    poly(ctx, [2, 29, 34, 26, 38, 40, 22, 49], '#3f4a43');
-    box(ctx, 34, 23, 34, 21, '#2d3538', 1);
-    box(ctx, 144, 23, 12, 15, '#30383d', 2);
-    line(ctx, 68, 34, 145, 34, '#9aa5a6', 2.2);
-  },
-  rpg7: (ctx) => {
-    box(ctx, 8, 26, 126, 18, '#5f6248', 2);
-    poly(ctx, [132, 18, 158, 35, 132, 52], '#737a54');
-    box(ctx, 44, 23, 36, 23, '#8a5734', 2);
-  },
-  at4: (ctx) => {
-    box(ctx, 8, 27, 126, 15, '#6b6f55', 2);
-    poly(ctx, [132, 23, 154, 29, 154, 41, 132, 47], '#4f5544');
-    box(ctx, 28, 22, 76, 5, '#8b9070');
-  },
-};
+function drawGun(ctx: Ctx, spec: GunSpec): void {
+  const [recX, recW, recH] = spec.rec;
+  const recTop = spec.bore - recH / 2;
+  drawStock(ctx, spec, recX);
 
-interface ModelAccent { color: string; style: 'wood' | 'gold' | 'rail' | 'double' | 'scope' | 'ring' | 'stripe'; x: number; y: number; width: number; height: number }
+  if (spec.double) {
+    const h = spec.barrel[0] / 2 - 1;
+    slab(ctx, recX + recW, spec.bore - h - 1, spec.tip - recX - recW, h, spec.body, 2);
+    slab(ctx, recX + recW, spec.bore + 1, spec.tip - recX - recW, h, spec.body, 2);
+  } else if (spec.barrel[0] > 0) {
+    const h = spec.barrel[0];
+    const y = spec.bore - h / 2 + spec.barrel[1];
+    slab(ctx, recX + recW - 2, y, spec.tip - recX - recW + 2, h, spec.body, h / 2.4);
+  }
 
-const MODEL_ACCENTS: Partial<Record<WeaponId, ModelAccent>> = {
-  p1911: { color: '#9b6a43', style: 'wood', x: 36, y: 44, width: 12, height: 22 },
-  deagle: { color: '#d8b45a', style: 'gold', x: 66, y: 28, width: 13, height: 10 },
-  ump45: { color: '#4fc3b1', style: 'stripe', x: 32, y: 28, width: 54, height: 6 },
-  vector: { color: '#f0a23a', style: 'stripe', x: 34, y: 38, width: 42, height: 5 },
-  uzi: { color: '#e05a4f', style: 'stripe', x: 36, y: 27, width: 38, height: 5 },
-  m416: { color: '#f0a23a', style: 'rail', x: 32, y: 20, width: 54, height: 4 },
-  akm: { color: '#9b6a43', style: 'wood', x: 6, y: 26, width: 30, height: 20 },
-  'scar-l': { color: '#f0a23a', style: 'rail', x: 30, y: 19, width: 70, height: 4 },
-  s686: { color: '#e05a4f', style: 'double', x: 58, y: 26, width: 88, height: 20 },
-  s1897: { color: '#e05a4f', style: 'double', x: 58, y: 38, width: 80, height: 7 },
-  s12k: { color: '#e05a4f', style: 'stripe', x: 58, y: 27, width: 60, height: 5 },
-  kar98k: { color: '#b48ce0', style: 'ring', x: 146, y: 26, width: 5, height: 10 },
-  m24: { color: '#b48ce0', style: 'scope', x: 44, y: 12, width: 34, height: 9 },
-  awm: { color: '#b48ce0', style: 'ring', x: 145, y: 24, width: 7, height: 16 },
-  rpg7: { color: '#9b6a43', style: 'wood', x: 45, y: 25, width: 30, height: 20 },
-  at4: { color: '#f2c94c', style: 'rail', x: 10, y: 26, width: 116, height: 5 },
-};
+  if (spec.pump) {
+    slab(ctx, spec.pump[0], spec.bore - 1, spec.pump[1] - spec.pump[0], 13, spec.furniture, 3);
+    for (let x = spec.pump[0] + 4; x < spec.pump[1] - 3; x += 5) {
+      line(ctx, x, spec.bore + 2, x + 1, spec.bore + 10, 'rgba(0,0,0,0.45)', 1.2);
+    }
+  }
 
-const FAMILY_ACCENT: Partial<Record<WeaponId, string>> = {
-  pistol: '#e0b45a', smg: '#4fc3b1', rifle: '#f0a23a', shotgun: '#e05a4f',
-  sniper: '#b48ce0', rocket: '#f2c94c', gatling: '#f2a23a', cannon: '#ff5d73',
-};
+  // Handguard: covers the rear 55% of the barrel so long guns read as rifles
+  // rather than a receiver with a needle glued on.
+  const barrelStart = recX + recW - 2;
+  if (spec.guard && spec.guard !== 'none' && spec.barrel[0] > 0) {
+    const guardEnd = barrelStart + (spec.tip - barrelStart) * 0.55;
+    const fill = spec.guard === 'wood' ? spec.furniture : POLY;
+    slab(ctx, barrelStart - 2, spec.bore - 9, guardEnd - barrelStart + 2, 18, fill, 3);
+    if (spec.guard === 'poly') {
+      for (let x = barrelStart + 6; x < guardEnd - 4; x += 7) {
+        line(ctx, x, spec.bore - 4, x, spec.bore + 4, 'rgba(0,0,0,0.45)', 1.4);
+      }
+    } else {
+      line(ctx, barrelStart + 4, spec.bore - 6, guardEnd - 4, spec.bore - 6, 'rgba(255,230,190,0.30)', 1.2);
+      line(ctx, barrelStart + 4, spec.bore + 5, guardEnd - 4, spec.bore + 5, 'rgba(0,0,0,0.35)', 1.2);
+    }
+  }
+
+  slab(ctx, recX, recTop, recW, recH, spec.body);
+  // Ejection port + charging handle break the flat receiver.
+  slab(ctx, recX + recW * 0.52, recTop + 3, recW * 0.3, Math.max(5, recH * 0.32), '#1e272c', 1.5);
+  line(ctx, recX + recW * 0.55, recTop + 4.5, recX + recW * 0.78, recTop + 4.5, 'rgba(255,255,255,0.22)', 1);
+
+  drawMagazine(ctx, spec, recX, recW);
+  drawGrip(ctx, spec, recX, recW);
+  drawScope(ctx, spec);
+
+  if (spec.bipod) {
+    line(ctx, spec.tip - 34, spec.bore + 8, spec.tip - 44, spec.bore + 26, STEEL_DARK, 3);
+    line(ctx, spec.tip - 26, spec.bore + 8, spec.tip - 16, spec.bore + 26, STEEL_DARK, 3);
+  }
+
+  drawMuzzle(ctx, spec, spec.tip, spec.double ? spec.barrel[0] / 2 : Math.max(6, spec.barrel[0]));
+
+  // Family accent: one short bar, never a full paint job.
+  line(ctx, recX + recW * 0.2, recTop + recH - 4, recX + recW * 0.7, recTop + recH - 4, spec.accent, 2.4);
+}
+
+/** Per-model extras that change the silhouette beyond the shared skeleton. */
+function drawModelDetail(ctx: Ctx, id: WeaponId, spec: GunSpec): void {
+  const [recX, recW, recH] = spec.rec;
+  const recTop = spec.bore - recH / 2;
+  switch (id) {
+    case 'pistol':
+      line(ctx, recX + 4, recTop + 3, recX + recW - 4, recTop + 3, STEEL_LIGHT, 1.6);
+      line(ctx, recX + 3, recTop + recH - 3, recX + recW - 6, recTop + recH - 3, 'rgba(0,0,0,0.35)', 1.2);
+      break;
+    case 'p1911':
+      for (let x = recX + 4; x < recX + recW - 4; x += 4) line(ctx, x, recTop + 3, x, recTop + recH - 4, 'rgba(0,0,0,0.30)', 1.1);
+      break;
+    case 'deagle':
+      poly(ctx, [recX + 2, recTop, recX + recW - 6, recTop, recX + recW, recTop + 6, recX + 2, recTop + 6], STEEL_LIGHT);
+      line(ctx, recX + 6, recTop + 9, recX + recW - 8, recTop + 9, GOLD, 1.6);
+      break;
+    case 'ump45':
+      slab(ctx, recX - 2, recTop + 2, 16, recH - 4, POLY, 2);
+      break;
+    case 'vector':
+      poly(ctx, [recX + 6, recTop + recH - 4, recX + recW - 2, recTop + 2, recX + recW - 2, recTop + 8, recX + 8, recTop + recH + 1], '#c8d0cf');
+      break;
+    case 'uzi':
+      slab(ctx, recX + recW * 0.66, recTop - 3, 12, 5, '#2a343a', 1);
+      break;
+    case 'm416':
+      for (let x = recX + recW - 26; x < recX + recW; x += 5) line(ctx, x, spec.bore - 4, x, spec.bore + 4, 'rgba(0,0,0,0.35)', 1.2);
+      break;
+    case 'akm':
+      slab(ctx, recX + recW * 0.55, recTop - 4, 22, 5, WOOD_DARK, 1.5);
+      line(ctx, recX + 4, spec.bore + 2, recX + 26, spec.bore + 2, WOOD_LIGHT, 1.4);
+      break;
+    case 'scar-l':
+      slab(ctx, recX + 6, recTop - 4, recW - 18, 5, '#6b6448', 1.5);
+      break;
+    case 's686':
+      circle(ctx, recX + recW - 2, spec.bore + 4, 4, STEEL_DARK);
+      break;
+    case 's1897':
+      slab(ctx, recX + recW + 6, spec.bore + 6, 60, 6, '#3d484c', 3);
+      break;
+    case 's12k':
+      slab(ctx, recX + 8, recTop - 4, recW - 22, 5, '#4a5340', 1.5);
+      break;
+    case 'kar98k':
+      // Bolt handle: the one detail that separates it from the scoped M24.
+      line(ctx, recX + recW - 10, spec.bore, recX + recW - 2, spec.bore + 9, STEEL_LIGHT, 3);
+      circle(ctx, recX + recW - 2, spec.bore + 9, 3.4, STEEL_LIGHT);
+      break;
+    case 'm24':
+      line(ctx, recX + recW - 12, spec.bore + 2, recX + recW - 2, spec.bore + 2, STEEL_LIGHT, 2.4);
+      break;
+    case 'awm':
+      line(ctx, recX + recW - 14, spec.bore + 1, recX + recW - 2, spec.bore + 1, STEEL_LIGHT, 2.6);
+      break;
+    case 'rpg7':
+      slab(ctx, recX + 26, recTop - 2, 30, recH + 4, WOOD, 3);
+      for (let x = recX + 30; x < recX + 52; x += 6) line(ctx, x, recTop + 2, x, recTop + recH - 2, 'rgba(0,0,0,0.35)', 1.1);
+      break;
+    case 'at4':
+      slab(ctx, recX + 8, recTop - 3, 22, 5, '#6d6a4e', 1.5);
+      break;
+    case 'gatling':
+      for (let index = 0; index < 6; index++) {
+        const y = spec.bore - 9 + index * 3.6;
+        line(ctx, recX + recW, y, spec.tip - 4, y, STEEL_LIGHT, 2.2);
+      }
+      for (let x = recX + recW + 12; x < spec.tip - 8; x += 20) circle(ctx, x, spec.bore, 6, STEEL_DARK);
+      break;
+    case 'cannon':
+      for (let x = spec.tip - 16; x < spec.tip - 2; x += 5) line(ctx, x, spec.bore - 7, x, spec.bore + 7, '#0f181d', 1.6);
+      break;
+    default:
+      break;
+  }
+}
+
+function drawBelt(ctx: Ctx, spec: GunSpec): void {
+  if (!spec.belt) return;
+  const [recX, recW] = spec.rec;
+  for (let index = 0; index < 5; index++) {
+    circle(ctx, recX + recW - 4 + index * 4, spec.bore + 14 + index, 2.4, GOLD);
+  }
+}
 
 export function weaponFamily(id: WeaponId): WeaponId {
   return getWeapon(id).family ?? id;
 }
 
 export function weaponAccentColor(id: WeaponId): string {
-  return MODEL_ACCENTS[id]?.color ?? FAMILY_ACCENT[weaponFamily(id)] ?? '#aab4b7';
-}
-
-/** Small mechanical details: seams, vents, sights, lens glints and wood grain. */
-function drawHardwareDetails(ctx: Ctx, id: WeaponId): void {
-  const family = weaponFamily(id);
-  if (id === 'akm' || id === 'p1911' || id === 'rpg7' || id === 's1897') {
-    const wood = id === 'p1911' ? { x: 38, y: 46, w: 8, h: 13 } : id === 'rpg7' ? { x: 46, y: 26, w: 29, h: 18 } : id === 's1897' ? { x: 76, y: 35, w: 22, h: 11 } : { x: 6, y: 28, w: 22, h: 14 };
-    for (let y = wood.y + 3; y < wood.y + wood.h - 2; y += 4) {
-      line(ctx, wood.x + 2, y, wood.x + wood.w - 2, y + 1, '#3a271c', 0.6);
-    }
-    line(ctx, wood.x + 3, wood.y + 2, wood.x + wood.w - 4, wood.y + 2, '#c49161', 0.55);
-  }
-  if (family === 'pistol') {
-    for (let x = 25; x <= 32; x += 3.5) line(ctx, x, 28, x, 38, '#26343b', 0.8);
-    box(ctx, 46, 29, 11, 4, '#27343a', 0.5);
-    line(ctx, 24, 27, 68, 27, '#c6d2cb', 0.7);
-    line(ctx, 40, 47, 44, 62, '#2c3735', 0.8);
-  } else if (family === 'smg') {
-    for (let x = 38; x <= 46; x += 4) { arc(ctx, x, 34, 3, 3, 0, Math.PI * 2); }
-    for (let y = 48; y <= 62; y += 4) line(ctx, 56, y, 68, y, '#26312f', 0.8);
-    line(ctx, 30, 27, 86, 27, '#b7c8bd', 0.7);
-    box(ctx, 78, 28, 8, 4, '#26343a', 0.5);
-  } else if (family === 'rifle') {
-    for (let x = 86; x <= 112; x += 6) line(ctx, x, 30, x, 38, '#8b826b', 0.7);
-    for (let y = 49; y <= 64; y += 4) line(ctx, 54, y, 66, y, '#29332f', 0.8);
-    box(ctx, 34, 38, 8, 4, '#2f3a3a', 0.5);
-    line(ctx, 30, 26, 80, 26, '#e0d5b4', 0.7);
-    line(ctx, 120, 32, 134, 32, '#e8eee8', 0.6);
-  } else if (family === 'shotgun') {
-    line(ctx, 60, 25, 144, 25, '#d4dfd8', 0.8);
-    for (let x = 80; x <= 96; x += 4) line(ctx, x, 34, x, 43, '#3a3129', 0.8);
-    box(ctx, 100, 30, 5, 5, '#27343a', 0.5);
-    line(ctx, 62, 44, 140, 44, '#222b2c', 0.8);
-  } else if (family === 'sniper') {
-    const lens = ctx.createLinearGradient(68, 14, 74, 22);
-    lens.addColorStop(0, '#d9f4ff'); lens.addColorStop(0.45, '#6f9eb8'); lens.addColorStop(1, '#23343d');
-    ctx.beginPath(); ctx.ellipse(71, 18, 4.5, 4, 0, 0, Math.PI * 2); ctx.fillStyle = lens; ctx.fill();
-    ctx.strokeStyle = '#10191e'; ctx.lineWidth = 1.1; ctx.stroke();
-    line(ctx, 48, 12, 64, 12, '#c8d8d8', 0.7);
-    line(ctx, 38, 34, 32, 30, '#b7c8c7', 1.4);
-    for (let x = 58; x <= 68; x += 3) line(ctx, x, 43, x, 48, '#1b2528', 0.8);
-    line(ctx, 74, 31, 142, 31, '#dce7e5', 0.7);
-  } else if (family === 'rocket') {
-    line(ctx, 16, 28, 126, 28, '#d6dbc0', 0.7);
-    for (let x = 24; x <= 44; x += 10) line(ctx, x, 28, x, 42, '#2f382c', 1.2);
-    line(ctx, 96, 30, 96, 42, '#2f382c', 1);
-    box(ctx, 70, 20, 10, 5, '#252f2b', 0.5);
-    line(ctx, 134, 35, 154, 35, '#f2d36b', 0.9);
-  } else if (family === 'gatling') {
-    for (let barrel = 0; barrel < 6; barrel++) line(ctx, 64, 30 + barrel * 3.2, 136, 30 + barrel * 3.2, '#dce7e5', 0.5);
-    for (let x = 32; x <= 88; x += 7) line(ctx, x, 52, x + 2, 64, '#3b2f24', 0.8);
-    box(ctx, 124, 29, 14, 3, '#1b2528', 1);
-    line(ctx, 128, 33, 128, 46, '#f2a23a', 1.2);
-  } else if (family === 'cannon') {
-    for (let x = 148; x <= 155; x += 3) line(ctx, x, 29, x, 42, '#1b2528', 1.2);
-    line(ctx, 72, 31, 140, 31, '#e3ebe5', 0.8);
-    for (let x = 78; x <= 100; x += 7) line(ctx, x, 34, x, 40, '#6d7c80', 0.7);
-    box(ctx, 54, 17, 14, 4, '#1b2528', 0.5);
-  }
-}
-
-function drawModelAccent(ctx: Ctx, id: WeaponId): void {
-  const accent = MODEL_ACCENTS[id];
-  if (!accent) return;
-  if (accent.style === 'wood') box(ctx, accent.x, accent.y, accent.width, accent.height, accent.color, 1);
-  if (accent.style === 'gold') poly(ctx, [accent.x, accent.y, accent.x + accent.width, accent.y + accent.height / 2, accent.x, accent.y + accent.height], accent.color);
-  if (accent.style === 'rail') line(ctx, accent.x, accent.y, accent.x + accent.width, accent.y, accent.color, 2);
-  if (accent.style === 'double') line(ctx, accent.x, accent.y, accent.x + accent.width, accent.y, accent.color, 2);
-  if (accent.style === 'scope') box(ctx, accent.x, accent.y, accent.width, accent.height, '#20282d', 2);
-  if (accent.style === 'ring') line(ctx, accent.x, accent.y, accent.x, accent.y + accent.height, accent.color, 2.2);
-  if (accent.style === 'stripe') line(ctx, accent.x, accent.y, accent.x + accent.width, accent.y + accent.height, accent.color, 1.6);
+  return SPECS[id]?.accent ?? '#aab4b7';
 }
 
 export function weaponArtKey(id: WeaponId): string {
@@ -421,6 +544,18 @@ export function createWeaponIconCanvas(id: WeaponId): HTMLCanvasElement {
   return canvas;
 }
 
+/** Tight local-space content boxes for HUD / crate icons (no grip-origin margins). */
+const ICON_BOUNDS: Partial<Record<WeaponId, { x: number; y: number; width: number; height: number }>> = {
+  pistol: { x: 14, y: 14, width: 78, height: 54 },
+  smg: { x: 2, y: 16, width: 122, height: 56 },
+  rifle: { x: 0, y: 14, width: 156, height: 60 },
+  shotgun: { x: 0, y: 14, width: 156, height: 60 },
+  sniper: { x: 0, y: 6, width: 158, height: 70 },
+  rocket: { x: 0, y: 12, width: 158, height: 60 },
+  gatling: { x: 0, y: 10, width: 154, height: 66 },
+  cannon: { x: 0, y: 4, width: 158, height: 72 },
+};
+
 export function createWeaponArtCanvas(id: WeaponId): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH * SAMPLE;
@@ -429,20 +564,19 @@ export function createWeaponArtCanvas(id: WeaponId): HTMLCanvasElement {
   ctx.scale(SAMPLE, SAMPLE);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const paint = PAINTERS[weaponFamily(id)] ?? PAINTERS.pistol!;
-  paint(ctx);
-  MODEL_GEOMETRY[id]?.(ctx);
-  drawModelAccent(ctx, id);
-  drawHardwareDetails(ctx, id);
+  const spec = SPECS[id] ?? SPECS.pistol;
+  drawGun(ctx, { ...spec, guard: GUARDS[id] ?? 'none' });
+  drawModelDetail(ctx, id, spec);
+  drawBelt(ctx, spec);
   // A single top-lit volume pass keeps 17 flat-colour models from reading as
   // stickers. It is clipped to opaque pixels only, so the transparent margins
   // and HUD crop stay clean.
   ctx.save();
   ctx.globalCompositeOperation = 'source-atop';
   const volume = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-  volume.addColorStop(0, 'rgba(255,246,218,0.20)');
-  volume.addColorStop(0.32, 'rgba(255,255,255,0)');
-  volume.addColorStop(1, 'rgba(4,12,16,0.30)');
+  volume.addColorStop(0, 'rgba(255,246,218,0.14)');
+  volume.addColorStop(0.35, 'rgba(255,255,255,0)');
+  volume.addColorStop(1, 'rgba(4,12,16,0.26)');
   ctx.fillStyle = volume;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   ctx.restore();
