@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { cloneBindings, DEFAULT_KEY_BINDINGS, rebind } from '../src/content/controls';
 import { SaveStore } from '../src/storage/SaveStore';
 import { presetAppearance } from '../src/content/appearances';
 import type { StoragePort } from '../src/storage/SaveStore';
@@ -33,6 +34,27 @@ describe('versioned local saves', () => {
     expect(restored.data.selectedMapId).toBe('alien-starship');
     restored.data.appearances[1].hat = 'none';
     expect(restored.data.appearances[2].hat).toBe('beret');
+  });
+
+  it('persists custom bindings and restores defaults from damaged mappings', () => {
+    const storage = memoryStorage();
+    const store = new SaveStore(storage);
+    store.data.bindings = rebind(DEFAULT_KEY_BINDINGS, 1, 'shoot', 'KeyU').bindings;
+    store.persist();
+    const restored = new SaveStore(storage);
+    expect(restored.data.bindings[1].shoot).toEqual({ codes: ['KeyU'], label: 'U' });
+
+    const damaged = new SaveStore(memoryStorage(JSON.stringify({
+      version: 1, bindings: { 1: { shoot: { codes: ['KeyK'], label: 'K' } } },
+    })));
+    expect(damaged.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);
+  });
+
+  it('keeps default bindings for old saves', () => {
+    const store = new SaveStore(memoryStorage(JSON.stringify({ version: 1, settings: { volume: 0.5 } })));
+    expect(store.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);
+    store.data.bindings = cloneBindings();
+    expect(store.data.bindings[1].shoot.codes).toEqual(['KeyJ']);
   });
 
   it('repairs invalid map and cosmetic fields independently', () => {

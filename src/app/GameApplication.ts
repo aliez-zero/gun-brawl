@@ -49,6 +49,11 @@ export class GameApplication {
       },
       setVolume: (volume) => { this.sound.volume = volume; this.store.data.settings.volume = volume; this.persist(); this.sound.unlock(); },
       setReducedMotion: (value) => { this.arena.setReducedMotion(value); this.store.data.settings.reducedMotion = value; this.persist(); },
+      setBindings: (bindings) => {
+        this.store.data.bindings = bindings;
+        this.arena.setBindings(bindings);
+        this.persist();
+      },
     }, this.store.data);
     this.arena = new ArenaScene({
       onReady: () => {
@@ -61,7 +66,7 @@ export class GameApplication {
       onFrame: (state) => this.frame(state),
       onEvents: (events) => this.handleEvents(events),
       onPause: () => this.handleEscape(),
-    }, this.sound);
+    }, this.sound, this.store.data.bindings);
     this.sound.volume = this.store.data.settings.volume;
     this.game = new Phaser.Game({
       type: Phaser.AUTO,

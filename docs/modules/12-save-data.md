@@ -1,6 +1,6 @@
 # T12 · 存档、迁移与结果标识
 
-更新：2026-10-17（北京时间）。分组：数据 / 存档。建议角色：存档模块开发者；尚未指派实际负责人。
+更新：2026-10-18（北京时间）。分组：数据 / 存档。建议角色：存档模块开发者；当前 T06 已接入键位字段，完整迁移 / 历史去重仍未指派。
 
 [模块目录](./README.md) · [认领与依赖总看板](../PARALLEL_PLAN.md) · [当前实现状态](../DEVELOPMENT.md)
 
@@ -10,9 +10,9 @@
 
 依赖 T00 数据约定。可先做 v1 兼容、迁移和结果标识方案；各功能字段按消费方约定增量接入，SaveStore 由本模块独占修改。
 
-已接入子集：本轮在 v1 原 key 下增加 `selectedMapId` 和两位玩家 `appearances`，逐字段校验 / 旧档补默认 / 混搭保存已有测试。音量、震动、模式、统计和结果标识保持兼容。后续开发保留这些字段，不能把改 key 或清空旧档作为迁移。完整记录见 [地图 / 外观交付](../updates/2026-10-17-appearance-maps.md)。
+已接入子集：本轮在 v1 原 key 下增加 `selectedMapId`、两位玩家 `appearances` 和两名玩家的 `bindings`；逐字段校验 / 旧档补默认 / 混搭保存 / 损坏回退已有测试。音量、震动、模式、统计和结果标识保持兼容。后续开发保留这些字段，不能把改 key 或清空旧档作为迁移。完整记录见 [地图 / 外观交付](../updates/2026-10-17-appearance-maps.md) 与 [改键交付](../updates/2026-10-18-keybindings.md)。
 
-T00 已提供结果 ID 接入点：`GameApplication` 每局生成 `matchId` 放进 `MatchConfig`，`MatchSystem` 优先用它写 `MatchResult.id`，旧调用缺省仍回退 `seed-mode`。当前 `SaveStore` 仍只保存 `lastResultId`；历史 / 交错重复的去重范围、键位 / 教学 / 战役字段和迁移仍由 T12 完成，不能把“每局 ID 唯一”说成“历史去重已完成”。
+T00 已提供结果 ID 接入点：`GameApplication` 每局生成 `matchId` 放进 `MatchConfig`，`MatchSystem` 优先用它写 `MatchResult.id`，旧调用缺省仍回退 `seed-mode`。当前 `SaveStore` 仍只保存 `lastResultId`；历史 / 交错重复的去重范围、教学 / 战役字段和迁移仍由 T12 完成，不能把“每局 ID 唯一”说成“历史去重已完成”。键位字段已由 T06 接入。
 
 ## 模块范围与验收
 

@@ -6,7 +6,7 @@
 
 项目在 `D:\code\gun-brawl`。已经可以进入人机对战、本地双人和自由练习，完成移动、射击、击退出界、复活、结算和重赛。当前有四张主题地图、五种可混搭角色风格、普通 AI；正常入口仍是无限弹手枪。T00 已接入首批武器 / 弹丸 / 投弹 / 爆炸契约与每局 `matchId`；T01 已交付八把枪（六标准 + 加特林 / 重炮狙击枪两类终极）、弹匣 / 备弹 / 换弹、耗尽回退、霰弹二维弹道与重炮单发冲量上限；T02 炸弹 / 爆炸与 T03 武器箱投放已接，正常对局可从箱子获得特殊枪。外观与地图接手细节见 [地图 / 外观交付](./updates/2026-10-17-appearance-maps.md)，契约见 [T00 交付](./updates/2026-10-17-t00-contracts.md)，八枪见 [T01 交付](./updates/2026-10-17-weapons.md) 与 [终极武器追加](./updates/2026-10-18-ultimate-weapons.md)。
 
-后续主线是完整 AI 导航、自定义对局、训练教学 / 图鉴、战役、改键和扩展存档；T02 炸弹 / 爆炸、T03 投放、T04 四图与 T05 基础战术均已接入。依赖与认领见 [并行开发计划](./PARALLEL_PLAN.md)，独立任务文件见 [模块任务包](./modules/README.md)。
+后续主线是完整 AI 导航、自定义对局、训练教学 / 图鉴、战役和扩展存档；T02 炸弹 / 爆炸、T03 投放、T04 四图、T05 基础战术与 T06 改键均已接入。依赖与认领见 [并行开发计划](./PARALLEL_PLAN.md)，独立任务文件见 [模块任务包](./modules/README.md)。
 
 地图已按用户反馈进一步分化：古城双塔 / 低庭院、都市非对称楼顶 / 广告牌 / 维修通道、飞船反应堆 / 分离船坞 / 气闸；训练台保留基线。结构、美术与逐出生点路线检查见 [布局优化交接](./updates/2026-10-17-distinct-map-layouts.md)。
 
@@ -49,8 +49,8 @@
 | F10 战役 | 未实现 | 无关卡和进度 | 六关、解锁、独立配置、最佳成绩、失败 / 平局不解锁 | 后续新增战役配置、页面与存档 |
 | F11 训练场 | 部分实现 | 静止假人、无限时 / 生命、0.5 秒回场、重开、排除正式统计 | 六项教学任务、试枪 / 补弹、移动假人、局部重置、教学标记、图鉴返回 | `src/content/matches.ts`、生命 / 胜负系统、UI |
 | F12 角色外观 | 已实现当前编辑范围 | 五种风格、五套衣服、五顶帽子加不戴头饰、八配色 / 三肤色、P1/P2 独立预览与保存、共享实战图集、跑跳 / 射击 / 受击姿态、玩家名与身份色 | 后续箱子 / 炸弹 / 特殊武器表现；同外观多人全量人工验收 | `src/content/appearances.ts`、`src/presentation/CharacterArt.ts`、`src/ui/appearance/` |
-| F13 设置与暂停 | 部分实现 | 音量、减少震动、Esc、失焦 / 隐藏暂停、恢复倒计时、固定默认键位 | 改键、冲突校验、录键、恢复默认、硬件响应试用；震动目前是布尔开关 | `KeyboardInput.ts`、`src/content/controls.ts`、`GameUI.ts`、应用层 |
-| F14 本地存档 | 部分实现 | v1、音量 / 震动、最近模式 / 地图、P1/P2 外观、基本统计、最后结果 ID、读写容错；兼容旧 v1 缺失字段；T00 起应用每局生成 `matchId`，结果不再只由种子决定 | 键位 / 教学 / 战役 / 最近完整配置、跨版本迁移、清档、历史结果去重 | `src/storage/SaveStore.ts` |
+| F13 设置与暂停 | 已实现核心 | 音量、减少震动、Esc、失焦 / 隐藏暂停、恢复倒计时；两名玩家 7 个动作的改键、冲突 / 保留键校验、恢复默认、即时生效、刷新保留；设置面板内录键 | 独立录键组件、手柄 / 鼠标侧键、震动强度仍待；震动目前是布尔开关 | `KeyboardInput.ts`、`src/content/controls.ts`、`GameUI.ts`、应用层 |
+| F14 本地存档 | 部分实现 | v1、音量 / 震动、最近模式 / 地图、P1/P2 外观、P1/P2 键位、基本统计、最后结果 ID、读写容错；兼容旧 v1 缺失字段；T00 起应用每局生成 `matchId`，结果不再只由种子决定 | 教学 / 战役 / 最近完整配置、跨版本迁移、清档、历史结果去重 | `src/storage/SaveStore.ts` |
 | F15 结算与重赛 | 已实现当前模式；完整流程待扩展 | 胜负 / 平局、生命 / 击出 / 出界、时长、重赛、返回主菜单；T00 起每局 `matchId` 写入结果，重赛不会复用旧 ID | 返回自定义配置、战役成绩 / 解锁、长时资源验收、历史结果去重 | `MatchSystem.ts`、`GameApplication.ts`、`GameUI.ts` |
 
 `Difficulty` 已声明 easy / normal / hard，反应基值分别约 0.5 / 0.3 / 0.18 秒，但普通入口只选择 normal；不能把三档字符串当作三档 AI 产品验收完成。
@@ -119,7 +119,7 @@
 
 | 接口 | 当前内容 | 重要限制 |
 | --- | --- | --- |
-| `ActorInput` | `moveX`、`jumpPressed`、`dropPressed`、`shootHeld`、`bombPressed` | `bombPressed` 是 T02 预留的按下边沿，键盘 / AI 目前固定 false；没有切枪或改键配置字段 |
+| `ActorInput` | `moveX`、`jumpPressed`、`dropPressed`、`shootHeld`、`reloadPressed`、`bombPressed` | `reloadPressed` / `bombPressed` 是按下边沿；键盘读取实际映射，AI 按低弹匣主动换弹 |
 | `MatchConfig` | `mode`、`map`、`actors`、`startingWeapon`、`stocks`、`duration`、`countdown`、`seed`、可选 `matchId` | 无武器池、战役 ID、自定义配置 ID；`startingWeapon` 是复活 / 加时复位目标 |
 | `GameMode` | `duel-ai`、`local-duel`、`training` | 增加模式要联动标签、存档校验与统计 |
 | `ActorState` | 位置 / 速度 / 外力、朝向、平台与跳跃计时、生命 / 保护 / 复活、冷却、`weapon` 实例、命中归因、统计 | 无炸弹数、已拾取武器历史；当前武器只保存一个实例 |
@@ -130,7 +130,7 @@
 | `ExplosionResolver` | `resolve(state, ExplosionRequest) -> ExplosionHit[]`；请求含 owner / source / center / radius / 中心与边缘推力 | 只有签名，没有运行时实现；T02 负责共享计算与遮挡 |
 | `MapDefinition` | ID / 名称、尺寸、平台、出生点、边界、可选主题 / 英文副标题 / 描述 / 强调色 | 无投放点、完整导航图 |
 | `BattleEvent` | shot / hit / ringout / respawn / phase / overtime / finished / bomb / explosion / pickup / drop-* | 逐枪音色事件仍待 T10 |
-| `SaveData` | version 1、设置、最近模式 / 地图、P1/P2 外观、累计统计、最后结果 ID | 无跨版本迁移、键位、战役、教学或清档；历史结果去重仍待 T12 |
+| `SaveData` | version 1、设置、最近模式 / 地图、P1/P2 外观、P1/P2 键位、累计统计、最后结果 ID | 无跨版本迁移、战役、教学或清档；历史结果去重仍待 T12 |
 | `CharacterAppearance` | style、hat、outfit、color、skin；复制到 `ActorConfig.appearance` | 只决定造型，不改变碰撞、击退或移动 |
 | `createMatchConfig` 第三参数 | 可选 `mapId` / `appearances` / `matchId`；应用传存档选择和每局 ID，旧调用保留训练台默认 | 对局创建后不接受 UI 修改存档来改变当前局 |
 
@@ -161,7 +161,7 @@ T00 的首批契约已由后续模块消费：正常出生仍由 `MatchConfig.st
 
 | 检查 | 最近结果 | 覆盖 |
 | --- | --- | --- |
-| `pnpm test` | 2026-10-18 最终联合检查 142 项通过，13 个文件 | 地图专项 55 项：内侧失足恢复、穿台接应、外围击出 / 单发救回、逐出生点可达、AI 气闸恢复；全套覆盖八枪 / 重炮一枪击出 / 加特林弹带 / 弹匣换弹、爆炸 / 火箭、投放与四图投放契约 |
+| `pnpm test` | 2026-10-18 最终联合检查 150 项通过，14 个文件 | 地图专项 55 项：内侧失足恢复、穿台接应、外围击出 / 单发救回、逐出生点可达、AI 气闸恢复；全套覆盖八枪 / 重炮一枪击出 / 加特林弹带 / 弹匣换弹、爆炸 / 火箭、投放、四图投放契约与改键 / 存档 |
 | `pnpm build` | 通过，含严格类型检查 | 生产构建、Phaser 单独分包 |
 | `pnpm test:browser` | 通过，系统 Chromium / 软件 WebGL | 菜单 / 帮助、画布、键位、训练、暂停恢复、失焦、设置、双人、重赛、刷新保存、禁用存储；训练可按 1—8 试八枪，正常对局初始仍为手枪 |
 | `pnpm test:visual` | 本轮集成后通过，系统 Chromium / 软件 WebGL | 五风格、头饰 / 衣服 / 配色 / 肤色混搭、P1/P2 独立、刷新保存、四图进入对局、暂停修改下局生效、重赛、1024 / 720 / 390 像素宽无横向溢出；完整地图卡片截图；正常入口仍为手枪 |
@@ -175,6 +175,8 @@ T00 的首批契约已由后续模块消费：正常出生仍由 `MatchConfig.st
 - `tests/map-routes.test.ts`：从每个出生点分别用真实移动抵达所有平台；气闸合法回全部战区；同样操作体现地图路线差异；六种普通 AI 气闸恢复。
 - `tests/map-combat.test.ts`：六处内侧不跳平跑失足被下层接住并普通跳回、三处穿台接应；六处外围真实持续手枪击出 / 同位置单发回台，检查首次扣命、击出方向和归因。
 - `tests/contracts.test.ts`：T00 首批契约；默认武器 / 投弹输入、在途弹丸不随换枪改变、复活 / 加时按 `startingWeapon` 复位、显式 / 旧回退结果 ID。
+- `tests/bindings.test.ts`：两名玩家默认键唯一、改键、同玩家 / 跨玩家 / 保留键冲突、损坏映射回退与深浅拷贝。
+- `tests/keyboard.test.ts`：实际映射生效、旧键失效、恢复默认，以及跳 / 开火 / 换弹 / 投弹边沿和失焦清理。
 - `tests/weapons.test.ts`：T01 八枪；注册表 / 切枪 / 补弹、直射枪弹速 / 弹量 / 冷却、霰弹五条 -12°…12° 弹道与单发扣弹、火箭爆炸快照、重炮一枪击出、加特林高速弹带、耗尽回退无同帧补射、AI 读取当前武器射程。
 - `tests/reload.test.ts`：空仓自动换弹、手动换弹、备弹不足部分装填、无限弹手枪拒绝换弹、补满两池、换弹期间禁射与备弹只扣一次。
 - `scripts/smoke.mjs`：完整浏览器流程；截图输出到 `artifacts/menu.png`、`battle.png`、`local-duel.png`。

@@ -41,7 +41,7 @@
 ## 验证
 
 - 新增 `tests/reload.test.ts` 4 项：空仓自动换弹、手动换弹与备弹不足、无限弹手枪拒绝换弹 / `refillWeapon` 补两池、换弹期间禁射且备弹只扣一次。
-- 全量 **142 项 / 13 文件** 通过；`tsc --noEmit`、`vite build`、浏览器 smoke 通过。
+- 全量 **150 项 / 14 文件** 通过（后续补入改键）；`tsc --noEmit`、`vite build`、浏览器 smoke 通过。
 - 浏览器：训练场霰弹枪开一枪后按 R，HUD 显示 `霰弹枪 · 5/18 · 换弹 1.9s`；换弹后 `6/17`。截图 `artifacts/training-reload.png`。
 
 ## 变更文件

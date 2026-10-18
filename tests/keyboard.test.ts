@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_KEY_BINDINGS, rebind } from '../src/content/controls';
 import { idleInput } from '../src/game/core/types';
 import { KeyboardInput } from '../src/presentation/KeyboardInput';
 
@@ -81,6 +82,25 @@ describe('keyboard controls', () => {
     key('keydown', 'Numpad2');
     expect(keyboard.sample(2).reloadPressed).toBe(true);
     expect(keyboard.sample(2).reloadPressed).toBe(false);
+  });
+
+  it('uses runtime bindings and drops the old key after a rebind', () => {
+    keyboard.destroy();
+    const custom = rebind(DEFAULT_KEY_BINDINGS, 1, 'shoot', 'KeyU').bindings;
+    keyboard = new KeyboardInput(() => {}, custom);
+    keyboard.enabled = true;
+
+    key('keydown', 'KeyJ');
+    expect(keyboard.sample(1).shootHeld).toBe(false);
+    key('keyup', 'KeyJ');
+    key('keydown', 'KeyU');
+    expect(keyboard.sample(1).shootHeld).toBe(true);
+
+    keyboard.setBindings(DEFAULT_KEY_BINDINGS);
+    key('keyup', 'KeyU');
+    expect(keyboard.sample(1).shootHeld).toBe(false);
+    key('keydown', 'KeyJ');
+    expect(keyboard.sample(1).shootHeld).toBe(true);
   });
 
   it('consumes training 1-8 slots once and ignores them while disabled', () => {

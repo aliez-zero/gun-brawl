@@ -1,5 +1,5 @@
-import { KEY_BINDINGS } from '../content/controls';
-import type { KeyBinding } from '../content/controls';
+import { DEFAULT_KEY_BINDINGS } from '../content/controls';
+import type { KeyBinding, KeyBindings } from '../content/controls';
 import type { ActorInput, HumanSlot } from '../game/core/types';
 
 export class KeyboardInput {
@@ -7,10 +7,20 @@ export class KeyboardInput {
   private readonly held = new Set<string>();
   private readonly pressed = new Set<string>();
   private readonly weaponCodes = Array.from({ length: 8 }, (_, index) => `Digit${index + 1}`);
-  private readonly allowed = new Set([
-    ...Object.values(KEY_BINDINGS).flatMap((bindings) => Object.values(bindings).flatMap((binding) => binding.codes)),
-    ...this.weaponCodes,
-  ]);
+  private allowed = new Set<string>();
+
+  private rebuildAllowed(): void {
+    this.allowed = new Set([
+      ...Object.values(this.bindings).flatMap((bindings) => Object.values(bindings).flatMap((binding) => binding.codes)),
+      ...this.weaponCodes,
+    ]);
+  }
+
+  setBindings(bindings: KeyBindings): void {
+    this.bindings = bindings;
+    this.rebuildAllowed();
+    this.clear();
+  }
   private readonly onDown = (event: KeyboardEvent): void => {
     if (event.code === 'Escape' && !event.repeat) { this.onPause(); return; }
     const target = event.target;
@@ -26,14 +36,15 @@ export class KeyboardInput {
     if (this.enabled && this.allowed.has(event.code)) event.preventDefault();
   };
 
-  constructor(private readonly onPause: () => void) {
+  constructor(private readonly onPause: () => void, private bindings: KeyBindings = DEFAULT_KEY_BINDINGS) {
+    this.rebuildAllowed();
     window.addEventListener('keydown', this.onDown);
     window.addEventListener('keyup', this.onUp);
     window.addEventListener('blur', this.clear);
   }
 
   sample(slot: HumanSlot): ActorInput {
-    const binding = KEY_BINDINGS[slot];
+    const binding = this.bindings[slot];
     const held = (key: KeyBinding): boolean => key.codes.some((code) => this.held.has(code));
     const take = (key: KeyBinding): boolean => {
       let pressed = false;

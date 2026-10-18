@@ -1,4 +1,6 @@
 import { normalizeAppearance, presetAppearance } from '../content/appearances';
+import { cloneBindings, normalizeBindings } from '../content/controls';
+import type { KeyBindings } from '../content/controls';
 import { isMapId } from '../content/maps';
 import type { CharacterAppearance, GameMode, HumanSlot, MatchResult } from '../game/core/types';
 
@@ -10,6 +12,7 @@ export interface SaveData {
   lastResultId: string | null;
   selectedMapId: string;
   appearances: Record<HumanSlot, CharacterAppearance>;
+  bindings: KeyBindings;
 }
 
 export interface StoragePort { getItem(key: string): string | null; setItem(key: string, value: string): void }
@@ -18,6 +21,7 @@ const defaults = (): SaveData => ({
   version: 1, settings: { volume: 0.35, reducedMotion: false },
   lastMode: 'duel-ai', stats: { completed: 0, p1Wins: 0, p2Wins: 0, draws: 0 }, lastResultId: null,
   selectedMapId: 'sky-citadel', appearances: { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') },
+  bindings: cloneBindings(),
 });
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -48,6 +52,7 @@ export class SaveStore {
       const appearances = record(parsed.appearances);
       this.data.appearances[1] = normalizeAppearance(appearances['1'], this.data.appearances[1]);
       this.data.appearances[2] = normalizeAppearance(appearances['2'], this.data.appearances[2]);
+      this.data.bindings = normalizeBindings(parsed.bindings);
     } catch (error) { this.available = error instanceof SyntaxError; }
   }
 

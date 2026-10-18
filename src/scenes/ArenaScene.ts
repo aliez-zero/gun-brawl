@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { DEFAULT_KEY_BINDINGS } from '../content/controls';
+import type { KeyBindings } from '../content/controls';
 import { MatchRunner } from '../game/core/MatchRunner';
 import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchConfig, MatchState } from '../game/core/types';
 import { KeyboardInput } from '../presentation/KeyboardInput';
@@ -21,13 +23,17 @@ export class ArenaScene extends Phaser.Scene {
   private weaponView!: WeaponLayer;
   private fieldView!: FieldLayer;
 
-  constructor(private readonly callbacks: ArenaCallbacks, private readonly soundEffects: SoundEffects) { super('arena'); }
+  constructor(
+    private readonly callbacks: ArenaCallbacks,
+    private readonly soundEffects: SoundEffects,
+    private bindings: KeyBindings = DEFAULT_KEY_BINDINGS,
+  ) { super('arena'); }
 
   create(): void {
     this.arenaView = new ArenaRenderer(this);
     this.weaponView = new WeaponLayer(this);
     this.fieldView = new FieldLayer(this);
-    this.keyboard = new KeyboardInput(this.callbacks.onPause);
+    this.keyboard = new KeyboardInput(this.callbacks.onPause, this.bindings);
     let cleaned = false;
     const cleanup = (): void => {
       if (cleaned) return;
@@ -71,6 +77,10 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   resumeMatch(): void { this.keyboard.clear(); this.runner?.resume(); }
+  setBindings(bindings: KeyBindings): void {
+    this.bindings = bindings;
+    if (this.keyboard) this.keyboard.setBindings(bindings);
+  }
   setReducedMotion(value: boolean): void { this.arenaView.reducedMotion = value; }
   get matchState(): Readonly<MatchState> | null { return this.runner?.state ?? null; }
 

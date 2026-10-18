@@ -1,4 +1,5 @@
-import { KEY_BINDINGS } from '../content/controls';
+import { BINDING_ACTIONS, cloneBindings, keyLabel, rebind } from '../content/controls';
+import type { ControlAction, KeyBindings } from '../content/controls';
 import { createWeaponIconCanvas } from '../presentation/WeaponArt';
 import { MODE_LABELS } from '../content/matches';
 import { APPEARANCE_PRESETS, isCharacterStyle, normalizeAppearance, presetAppearance } from '../content/appearances';
@@ -24,6 +25,7 @@ export interface UIActions {
   setMap: (id: string) => void;
   setVolume: (volume: number) => void;
   setReducedMotion: (value: boolean) => void;
+  setBindings: (bindings: KeyBindings) => void;
 }
 
 export class GameUI {
@@ -40,6 +42,7 @@ export class GameUI {
   private editNextRound = false;
   private readonly mapLabel: HTMLElement;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingBinding: { slot: HumanSlot; action: ControlAction } | null = null;
   private readonly listeners = new AbortController();
 
   constructor(root: HTMLElement, private readonly actions: UIActions, private readonly save: SaveData) {
@@ -84,6 +87,27 @@ export class GameUI {
       const mode = button.dataset.mode;
       if (action === 'mode' && isGameMode(mode)) { this.selected = mode; this.showMenu(); return; }
       if (action === 'start') { this.actions.start(this.selected); return; }
+      if (action === 'rebind') {
+        const slot = Number(button.dataset.slot) as HumanSlot;
+        const control = button.dataset.control as ControlAction;
+        if ((slot === 1 || slot === 2) && BINDING_ACTIONS.some((entry) => entry.action === control)) {
+          this.pendingBinding = { slot, action: control };
+          this.overlay.querySelectorAll('.binding-key.listening').forEach((key) => key.classList.remove('listening'));
+          button.classList.add('listening');
+          button.textContent = '按下新键…';
+          const hint = this.overlay.querySelector<HTMLElement>('#binding-status');
+          if (hint) hint.textContent = '按下新键；Esc 取消。冲突键不会保存。';
+        }
+        return;
+      }
+      if (action === 'reset-bindings') {
+        this.pendingBinding = null;
+        this.actions.setBindings(cloneBindings());
+        this.setGuide(this.selected);
+        this.showSettings();
+        return;
+      }
+      if (action !== 'rebind') this.pendingBinding = null;
       if (action === 'appearance-slot') {
         if (button.dataset.slot === '1' || button.dataset.slot === '2') this.editingSlot = Number(button.dataset.slot) as HumanSlot;
         this.showAppearance(this.editNextRound); return;
@@ -114,6 +138,7 @@ export class GameUI {
       }
     }, { signal: this.listeners.signal });
     root.addEventListener('input', (event) => {
+      this.pendingBinding = null;
       if (!(event.target instanceof HTMLInputElement)) return;
       if (event.target.id === 'volume') {
         const volume = Number(event.target.value) / 100;
@@ -123,6 +148,7 @@ export class GameUI {
       }
       if (event.target.id === 'reduced-motion') this.actions.setReducedMotion(event.target.checked);
     }, { signal: this.listeners.signal });
+    window.addEventListener('keydown', this.captureBinding, { capture: true, signal: this.listeners.signal });
     root.addEventListener('keydown', (event) => {
       const dialog = this.overlay.querySelector<HTMLElement>('[role="dialog"]');
       if (!dialog || event.key !== 'Tab') return;
@@ -134,6 +160,31 @@ export class GameUI {
     }, { signal: this.listeners.signal });
     this.showMenu();
   }
+
+  private readonly captureBinding = (event: KeyboardEvent): void => {
+    if (!this.pendingBinding) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.repeat || !event.code) return;
+    if (event.code === 'Escape') {
+      this.pendingBinding = null;
+      this.showSettings();
+      return;
+    }
+    const { slot, action } = this.pendingBinding;
+    const result = rebind(this.save.bindings, slot, action, event.code);
+    if (result.error) {
+      const hint = this.overlay.querySelector<HTMLElement>('#binding-status');
+      if (hint) hint.textContent = result.error;
+      return;
+    }
+    this.actions.setBindings(result.bindings);
+    this.pendingBinding = null;
+    this.setGuide(this.selected);
+    this.showSettings();
+    const hint = this.overlay.querySelector<HTMLElement>('#binding-status');
+    if (hint) hint.textContent = `已保存：玩家 ${slot} ${BINDING_ACTIONS.find((entry) => entry.action === action)?.label ?? action} → ${keyLabel(event.code)}`;
+  };
 
   destroy(): void {
     this.listeners.abort();
@@ -252,9 +303,18 @@ export class GameUI {
   }
 
   showSettings(): void {
+    this.pendingBinding = null;
+    const bindingRows = ([1, 2] as const).map((slot) => `<div class="binding-player"><strong>玩家 ${slot}</strong>${BINDING_ACTIONS.map(({ action, label }) => {
+      const binding = this.save.bindings[slot][action];
+      return `<div class="binding-row"><span>${label}</span><button class="binding-key" data-action="rebind" data-slot="${slot}" data-control="${action}" aria-label="玩家 ${slot} ${label}，当前 ${escapeLabel(binding.label)}">${escapeLabel(binding.label)}</button></div>`;
+    }).join('')}</div>`).join('');
     this.dialog('MAKE IT YOURS', '按你的节奏。', `
       <div class="setting-row"><label for="volume">音效音量</label><output>${Math.round(this.save.settings.volume * 100)}%</output><input id="volume" type="range" min="0" max="100" value="${Math.round(this.save.settings.volume * 100)}" /></div>
       <label class="toggle-row" for="reduced-motion"><span>减少画面震动<small>保留命中反馈，关闭镜头震动。</small></span><input id="reduced-motion" type="checkbox" ${this.save.settings.reducedMotion ? 'checked' : ''} /></label>
+      <div class="binding-section"><div class="binding-heading"><span>键位</span><button class="link-button" data-action="reset-bindings">恢复默认</button></div>
+        <p class="setting-note" id="binding-status">点击按键后按新键；Esc 取消；冲突键不会保存。系统键与训练 1—8 保留。</p>
+        <div class="binding-grid">${bindingRows}</div>
+      </div>
       <button class="start-button" data-action="close"><span>完成</span><span>✓</span></button>`);
   }
 
@@ -262,8 +322,8 @@ export class GameUI {
     this.dialog('KNOW THE RULES', '把对手打出去。', `
       <p class="dialog-copy">子弹会把对手击退。越过场地边界会失去一条生命；最后仍有生命的人获胜。试着在空中再跳一次，返回平台。</p>
       <div class="help-grid">${([1, 2] as const).map((slot) => {
-        const keys = KEY_BINDINGS[slot];
-        return `<div><strong>玩家 ${slot}</strong><p><kbd>${keys.left.label}</kbd> <kbd>${keys.right.label}</kbd> 移动</p><p><kbd>${keys.jump.label}</kbd> 跳跃 / 二段跳</p><p><kbd>${keys.drop.label}</kbd> 向下穿台</p><p><kbd>${keys.shoot.label}</kbd> 持续开火</p><p><kbd>${keys.reload.label}</kbd> 换弹 <kbd>${keys.bomb.label}</kbd> 投弹</p></div>`;
+        const keys = this.save.bindings[slot];
+        return `<div><strong>玩家 ${slot}</strong><p><kbd>${escapeLabel(keys.left.label)}</kbd> <kbd>${escapeLabel(keys.right.label)}</kbd> 移动</p><p><kbd>${escapeLabel(keys.jump.label)}</kbd> 跳跃 / 二段跳</p><p><kbd>${escapeLabel(keys.drop.label)}</kbd> 向下穿台</p><p><kbd>${escapeLabel(keys.shoot.label)}</kbd> 持续开火</p><p><kbd>${escapeLabel(keys.reload.label)}</kbd> 换弹 <kbd>${escapeLabel(keys.bomb.label)}</kbd> 投弹</p></div>`;
       }).join('')}</div>
       <p class="help-note"><kbd>Esc</kbd> 暂停 · 切换窗口会自动暂停 · 自由练习不限时间与生命，按 <kbd>1—8</kbd> 直接试八把枪（7—8 为终极武器）。</p>
       <button class="start-button" data-action="close"><span>明白了</span><span>↗</span></button>`);
@@ -277,6 +337,7 @@ export class GameUI {
   }
 
   private dialog(eyebrow: string, title: string, body: string, panelClass = ''): void {
+    this.pendingBinding = null;
     this.hudReady = false;
     this.overlay.className = 'dialog-overlay';
     this.overlay.innerHTML = `<section class="dialog-panel ${panelClass}" role="dialog" aria-modal="true" aria-label="${title}"><div class="eyebrow"><span class="slash">//</span> ${eyebrow}</div><h2>${title}</h2>${body}</section>`;
@@ -295,12 +356,16 @@ export class GameUI {
   }
 
   private setGuide(mode: GameMode): void {
-    const p1 = KEY_BINDINGS[1];
-    const p2 = KEY_BINDINGS[2];
+    const p1 = this.save.bindings[1];
+    const p2 = this.save.bindings[2];
     this.footer.innerHTML = mode === 'local-duel'
-      ? `<span>P1 <kbd>${p1.left.label} ${p1.right.label}</kbd> 移动 <kbd>${p1.jump.label}</kbd> 跳 <kbd>${p1.drop.label}</kbd> 穿台 <kbd>${p1.shoot.label}</kbd> 开火 <kbd>${p1.reload.label}</kbd> 换弹 <kbd>${p1.bomb.label}</kbd> 投弹</span><span>P2 <kbd>${p2.left.label} ${p2.right.label}</kbd> 移动 <kbd>${p2.jump.label}</kbd> 跳 <kbd>${p2.drop.label}</kbd> 穿台 <kbd>${p2.shoot.label}</kbd> 开火 <kbd>${p2.reload.label}</kbd> 换弹 <kbd>${p2.bomb.label}</kbd> 投弹</span><span><kbd>Esc</kbd> 暂停</span>`
-      : `<span><kbd>${p1.left.label}</kbd> <kbd>${p1.right.label}</kbd> 移动</span><span><kbd>${p1.jump.label}</kbd> 二段跳</span><span><kbd>${p1.drop.label}</kbd> 穿台</span><span><kbd>${p1.shoot.label}</kbd> 开火</span><span><kbd>${p1.reload.label}</kbd> 换弹</span><span><kbd>${p1.bomb.label}</kbd> 投弹</span><span><kbd>1—8</kbd> 试枪</span><span><kbd>Esc</kbd> 暂停</span>`;
+      ? `<span>P1 <kbd>${escapeLabel(p1.left.label)} ${escapeLabel(p1.right.label)}</kbd> 移动 <kbd>${escapeLabel(p1.jump.label)}</kbd> 跳 <kbd>${escapeLabel(p1.drop.label)}</kbd> 穿台 <kbd>${escapeLabel(p1.shoot.label)}</kbd> 开火 <kbd>${escapeLabel(p1.reload.label)}</kbd> 换弹 <kbd>${escapeLabel(p1.bomb.label)}</kbd> 投弹</span><span>P2 <kbd>${escapeLabel(p2.left.label)} ${escapeLabel(p2.right.label)}</kbd> 移动 <kbd>${escapeLabel(p2.jump.label)}</kbd> 跳 <kbd>${escapeLabel(p2.drop.label)}</kbd> 穿台 <kbd>${escapeLabel(p2.shoot.label)}</kbd> 开火 <kbd>${escapeLabel(p2.reload.label)}</kbd> 换弹 <kbd>${escapeLabel(p2.bomb.label)}</kbd> 投弹</span><span><kbd>Esc</kbd> 暂停</span>`
+      : `<span><kbd>${escapeLabel(p1.left.label)}</kbd> <kbd>${escapeLabel(p1.right.label)}</kbd> 移动</span><span><kbd>${escapeLabel(p1.jump.label)}</kbd> 二段跳</span><span><kbd>${escapeLabel(p1.drop.label)}</kbd> 穿台</span><span><kbd>${escapeLabel(p1.shoot.label)}</kbd> 开火</span><span><kbd>${escapeLabel(p1.reload.label)}</kbd> 换弹</span><span><kbd>${escapeLabel(p1.bomb.label)}</kbd> 投弹</span><span><kbd>1—8</kbd> 试枪</span><span><kbd>Esc</kbd> 暂停</span>`;
   }
+}
+
+function escapeLabel(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
 }
 
 function formatTime(seconds: number): string {
