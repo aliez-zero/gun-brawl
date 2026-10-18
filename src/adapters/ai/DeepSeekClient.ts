@@ -1,4 +1,5 @@
-import { createObservation, MAX_OBSERVATION_AGE, parseExternalAction } from '../../game/ai/external/Protocol';
+import { createObservation, MAX_OBSERVATION_AGE, MAX_RECENT_ACTIONS, parseExternalAction } from '../../game/ai/external/Protocol';
+import type { RecentExternalAction } from '../../game/ai/external/Protocol';
 import type { MatchRunner } from '../../game/core/MatchRunner';
 
 export interface DeepSeekInfo {
@@ -62,6 +63,7 @@ export class DeepSeekClient {
   private stopped = false;
   private terminal = false;
   private actionUntilTick = 0;
+  private recentActions: RecentExternalAction[] = [];
   private readonly status: DeepSeekStatus = { phase: 'waiting', message: '等待开场', decisions: 0, latencyMs: null, requests: 0, tokens: 0 };
 
   constructor(
@@ -81,6 +83,7 @@ export class DeepSeekClient {
       this.epoch = epoch;
       this.pending?.abort(); this.pending = null;
       this.nextRequestAt = 0;
+      this.recentActions = [];
     }
     if (state.phase === 'finished') {
       this.publish('finished', '本局结束'); this.stopConnection(); return;
@@ -100,7 +103,7 @@ export class DeepSeekClient {
     const controller = new AbortController(); this.pending = controller;
     const started = this.now();
     this.nextRequestAt = started + this.session.requestIntervalMs;
-    const observation = createObservation(this.runner.state, this.actorId, this.runner.tick);
+    const observation = createObservation(this.runner.state, this.actorId, this.runner.tick, this.recentActions);
     const sequence = ++this.sequence;
     this.status.requests++;
     this.publish('thinking', '正在决策');
@@ -117,6 +120,7 @@ export class DeepSeekClient {
       this.applyUsage(body.usage);
       if (this.runner.applyExternalInput(this.actorId, action, { epoch, sequence, observationTick: observation.tick })) {
         this.status.decisions++;
+        this.recentActions = [...this.recentActions, { ...action, tick: observation.tick }].slice(-MAX_RECENT_ACTIONS);
         this.actionUntilTick = Math.min(this.runner.tick + action.holdFrames, observation.tick + MAX_OBSERVATION_AGE);
         this.publish('executing', `${action.moveX === 1 ? '向右' : action.moveX === -1 ? '向左' : '停步'}${action.shootHeld ? ' · 开火' : ''}${action.jumpPressed ? ' · 跳跃' : ''}`);
       } else {

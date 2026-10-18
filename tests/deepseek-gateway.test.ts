@@ -41,8 +41,9 @@ async function start(options: GatewayOptions = {}) {
 describe('local DeepSeek gateway', () => {
   it('does not require a key for status and never returns a key; opening a match requires configuration', async () => {
     const { base, post } = await start({ apiKey: '' });
-    const status = await (await fetch(base + '/status')).json() as { configured: boolean };
+    const status = await (await fetch(base + '/status')).json() as { configured: boolean; requestIntervalMs: number };
     expect(status.configured).toBe(false);
+    expect(status.requestIntervalMs).toBe(500);
     const response = await post('/session', { episodeId: 'another', actorId: 'deepseek' });
     expect(response.status).toBe(503);
   });
@@ -64,6 +65,9 @@ describe('local DeepSeek gateway', () => {
     expect(sent.thinking).toEqual({ type: 'disabled' });
     expect(sent.max_tokens).toBe(256);
     expect(JSON.stringify(sent)).not.toContain('MUST-NOT-FORWARD');
+    const sentObservation = JSON.parse((sent.messages as { role: string; content: string }[])[1]!.content) as typeof request.observation;
+    expect(sentObservation.tactical).toEqual(request.observation.tactical);
+    expect(sentObservation.recentActions).toEqual(request.observation.recentActions);
     expect(authorization).toBe('Bearer test-key-never-real');
     expect(JSON.stringify(body)).not.toContain('test-key-never-real');
   });

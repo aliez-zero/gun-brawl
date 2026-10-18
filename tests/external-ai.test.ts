@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDeepSeekMatchConfig } from '../src/content/matches';
-import { createObservation, parseExternalAction, MAX_OBSERVATION_AGE } from '../src/game/ai/external/Protocol';
+import { createObservation, parseExternalAction, MAX_OBSERVATION_AGE, MAX_RECENT_ACTIONS } from '../src/game/ai/external/Protocol';
 import { MatchRunner } from '../src/game/core/MatchRunner';
 import { idleInput } from '../src/game/core/types';
 import { DeepSeekClient } from '../src/adapters/ai/DeepSeekClient';
@@ -78,6 +78,32 @@ describe('external direct control', () => {
     expect(obs.enemies[0]).not.toHaveProperty('ammo');
     expect(obs).not.toHaveProperty('seed');
     expect(obs).not.toHaveProperty('config');
+  });
+
+  it('adds bounded tactical telemetry and keeps only the latest action memory', () => {
+    const runner = externalRunner();
+    const recentActions = Array.from({ length: MAX_RECENT_ACTIONS + 3 }, (_, tick) => ({ ...action, tick }));
+    const obs = createObservation(runner.state, 'deepseek', runner.tick, recentActions);
+    expect(obs.tactical.nearestEnemyId).toBe('p1');
+    expect(obs.tactical.currentPlatformId).toBe('floor');
+    expect(obs.tactical.edgeDistanceLeft).toBeGreaterThan(0);
+    expect(obs.tactical.edgeDistanceRight).toBeGreaterThan(0);
+    expect(obs.tactical.platformEdgeDistanceLeft).toBeGreaterThan(0);
+    expect(obs.tactical.platformEdgeDistanceRight).toBeGreaterThan(0);
+    expect(obs.recentActions).toHaveLength(MAX_RECENT_ACTIONS);
+    expect(obs.recentActions[0]!.tick).toBe(3);
+    expect(obs.recentActions.at(-1)!.tick).toBe(10);
+  });
+
+  it('uses a small emergency input only when an external actor is at an exposed edge', () => {
+    const runner = externalRunner();
+    const actor = runner.state.actors[1]!;
+    actor.position.x = runner.state.config.map.bounds.left + 10;
+    actor.groundedOn = 'floor';
+    const before = actor.position.x;
+    runner.advance(1000 / 60, idleInput);
+    expect(actor.position.x).toBeGreaterThan(before);
+    expect(actor.verticalVelocity).toBeLessThan(0);
   });
 });
 

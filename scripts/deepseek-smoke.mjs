@@ -34,7 +34,7 @@ try {
   await page.route('**/api/deepseek/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const reply = (json, status = 200) => route.fulfill({ status, json }).catch(() => {});
-    const info = { configured: true, model: 'deepseek-flash', maxRequests: 180, requestIntervalMs: 1000, timeoutMs: 5000, contextTokens: 512000 };
+    const info = { configured: true, model: 'deepseek-flash', maxRequests: 180, requestIntervalMs: 500, timeoutMs: 5000, contextTokens: 512000 };
     if (path.endsWith('/status')) { await reply(info); return; }
     const body = route.request().postDataJSON();
     if (path.endsWith('/session')) {

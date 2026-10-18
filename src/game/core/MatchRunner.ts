@@ -49,7 +49,7 @@ export class MatchRunner {
         const input = config.control === 'human'
           ? readHuman(config.inputSlot)
           : config.control === 'external'
-            ? this.external.get(config.id)?.sample(this.playingTick) ?? idleInput()
+            ? this.external.get(config.id)?.sample(this.playingTick, actor, this.state) ?? idleInput()
           : config.control === 'dummy'
             ? this.dummyInput(actor)
             : this.bots.get(config.id)?.sample(actor, this.simulation.state, dt) ?? idleInput();

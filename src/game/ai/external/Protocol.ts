@@ -3,8 +3,10 @@ import type { ActorInput, MatchState } from '../../core/types';
 
 export const MAX_OBSERVATION_AGE = 180;
 export const MAX_HOLD_FRAMES = 45;
+export const MAX_RECENT_ACTIONS = 8;
 
 export interface ExternalAction extends ActorInput { holdFrames: number }
+export interface RecentExternalAction extends ExternalAction { tick: number }
 export interface CommandContext { epoch: number; sequence: number; observationTick: number }
 
 export function parseExternalAction(value: unknown): ExternalAction | null {
@@ -26,10 +28,24 @@ const round = (n: number): number => Math.round(n * 100) / 100;
 const position = (p: { x: number; y: number }): { x: number; y: number } => ({ x: round(p.x), y: round(p.y) });
 
 /** A copied telemetry observation; no seed, mutable state references or opponent cooldowns. */
-export function createObservation(state: Readonly<MatchState>, actorId: string, tick: number) {
+export function createObservation(
+  state: Readonly<MatchState>,
+  actorId: string,
+  tick: number,
+  recentActions: readonly RecentExternalAction[] = [],
+) {
   const self = state.actors.find((actor) => actor.config.id === actorId);
   if (!self || !state.config.matchId) throw new Error('外部 AI 需要有效角色与对局 ID');
   const map = state.config.map;
+  const enemies = state.actors.filter((a) => a.config.id !== actorId);
+  const nearestEnemy = enemies
+    .filter((enemy) => enemy.status === 'alive')
+    .sort((a, b) => Math.hypot(a.position.x - self.position.x, a.position.y - self.position.y)
+      - Math.hypot(b.position.x - self.position.x, b.position.y - self.position.y))[0];
+  const nearestDistance = nearestEnemy
+    ? Math.hypot(nearestEnemy.position.x - self.position.x, nearestEnemy.position.y - self.position.y)
+    : null;
+  const currentPlatform = map.platforms.find((platform) => platform.id === self.groundedOn);
   return {
     version: 1 as const, episodeId: state.config.matchId, actorId, tick,
     remaining: round(state.remaining),
@@ -50,7 +66,29 @@ export function createObservation(state: Readonly<MatchState>, actorId: string, 
         range: self.weapon.definition.range, interval: self.weapon.definition.interval,
       },
     },
-    enemies: state.actors.filter((a) => a.config.id !== actorId).map((a) => ({
+    tactical: {
+      edgeDistanceLeft: Math.max(0, round(self.position.x - map.bounds.left)),
+      edgeDistanceRight: Math.max(0, round(map.bounds.right - self.position.x)),
+      platformEdgeDistanceLeft: currentPlatform ? Math.max(0, round(self.position.x - currentPlatform.x)) : null,
+      platformEdgeDistanceRight: currentPlatform ? Math.max(0, round(currentPlatform.x + currentPlatform.width - self.position.x)) : null,
+      nearestEnemyId: nearestEnemy?.config.id ?? null,
+      nearestEnemyDx: nearestEnemy ? round(nearestEnemy.position.x - self.position.x) : null,
+      nearestEnemyDy: nearestEnemy ? round(nearestEnemy.position.y - self.position.y) : null,
+      nearestEnemyDistance: nearestDistance === null ? null : round(nearestDistance),
+      currentPlatformId: self.groundedOn,
+      isFalling: self.groundedOn === null && self.verticalVelocity > 0,
+    },
+    recentActions: recentActions.slice(-MAX_RECENT_ACTIONS).map((action) => ({
+      tick: action.tick,
+      moveX: action.moveX,
+      jumpPressed: action.jumpPressed,
+      dropPressed: action.dropPressed,
+      shootHeld: action.shootHeld,
+      bombPressed: action.bombPressed,
+      reloadPressed: action.reloadPressed,
+      holdFrames: action.holdFrames,
+    })),
+    enemies: enemies.map((a) => ({
       id: a.config.id, ...position(a.position), vx: round(a.moveVelocity + a.impulse.x),
       vy: round(a.verticalVelocity + a.impulse.y), facing: a.facing, stocks: a.stocks,
       status: a.status, weaponId: a.weapon.definition.id,
