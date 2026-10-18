@@ -1,4 +1,5 @@
 import { ACTOR_HEIGHT } from '../core/constants';
+import { MOVEMENT } from '../core/constants';
 import { addImpulse, segmentRect } from '../core/math';
 import type {
   ActorState, BattleEvent, ExplosionHit, ExplosionRequest, ExplosionResolver, MatchState, Vec2,
@@ -58,7 +59,7 @@ export function applyExplosionHits(
   for (const hit of hits) {
     const actor = state.actors.find((candidate) => candidate.config.id === hit.actorId);
     if (!actor || actor.status !== 'alive' || actor.protectionRemaining > 0) continue;
-    addImpulse(actor, hit.impulse.x, hit.impulse.y);
+    addImpulse(actor, hit.impulse.x, hit.impulse.y, Math.max(MOVEMENT.maxImpulse, Math.hypot(hit.impulse.x, hit.impulse.y)));
     if (actor.config.id !== request.ownerId) actor.lastHit = { by: request.ownerId, at: state.elapsed };
     events.push({ type: 'hit', actorId: actor.config.id, position: { ...actor.position, y: actor.position.y - 28 } });
   }

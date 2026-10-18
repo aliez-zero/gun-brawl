@@ -38,11 +38,11 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 - `ARMORY_WEAPONS`：P92、P1911、Deagle、UMP45、Vector、UZI、M416、AKM、SCAR-L、S686、S1897、S12K、Kar98k、M24、AWM、RPG-7、AT4。
 - `WEAPON_MODELS`：16 个新增型号；`WEAPONS` 保留八类别名，`getWeapon` 同时查两表，旧存档 / 训练槽不破。
 - 逐枪参数来自 [WEAPONS.md](../WEAPONS.md)：弹匣 / 备弹 / 换弹、水平 + 垂直后坐、弹速 / 射程 / 击退、霰弹丸数与散布、火箭爆炸半径 / 推力。
-- 逐枪定位与单发 / 持续威力曲线：P92 基准、P1911 / Deagle 节奏 / 单发、UMP45 / Vector / UZI 压制分工、M416 / AKM / SCAR-L 均衡 / 重击 / 远距、三霰弹、三狙、两火箭分层；图鉴显示双威力条。
+- CF 式分工：P92 副武器、P1911 / Deagle 节奏 / 单发、UMP45 / Vector / UZI 600—1091 RPM 压制分工、M416 / AKM / SCAR-L 600—667 RPM 均衡 / 重击 / 远距、三霰弹、三狙、两火箭；实测单发推距 127—635 px，步枪 > 手枪、狙击 > 步枪；图鉴显示双威力条。
 - 投放池改为 16 个标准型号 + 加特林 / 重炮；`STANDARD_DROP_POOL` 过滤终极。
 - 图鉴 17 卡可直接预选任意型号进入训练；HUD 显示具体型号名。
 - `WeaponArt` 家族轮廓 + 型号级几何 / 色带 / 尺寸；`SoundEffects` 按 `weaponId` 使用逐型号射击 / 换弹音高。
-- `tests/weapons-models.test.ts` 6 项；完整回归 **187 项 / 19 文件**。
+- `tests/weapons-models.test.ts` 6 项 + `tests/knockback.test.ts` 1 项；本次武器改动集 **188 项 / 20 文件**。
 - 仍待：逐型号手绘换弹 / 枪口火光帧、真实音色素材、人工逐枪平衡。
 
 ## T01 交付结果（八枪核心）

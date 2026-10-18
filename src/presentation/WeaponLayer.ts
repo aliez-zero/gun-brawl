@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { MatchState } from '../game/core/types';
 import { createWeaponArtCanvas, WEAPON_ART, weaponArtKey, weaponDisplayScale } from './WeaponArt';
 import { CHARACTER_GRIP, weaponPose } from './CharacterMotion';
-import { createSupportHandCanvas, supportGrip, supportHandKey } from './WeaponSupport';
+import { createGripHandCanvas, createSupportHandCanvas, gripHandKey, supportGrip, supportHandKey } from './WeaponSupport';
 
 /**
  * Independent weapon sprites. The character atlas deliberately contains no gun,
@@ -11,6 +11,7 @@ import { createSupportHandCanvas, supportGrip, supportHandKey } from './WeaponSu
 export class WeaponLayer {
   private readonly sprites = new Map<string, Phaser.GameObjects.Image>();
   private readonly hands = new Map<string, Phaser.GameObjects.Image>();
+  private readonly gripHands = new Map<string, Phaser.GameObjects.Image>();
   private readonly ownedTextures = new Set<string>();
   private readonly ownedHandTextures = new Set<string>();
 
@@ -20,6 +21,7 @@ export class WeaponLayer {
     if (!state) {
       for (const sprite of this.sprites.values()) sprite.setVisible(false);
       for (const hand of this.hands.values()) hand.setVisible(false);
+      for (const grip of this.gripHands.values()) grip.setVisible(false);
       return;
     }
     const visible = new Set<string>();
@@ -38,7 +40,9 @@ export class WeaponLayer {
         sprite = this.scene.add.image(0, 0, key)
           .setOrigin(WEAPON_ART.gripX / WEAPON_ART.width, WEAPON_ART.gripY / WEAPON_ART.height)
           .setScale(weaponDisplayScale(definition.id))
-          .setDepth(3);
+          // Behind the body so the trigger hand closes over the stock instead of
+          // the gun floating on top of the character.
+          .setDepth(1.8);
         this.sprites.set(actor.config.id, sprite);
       }
       const interpolate = state.phase === 'playing';
@@ -54,13 +58,31 @@ export class WeaponLayer {
         .setAlpha(pose.alpha)
         .setVisible(true);
 
+      const skin = actor.config.appearance?.skin ?? 0xe2b58e;
+      const gripKey = gripHandKey(skin);
+      if (!this.scene.textures.exists(gripKey)) {
+        this.scene.textures.addCanvas(gripKey, createGripHandCanvas(skin));
+        this.ownedHandTextures.add(gripKey);
+      }
+      let grip = this.gripHands.get(actor.config.id);
+      if (!grip) {
+        grip = this.scene.add.image(0, 0, gripKey).setOrigin(0.5).setScale(0.75).setDepth(3.4);
+        this.gripHands.set(actor.config.id, grip);
+      }
+      grip
+        .setTexture(gripKey)
+        .setPosition(sprite.x, sprite.y + 1)
+        .setFlipX(actor.facing < 0)
+        .setRotation(pose.rotation)
+        .setAlpha(pose.alpha)
+        .setVisible(true);
+
       const attachment = supportGrip(definition.id);
       let hand = this.hands.get(actor.config.id);
       if (!attachment) {
         hand?.setVisible(false);
         continue;
       }
-      const skin = actor.config.appearance?.skin ?? 0xe2b58e;
       const handKey = supportHandKey(skin);
       if (!this.scene.textures.exists(handKey)) {
         this.scene.textures.addCanvas(handKey, createSupportHandCanvas(skin));
@@ -69,7 +91,7 @@ export class WeaponLayer {
       if (!hand) {
         hand = this.scene.add.image(0, 0, handKey)
           .setOrigin(9 / 20, 8 / 16)
-          .setScale(0.55)
+          .setScale(0.64)
           .setDepth(3.2);
         this.hands.set(actor.config.id, hand);
       }
@@ -88,18 +110,22 @@ export class WeaponLayer {
     }
     for (const [id, sprite] of this.sprites) if (!visible.has(id)) sprite.setVisible(false);
     for (const [id, hand] of this.hands) if (!visible.has(id)) hand.setVisible(false);
+    for (const [id, grip] of this.gripHands) if (!visible.has(id)) grip.setVisible(false);
   }
 
   reset(): void {
     for (const sprite of this.sprites.values()) sprite.setVisible(false);
     for (const hand of this.hands.values()) hand.setVisible(false);
+    for (const grip of this.gripHands.values()) grip.setVisible(false);
   }
 
   destroy(): void {
     for (const sprite of this.sprites.values()) sprite.destroy();
     for (const hand of this.hands.values()) hand.destroy();
+    for (const grip of this.gripHands.values()) grip.destroy();
     this.sprites.clear();
     this.hands.clear();
+    this.gripHands.clear();
     for (const key of this.ownedTextures) if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
     for (const key of this.ownedHandTextures) if (this.scene.textures.exists(key)) this.scene.textures.remove(key);
     this.ownedTextures.clear();

@@ -31,7 +31,7 @@ describe('T01 17 concrete weapon models', () => {
     expect(createWeapon('s686')).toMatchObject({ ammoRemaining: 2, reserveRemaining: 10 });
     expect(getWeapon('awm').reloadTime).toBe(2.6);
     expect(getWeapon('vector').reloadTime).toBe(1.5);
-    expect(getWeapon('rpg7').explosion).toEqual({ radius: 155, centerImpulse: 720, edgeImpulse: 180 });
+    expect(getWeapon('rpg7').explosion).toEqual({ radius: 155, centerImpulse: 900, edgeImpulse: 220 });
     expect(getWeapon('at4').recoilY).toBe(24);
   });
 
@@ -43,10 +43,13 @@ describe('T01 17 concrete weapon models', () => {
     expect(burst('m24')).toBeGreaterThan(burst('kar98k'));
     expect(burst('s1897')).toBeGreaterThan(burst('s686'));
     expect(burst('s686')).toBeGreaterThan(burst('s12k'));
+    expect(burst('m416')).toBeGreaterThan(burst('pistol'));
+    expect(burst('akm')).toBeGreaterThan(burst('m416'));
+    expect(burst('awm')).toBeGreaterThan(burst('akm'));
     expect(pressure('akm')).toBeGreaterThan(pressure('scar-l'));
     expect(pressure('scar-l')).toBeGreaterThan(pressure('m416'));
-    expect(pressure('vector')).toBeGreaterThan(pressure('ump45'));
-    expect(pressure('ump45')).toBeGreaterThan(pressure('uzi'));
+    expect(pressure('vector')).toBeGreaterThan(pressure('uzi'));
+    expect(pressure('uzi')).toBeGreaterThan(pressure('ump45'));
     expect(pressure('m416')).toBeGreaterThan(weaponSustainedImpulse(BASIC_PISTOL));
     expect(pressure('ump45')).toBeGreaterThan(weaponSustainedImpulse(BASIC_PISTOL));
   });

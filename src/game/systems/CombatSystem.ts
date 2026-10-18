@@ -1,4 +1,5 @@
 import { BASIC_PISTOL } from '../../content/weapons';
+import { MOVEMENT } from '../core/constants';
 import { actorRect, addImpulse, segmentRect } from '../core/math';
 import type { ActorInput, ActorState, BattleEvent, MatchState, Vec2 } from '../core/types';
 import { applyExplosionHits, ExplosionSystem } from './ExplosionSystem';
@@ -94,7 +95,12 @@ export class CombatSystem {
           };
           this.explode(state, projectile, impact, events);
         } else if (target && target.protectionRemaining <= 0) {
-          addImpulse(target, projectile.impulse.x, projectile.impulse.y, projectile.impulseCap);
+          addImpulse(
+            target,
+            projectile.impulse.x,
+            projectile.impulse.y,
+            projectile.impulseCap ?? Math.max(MOVEMENT.maxImpulse, Math.hypot(projectile.impulse.x, projectile.impulse.y)),
+          );
           target.lastHit = { by: projectile.owner, at: state.elapsed };
           events.push({ type: 'hit', actorId: target.config.id, position: { ...target.position, y: target.position.y - 28 } });
         }

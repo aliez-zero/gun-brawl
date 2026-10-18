@@ -15,15 +15,19 @@ export const WEAPON_ART = {
   handY: 24,
 } as const;
 
-/** World scale per model: pistols stay compact, snipers / launchers read long. */
+/**
+ * World scale per model. Character sprite is ~96 logical px tall; a rifle at
+ * 0.34 is ~54 px, close to half body height, so it reads as held rather than
+ * dragged. Snipers / launchers stay longer but never exceed the body.
+ */
 const MODEL_SCALE: Partial<Record<WeaponId, number>> = {
-  pistol: 0.46, p1911: 0.45, deagle: 0.54,
-  smg: 0.5, ump45: 0.5, vector: 0.48, uzi: 0.46,
-  rifle: 0.62, m416: 0.62, akm: 0.64, 'scar-l': 0.65,
-  shotgun: 0.62, s686: 0.6, s1897: 0.64, s12k: 0.58,
-  sniper: 0.7, kar98k: 0.7, m24: 0.72, awm: 0.76,
-  rocket: 0.7, rpg7: 0.7, at4: 0.72,
-  gatling: 0.78, cannon: 0.8,
+  pistol: 0.24, p1911: 0.23, deagle: 0.28,
+  smg: 0.27, ump45: 0.28, vector: 0.26, uzi: 0.24,
+  rifle: 0.33, m416: 0.33, akm: 0.34, 'scar-l': 0.35,
+  shotgun: 0.33, s686: 0.32, s1897: 0.35, s12k: 0.31,
+  sniper: 0.39, kar98k: 0.39, m24: 0.4, awm: 0.42,
+  rocket: 0.38, rpg7: 0.38, at4: 0.4,
+  gatling: 0.43, cannon: 0.44,
 };
 
 export function weaponDisplayScale(id: WeaponId): number {

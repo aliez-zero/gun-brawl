@@ -21,6 +21,28 @@ export function supportHandKey(skin: number): string {
   return `support-hand-${skin}`;
 }
 
+export function gripHandKey(skin: number): string {
+  return `grip-hand-${skin}`;
+}
+
+/** A small foreground fist at the trigger grip, so the stock does not swallow the hand. */
+export function createGripHandCanvas(skin: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 14; canvas.height = 12;
+  const ctx = canvas.getContext('2d')!;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#152531'; ctx.lineWidth = 1.1;
+  ctx.fillStyle = '#394b52';
+  ctx.beginPath(); ctx.roundRect(0.5, 3, 9, 7, 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = `#${skin.toString(16).padStart(6, '0')}`;
+  ctx.beginPath(); ctx.roundRect(4.5, 2, 7, 5.5, 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = shade(skin); ctx.lineWidth = 0.7;
+  for (let finger = 0; finger < 3; finger++) {
+    ctx.beginPath(); ctx.moveTo(5, 3.2 + finger * 1.6); ctx.lineTo(11, 3.4 + finger * 1.5); ctx.stroke();
+  }
+  return canvas;
+}
+
 function shade(color: number): string {
   const value = Math.max(0, Math.min(255, color));
   const channel = Math.round(value * 0.78);
