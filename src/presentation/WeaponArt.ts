@@ -163,6 +163,91 @@ const ICON_BOUNDS: Partial<Record<WeaponId, { x: number; y: number; width: numbe
   cannon: { x: 0, y: 8, width: 158, height: 62 },
 };
 
+/** Silhouette-level changes so each model reads beyond its family + accent color. */
+const MODEL_GEOMETRY: Partial<Record<WeaponId, (ctx: Ctx) => void>> = {
+  p1911: (ctx) => {
+    box(ctx, 20, 25, 38, 15, '#4b565c', 2);
+    box(ctx, 56, 28, 10, 7, '#9aa8ae');
+    box(ctx, 34, 43, 10, 20, '#7a5539', 1);
+  },
+  deagle: (ctx) => {
+    box(ctx, 20, 22, 48, 19, '#3e4a52', 2);
+    box(ctx, 66, 24, 16, 12, '#b8a16a', 1);
+    line(ctx, 24, 25, 62, 25, '#d8b45a', 1.4);
+  },
+  ump45: (ctx) => {
+    poly(ctx, [2, 27, 26, 26, 28, 40, 12, 48], '#252e33');
+    box(ctx, 26, 25, 58, 19, '#394842', 2);
+    box(ctx, 54, 42, 16, 24, '#29312f', 2);
+  },
+  vector: (ctx) => {
+    poly(ctx, [4, 32, 26, 27, 30, 42, 10, 48], '#252e33');
+    box(ctx, 28, 24, 52, 20, '#384640', 2);
+    box(ctx, 50, 42, 14, 19, '#29312f', 2);
+  },
+  uzi: (ctx) => {
+    box(ctx, 34, 22, 48, 18, '#303b40', 2);
+    box(ctx, 54, 38, 12, 28, '#29312f', 2);
+    box(ctx, 82, 30, 14, 6, '#8c9a97');
+  },
+  m416: (ctx) => {
+    box(ctx, 2, 27, 26, 11, '#4b4e44', 1);
+    box(ctx, 30, 22, 54, 21, '#7f765d', 1);
+    box(ctx, 82, 28, 48, 11, '#5f594b');
+  },
+  akm: (ctx) => {
+    poly(ctx, [2, 26, 28, 25, 32, 42, 14, 48], '#7c5a39');
+    box(ctx, 28, 23, 56, 20, '#7b6445', 1);
+    poly(ctx, [52, 43, 68, 43, 64, 70, 52, 66], '#3d423c');
+  },
+  'scar-l': (ctx) => {
+    poly(ctx, [2, 28, 28, 25, 32, 40, 16, 48], '#595b4e');
+    box(ctx, 30, 22, 70, 22, '#8b826b', 1);
+    box(ctx, 100, 28, 28, 9, '#5f594b');
+  },
+  s686: (ctx) => {
+    box(ctx, 58, 24, 88, 8, '#8a969b', 2);
+    box(ctx, 58, 33, 88, 8, '#8a969b', 2);
+    box(ctx, 30, 22, 30, 22, '#4a5155', 1);
+  },
+  s1897: (ctx) => {
+    box(ctx, 58, 26, 82, 8, '#8a969b', 1);
+    box(ctx, 76, 35, 24, 13, '#6b4a32', 2);
+    box(ctx, 58, 42, 82, 5, '#3f474b');
+  },
+  s12k: (ctx) => {
+    box(ctx, 58, 25, 62, 8, '#8a969b', 1);
+    box(ctx, 64, 38, 20, 22, '#2e3538', 2);
+    box(ctx, 30, 22, 30, 22, '#4a5155', 1);
+  },
+  kar98k: (ctx) => {
+    poly(ctx, [2, 27, 34, 25, 38, 42, 18, 49], '#6b5236');
+    box(ctx, 34, 23, 38, 21, '#3b413d', 1);
+    line(ctx, 50, 34, 60, 27, '#c7b184', 2);
+  },
+  m24: (ctx) => {
+    box(ctx, 34, 22, 38, 22, '#30383b', 1);
+    box(ctx, 70, 30, 82, 5, '#9aa5a6');
+    box(ctx, 42, 12, 38, 8, '#1e2629', 2);
+  },
+  awm: (ctx) => {
+    poly(ctx, [2, 29, 34, 26, 38, 40, 22, 49], '#3f4a43');
+    box(ctx, 34, 23, 34, 21, '#2d3538', 1);
+    box(ctx, 144, 23, 12, 15, '#30383d', 2);
+    line(ctx, 68, 34, 145, 34, '#9aa5a6', 2.2);
+  },
+  rpg7: (ctx) => {
+    box(ctx, 8, 26, 126, 18, '#5f6248', 2);
+    poly(ctx, [132, 18, 158, 35, 132, 52], '#737a54');
+    box(ctx, 44, 23, 36, 23, '#8a5734', 2);
+  },
+  at4: (ctx) => {
+    box(ctx, 8, 27, 126, 15, '#6b6f55', 2);
+    poly(ctx, [132, 23, 154, 29, 154, 41, 132, 47], '#4f5544');
+    box(ctx, 28, 22, 76, 5, '#8b9070');
+  },
+};
+
 interface ModelAccent { color: string; style: 'wood' | 'gold' | 'rail' | 'double' | 'scope' | 'ring' | 'stripe'; x: number; y: number; width: number; height: number }
 
 const MODEL_ACCENTS: Partial<Record<WeaponId, ModelAccent>> = {
@@ -243,6 +328,7 @@ export function createWeaponArtCanvas(id: WeaponId): HTMLCanvasElement {
   ctx.lineJoin = 'round';
   const paint = PAINTERS[weaponFamily(id)] ?? PAINTERS.pistol!;
   paint(ctx);
+  MODEL_GEOMETRY[id]?.(ctx);
   drawModelAccent(ctx, id);
   return canvas;
 }
