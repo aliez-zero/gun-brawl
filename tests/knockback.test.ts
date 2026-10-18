@@ -75,11 +75,12 @@ describe('sustained ring-out against a resisting target', () => {
     }
   });
 
-  it('keeps burst weapons far behind automatics at pushing a runner', () => {
-    const rifle = framesToPush('m416');
-    for (const id of ['pistol', 's1897', 'kar98k'] as const) {
-      expect(framesToPush(id), `${id} must be slower than a rifle`).toBeGreaterThan(rifle * 1.5);
-    }
+  it('keeps shotguns a close-range tool: nothing lands beyond their range', () => {
+    // Point blank is now a one-trigger launch, so the trade-off has to be range.
+    expect(pushedDistance('s1897', 80)).toBeGreaterThan(600);
+    expect(pushedDistance('s1897', 500)).toBeLessThan(60);
+    expect(pushedDistance('s686', 80)).toBeGreaterThan(600);
+    expect(pushedDistance('s686', 500)).toBeLessThan(60);
   });
 });
 
@@ -107,31 +108,29 @@ describe('weapon knockback tiers', () => {
     expect(awm).toBeGreaterThan(m24);
     expect(rpg7).toBeGreaterThan(awm);
     expect(at4).toBeGreaterThan(rpg7);
-    expect(awm).toBeLessThan(750);
+    expect(awm).toBeLessThan(900);
   });
 
-  it('makes shotguns a 300–520 px close-range burst, not a one-shot screen-out', () => {
+  it('turns a point-blank shotgun blast into a launch', () => {
     // All pellets must connect, so measure inside each gun's range.
-    const s686 = pushedDistance('s686', 100);
-    const s1897 = pushedDistance('s1897', 100);
-    const s12k = pushedDistance('s12k', 100);
-    const shotgun = pushedDistance('shotgun', 100);
+    const s686 = pushedDistance('s686', 80);
+    const s1897 = pushedDistance('s1897', 80);
+    const s12k = pushedDistance('s12k', 80);
 
-    for (const [name, push] of Object.entries({ s686, s1897, s12k, shotgun })) {
-      expect(push, `${name} burst`).toBeGreaterThan(240);
-      expect(push, `${name} burst`).toBeLessThan(520);
-    }
+    // The double barrel and the pump action are one-trigger ring-outs up close.
+    expect(s686, 's686 launch').toBeGreaterThanOrEqual(640);
+    expect(s1897, 's1897 launch').toBeGreaterThanOrEqual(640);
+    // The semi-auto trades that for a second shot.
+    expect(s12k, 's12k burst').toBeGreaterThan(400);
+    expect(s12k, 's12k burst').toBeLessThan(640);
     expect(s1897).toBeGreaterThan(s686);
     expect(s686).toBeGreaterThan(s12k);
   });
 
-  it('lets heavy single shots finish at the ledge, but never a shotgun', () => {
+  it('lets heavy single shots finish at the ledge', () => {
     // Target starts at x=750 on a 1280-wide view, so >530 px leaves the screen.
-    for (const id of ['m24', 'awm', 'rpg7', 'at4', 'rocket'] as const) {
+    for (const id of ['m24', 'awm', 'rpg7', 'at4', 'rocket', 's686'] as const) {
       expect(750 + pushedDistance(id), `${id} ledge finish`).toBeGreaterThan(1280);
-    }
-    for (const id of ['s686', 's1897', 's12k'] as const) {
-      expect(750 + pushedDistance(id, 100), `${id} must need a follow-up`).toBeLessThan(1280);
     }
   });
 

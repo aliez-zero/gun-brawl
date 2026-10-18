@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
+import { getWeapon } from '../src/content/weapons';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
@@ -43,9 +44,9 @@ describe('T01 magazine and reload', () => {
     actor.weapon.reserveRemaining = 2;
 
     step(match, 1, { ...idleInput(), reloadPressed: true });
-    expect(actor.reloadRemaining).toBeCloseTo(2);
+    expect(actor.reloadRemaining).toBeCloseTo(getWeapon('shotgun').reloadTime!);
     step(match, 1, { ...idleInput(), reloadPressed: true });
-    expect(actor.reloadRemaining).toBeCloseTo(2 - FIXED_STEP);
+    expect(actor.reloadRemaining).toBeCloseTo(getWeapon('shotgun').reloadTime! - FIXED_STEP);
 
     step(match, 130);
     expect(actor.reloadRemaining).toBe(0);

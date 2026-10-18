@@ -41,33 +41,33 @@ export const BASIC_PISTOL: WeaponDefinition = {
 export const SMG: WeaponDefinition = {
   id: 'smg', name: '冲锋枪', tier: 'standard', interval: 0.075,
   projectileSpeed: 1650, range: 520, knockback: 200, recoil: 9, maxAmmo: 30,
-  reserveAmmo: 90, reloadTime: 1.5, pellets: 1, spreadRadians: 0,
+  reserveAmmo: 90, reloadTime: 1.3, pellets: 1, spreadRadians: 0,
 };
 
 export const RIFLE: WeaponDefinition = {
   id: 'rifle', name: '突击步枪', tier: 'standard', interval: 0.2,
   projectileSpeed: 2100, range: 860, knockback: 400, recoil: 16, maxAmmo: 30,
-  reserveAmmo: 90, reloadTime: 1.8, pellets: 1, spreadRadians: 0,
+  reserveAmmo: 90, reloadTime: 1.4, pellets: 1, spreadRadians: 0,
 };
 
 export const SHOTGUN: WeaponDefinition = {
   id: 'shotgun', name: '霰弹枪', tier: 'standard', interval: 0.75,
-  projectileSpeed: 1500, range: 300, knockback: 120, recoil: 32, maxAmmo: 6,
-  reserveAmmo: 18, reloadTime: 2, pellets: 5, spreadRadians: 9 * DEG,
-  impulseCap: 620,
+  projectileSpeed: 1500, range: 300, knockback: 240, recoil: 32, maxAmmo: 6,
+  reserveAmmo: 18, reloadTime: 1.2, pellets: 5, spreadRadians: 9 * DEG,
+  impulseCap: 1250,
 };
 
 export const SNIPER: WeaponDefinition = {
   id: 'sniper', name: '狙击枪', tier: 'standard', interval: 1,
   projectileSpeed: 3200, range: 1200, knockback: 1150, recoil: 50, maxAmmo: 5,
-  reserveAmmo: 15, reloadTime: 2.2, pellets: 1, spreadRadians: 0,
+  reserveAmmo: 30, reloadTime: 1.4, pellets: 1, spreadRadians: 0,
 };
 
 export const ROCKET: WeaponDefinition = {
   id: 'rocket', name: '火箭筒', tier: 'standard', interval: 1.2,
-  projectileSpeed: 760, range: 950, knockback: 1800, recoil: 54, maxAmmo: 1,
-  reserveAmmo: 3, reloadTime: 2.8, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 170, centerImpulse: 1800, edgeImpulse: 480 },
+  projectileSpeed: 760, range: 950, knockback: 2000, recoil: 54, maxAmmo: 1,
+  reserveAmmo: 6, reloadTime: 1.6, pellets: 1, spreadRadians: 0,
+  explosion: { radius: 220, centerImpulse: 2000, edgeImpulse: 700 },
 };
 
 /** Ultimate: fastest fire rate in the game, 100-round magazine + 100 reserve. */
@@ -138,23 +138,23 @@ export const SCAR_L: WeaponDefinition = {
 
 export const S686: WeaponDefinition = {
   id: 's686', name: 'S686', family: 'shotgun', tier: 'standard', interval: 0.3,
-  projectileSpeed: 1500, range: 360, knockback: 145, recoil: 30, recoilY: 9,
+  projectileSpeed: 1500, range: 360, knockback: 270, recoil: 30, recoilY: 9,
   maxAmmo: 2, reserveAmmo: 20, reloadTime: 1, pellets: 6, spreadRadians: 8 * DEG,
-  impulseCap: 880,
+  impulseCap: 1720,
 };
 
 export const S1897: WeaponDefinition = {
   id: 's1897', name: 'S1897', family: 'shotgun', tier: 'standard', interval: 0.85,
-  projectileSpeed: 1450, range: 340, knockback: 140, recoil: 30, recoilY: 8,
+  projectileSpeed: 1450, range: 340, knockback: 250, recoil: 30, recoilY: 8,
   maxAmmo: 7, reserveAmmo: 35, reloadTime: 1.5, pellets: 7, spreadRadians: 7 * DEG,
-  impulseCap: 1000,
+  impulseCap: 1800,
 };
 
 export const S12K: WeaponDefinition = {
   id: 's12k', name: 'S12K', family: 'shotgun', tier: 'standard', interval: 0.4,
-  projectileSpeed: 1600, range: 290, knockback: 145, recoil: 26, recoilY: 7,
+  projectileSpeed: 1600, range: 290, knockback: 260, recoil: 26, recoilY: 7,
   maxAmmo: 8, reserveAmmo: 40, reloadTime: 1.3, pellets: 5, spreadRadians: 8 * DEG,
-  impulseCap: 740,
+  impulseCap: 1350,
 };
 
 export const KAR98K: WeaponDefinition = {
@@ -171,22 +171,22 @@ export const M24: WeaponDefinition = {
 
 export const AWM: WeaponDefinition = {
   id: 'awm', name: 'AWM', family: 'sniper', tier: 'standard', interval: 1.25,
-  projectileSpeed: 3400, range: 1450, knockback: 1450, recoil: 64, recoilY: 16,
+  projectileSpeed: 3400, range: 1450, knockback: 1800, recoil: 72, recoilY: 18,
   maxAmmo: 5, reserveAmmo: 25, reloadTime: 1.6, pellets: 1, spreadRadians: 0,
 };
 
 export const RPG7: WeaponDefinition = {
   id: 'rpg7', name: 'RPG-7', family: 'rocket', tier: 'standard', interval: 1.2,
-  projectileSpeed: 720, range: 950, knockback: 1800, recoil: 54, recoilY: 16,
+  projectileSpeed: 720, range: 950, knockback: 2000, recoil: 54, recoilY: 16,
   maxAmmo: 1, reserveAmmo: 6, reloadTime: 1.6, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 170, centerImpulse: 1800, edgeImpulse: 480 },
+  explosion: { radius: 220, centerImpulse: 2000, edgeImpulse: 700 },
 };
 
 export const AT4: WeaponDefinition = {
   id: 'at4', name: 'AT4', family: 'rocket', tier: 'standard', interval: 1.4,
-  projectileSpeed: 800, range: 1050, knockback: 2000, recoil: 60, recoilY: 18,
+  projectileSpeed: 800, range: 1050, knockback: 2200, recoil: 60, recoilY: 18,
   maxAmmo: 1, reserveAmmo: 5, reloadTime: 1.8, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 160, centerImpulse: 2000, edgeImpulse: 540 },
+  explosion: { radius: 200, centerImpulse: 2200, edgeImpulse: 800 },
 };
 
 export const WEAPON_MODELS: Readonly<Partial<Record<WeaponId, WeaponDefinition>>> = {

@@ -31,7 +31,7 @@ describe('T01 17 concrete weapon models', () => {
     expect(createWeapon('s686')).toMatchObject({ ammoRemaining: 2, reserveRemaining: 20 });
     expect(getWeapon('awm').reloadTime).toBe(1.6);
     expect(getWeapon('vector').reloadTime).toBe(1.1);
-    expect(getWeapon('rpg7').explosion).toEqual({ radius: 170, centerImpulse: 1800, edgeImpulse: 480 });
+    expect(getWeapon('rpg7').explosion).toEqual({ radius: 220, centerImpulse: 2000, edgeImpulse: 700 });
     expect(getWeapon('at4').recoilY).toBe(18);
   });
 
