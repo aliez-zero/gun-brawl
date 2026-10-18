@@ -43,7 +43,7 @@ export class WeaponLayer {
       const pose = weaponPose(actor);
       sprite
         .setTexture(key)
-        .setPosition(x + actor.facing * CHARACTER_GRIP.x, y + CHARACTER_GRIP.y)
+        .setPosition(x + actor.facing * (CHARACTER_GRIP.x + pose.x), y + CHARACTER_GRIP.y + pose.y)
         .setFlipX(actor.facing < 0)
         .setRotation(pose.rotation)
         .setAlpha(pose.alpha)

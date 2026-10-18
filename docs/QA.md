@@ -9,7 +9,10 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm test:browser   # 需要预览服务与 Chrome
+pnpm test:perf      # 软件 WebGL RAF / 堆；不是参考 GPU
 ```
+
+2026-10-18 软件 WebGL 实测（Chrome headless + SwiftShader，1440×1080，local-duel 6 秒）：**282 帧、平均 21.21 ms、p95 30 ms、约 47.2 FPS、JS 堆 34.2 MiB、画布 1280×720**。这是软件渲染参考，不能当作真实显卡 60 FPS 结论；p95 已超过 16.7 ms。
 
 2026-10-18 结果：类型检查通过；**183 项 / 19 文件**通过；构建通过；浏览器 smoke 通过（菜单、画布、键盘、训练、暂停 / 恢复、失焦、设置、双人、重赛、刷新、禁用存储）。
 
@@ -29,7 +32,7 @@ pnpm test:browser   # 需要预览服务与 Chrome
 | 存档 / 迁档 / 清档 | `storage.test.ts` + 浏览器清档 | 跨浏览器 profile |
 | 四人淘汰 / 加时 | `quality.test.ts` + 浏览器完整 4 人局 | 四人同帧出界、4 真人观战体验 |
 | 暂停 / 失焦 / 设置 | 浏览器 smoke | 多显示器 / 手柄 |
-| 性能 / 资源 | 20 局四人纯模拟耗时守卫（<5s），仅逻辑成本 | **无参考机、无真实 GPU、无 20 局浏览器资源数据** |
+| 性能 / 资源 | 20 局四人纯模拟耗时守卫（<5s）+ 软件 WebGL 6 秒 RAF / 堆 | **软件渲染 47.2 FPS / p95 30 ms；无参考机、无真实 GPU、无 20 局浏览器资源数据** |
 
 ## T11 新增
 

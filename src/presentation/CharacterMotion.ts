@@ -53,17 +53,29 @@ export function characterFrame(actor: Readonly<ActorState>, time: number, hurtAg
 
 export const CHARACTER_GRIP = { x: 16, y: -24 } as const;
 
-const RELOAD_TILT: Partial<Record<string, number>> = {
-  pistol: 0.34, smg: 0.48, rifle: 0.55, shotgun: 0.78, sniper: 0.64, rocket: 0.72,
+const RELOAD_MOTION: Partial<Record<string, { tilt: number; x: number; y: number }>> = {
+  pistol: { tilt: 0.34, x: 0, y: 1.5 },
+  smg: { tilt: 0.48, x: -1, y: 2 },
+  rifle: { tilt: 0.55, x: -2, y: 3 },
+  shotgun: { tilt: 0.78, x: -3, y: 4 },
+  sniper: { tilt: 0.64, x: -1, y: 3 },
+  rocket: { tilt: 0.72, x: -2, y: 4 },
 };
 
-/** Rotation is cosmetic and pivots at the same hand in all poses and facings. */
-export function weaponPose(actor: Readonly<ActorState>): { rotation: number; alpha: number } {
+/** Cosmetic reload / recoil pose: same grip pivot, family-specific sink and travel. */
+export function weaponPose(actor: Readonly<ActorState>): { rotation: number; alpha: number; x: number; y: number } {
   const duration = actor.weapon.definition.reloadTime ?? 1;
   const family = actor.weapon.definition.family ?? actor.weapon.definition.id;
+  const motion = RELOAD_MOTION[family] ?? RELOAD_MOTION.pistol!;
   const reload = actor.reloadRemaining > 0 ? Math.max(0, Math.min(1, 1 - actor.reloadRemaining / duration)) : 0;
-  const reloadTilt = actor.reloadRemaining > 0 ? Math.sin(reload * Math.PI) * (RELOAD_TILT[family] ?? 0.48) : 0;
+  const reloadWave = actor.reloadRemaining > 0 ? Math.sin(reload * Math.PI) : 0;
+  const reloadTilt = reloadWave * motion.tilt;
   const sinceShot = actor.weapon.definition.interval - actor.fireCooldown;
   const recoil = actor.fireCooldown > 0 && sinceShot >= 0 ? Math.max(0, Math.min(1, 1 - sinceShot / 0.11)) : 0;
-  return { rotation: (-reloadTilt - recoil * 0.08) * actor.facing, alpha: actor.protectionRemaining > 0 ? 0.78 : 1 };
+  return {
+    rotation: (-reloadTilt - recoil * 0.08) * actor.facing,
+    alpha: actor.protectionRemaining > 0 ? 0.78 : 1,
+    x: reloadWave * motion.x - recoil * 1.6,
+    y: reloadWave * motion.y,
+  };
 }

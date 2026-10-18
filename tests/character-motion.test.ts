@@ -52,11 +52,15 @@ describe('character presentation consumes movement and combat without changing t
     simulation.step(FIXED_STEP, new Map([['p1', { ...idleInput(), reloadPressed: true }]]));
     const poses = new Set<number>();
     let tilted = false;
+    let sank = false;
     for (let i = 0; i < 180 && actor.reloadRemaining > 0; i++) {
       poses.add(characterFrame(actor, simulation.state.elapsed));
-      tilted ||= Math.abs(weaponPose(actor).rotation) > 0.2;
+      const pose = weaponPose(actor);
+      tilted ||= Math.abs(pose.rotation) > 0.2;
+      sank ||= pose.y > 0.1;
       simulation.step(FIXED_STEP, new Map());
     }
+    expect(sank).toBe(true);
     expect(poses.size).toBe(4);
     expect([...poses].every((frame) => Boolean(characterPoseForFrame(frame).reload))).toBe(true);
     expect(tilted).toBe(true);
