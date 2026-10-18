@@ -6,7 +6,7 @@ import { presetAppearance } from './appearances';
 import { BASIC_PISTOL } from './weapons';
 
 export const MODE_LABELS: Record<GameMode, string> = {
-  'duel-ai': '人机对战', 'local-duel': '本地双人', training: '自由练习', custom: '自定义对局',
+  'duel-ai': '人机对战', 'local-duel': '本地双人', training: '自由练习', custom: '自定义对局', campaign: '战役',
 };
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {

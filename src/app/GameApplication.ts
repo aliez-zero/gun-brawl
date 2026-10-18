@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { cloneCustomMatch, createCustomMatchConfig, createMatchConfig, validateCustomMatch } from '../content/matches';
 import type { CustomMatchSettings } from '../content/matches';
+import { CAMPAIGN_LEVELS, createCampaignConfig, getCampaignLevel } from '../content/campaign';
 import { normalizeAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
 import { getWeapon, WEAPON_SLOTS } from '../content/weapons';
@@ -11,9 +12,9 @@ import { BootScene } from '../scenes/BootScene';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
 import { GameUI } from '../ui/GameUI';
 
-type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia';
+type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia' | 'campaign';
 type Screen = 'menu' | 'match' | 'pause' | 'result' | Dialog;
-const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia'].includes(screen);
+const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia', 'campaign'].includes(screen);
 
 export class GameApplication {
   private readonly store = new SaveStore(browserStorage());
@@ -24,6 +25,7 @@ export class GameApplication {
   private screen: Screen = 'menu';
   private returnScreen: 'menu' | 'pause' | 'result' = 'menu';
   private activeMode: GameMode = this.store.data.lastMode;
+  private activeCampaignLevel: string | null = null;
   private isReady = false;
   private storageNotified = false;
 
@@ -61,6 +63,9 @@ export class GameApplication {
       startTrainingWeapon: (weaponId) => this.startTrainingWeapon(weaponId),
       encyclopedia: () => this.openDialog('encyclopedia'),
       clearSave: () => this.clearSave(),
+      selectCampaign: (levelId) => this.startCampaign(levelId),
+      nextCampaign: () => this.nextCampaign(),
+      campaignSelect: () => this.openDialog('campaign'),
     }, this.store.data);
     this.arena = new ArenaScene({
       onReady: () => {
@@ -94,6 +99,7 @@ export class GameApplication {
   private start(mode: GameMode): void {
     if (!this.isReady) return;
     if (mode === 'custom') { this.openDialog('custom'); return; }
+    if (mode === 'campaign') { this.openDialog('campaign'); return; }
     this.sound.unlock();
     this.activeMode = mode;
     this.store.data.lastMode = mode;
@@ -129,8 +135,37 @@ export class GameApplication {
     (document.activeElement as HTMLElement | null)?.blur();
   }
 
+  private startCampaign(levelId: string): void {
+    if (!this.isReady) return;
+    const level = getCampaignLevel(levelId);
+    if (!level) { this.ui.notify('无效的战役关卡'); return; }
+    if (this.store.data.campaign.unlocked < level.order) { this.ui.notify('先通关上一关才能解锁'); return; }
+    this.sound.unlock();
+    this.activeMode = 'campaign';
+    this.activeCampaignLevel = level.id;
+    this.store.data.lastMode = 'campaign';
+    this.persist();
+    this.screen = 'match';
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
+    const matchId = crypto.randomUUID();
+    this.arena.startMatch(createCampaignConfig(level, seed, {
+      appearances: this.store.data.appearances, matchId,
+    }));
+    this.ui.showMatch(this.arena.matchState!);
+    (document.activeElement as HTMLElement | null)?.blur();
+  }
+
+  private nextCampaign(): void {
+    if (!this.activeCampaignLevel) return;
+    const current = getCampaignLevel(this.activeCampaignLevel);
+    const next = current ? CAMPAIGN_LEVELS.find((level) => level.order === current.order + 1) : undefined;
+    if (!next) { this.ui.notify('已经是最后一关'); return; }
+    this.startCampaign(next.id);
+  }
+
   private restart(): void {
     if (this.activeMode === 'custom') this.startCustom(this.store.data.customMatch);
+    else if (this.activeMode === 'campaign' && this.activeCampaignLevel) this.startCampaign(this.activeCampaignLevel);
     else this.start(this.activeMode);
   }
 
@@ -173,7 +208,12 @@ export class GameApplication {
     for (const event of events) {
       if (event.type === 'finished') {
         this.screen = 'result';
-        this.store.recordResult(event.result);
+        if (event.result.mode === 'campaign') {
+          const unlocked = this.store.recordCampaignResult(event.result);
+          if (unlocked) this.ui.notify('关卡通过，下一关已解锁');
+        } else {
+          this.store.recordResult(event.result);
+        }
         this.notifyStorage();
         this.ui.showResult(event.result);
       }
@@ -222,6 +262,7 @@ export class GameApplication {
     else if (kind === 'appearance') this.ui.showAppearance(this.returnScreen !== 'menu');
     else if (kind === 'custom') this.ui.showCustomSetup(this.store.data.customMatch);
     else if (kind === 'encyclopedia') this.ui.showEncyclopedia();
+    else if (kind === 'campaign') this.ui.showCampaign(this.store.data.campaign);
     else this.ui.showMaps(this.returnScreen !== 'menu');
   }
 

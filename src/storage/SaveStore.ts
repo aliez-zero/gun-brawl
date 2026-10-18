@@ -4,6 +4,8 @@ import type { KeyBindings } from '../content/controls';
 import { cloneCustomMatch, normalizeCustomMatch } from '../content/matches';
 import type { CustomMatchSettings } from '../content/matches';
 import { isMapId } from '../content/maps';
+import { CAMPAIGN_LEVELS, campaignScore, defaultCampaignProgress, getCampaignLevel, normalizeCampaignProgress } from '../content/campaign';
+import type { CampaignProgress } from '../content/campaign';
 import { TRAINING_TASKS } from '../content/tutorial';
 import type {
   CharacterAppearance, GameMode, HumanSlot, MatchResult, TrainingTaskId,
@@ -23,6 +25,8 @@ export interface SaveData {
   bindings: KeyBindings;
   customMatch: CustomMatchSettings;
   trainingCompleted: TrainingTaskId[];
+  /** Campaign progress is submitted separately from casual match stats. */
+  campaign: CampaignProgress;
   /** Bounded recent IDs; handles interleaved duplicates without claiming full history. */
   recentResults: string[];
 }
@@ -37,13 +41,14 @@ const defaults = (): SaveData => ({
   version: SAVE_VERSION, settings: { volume: 0.35, reducedMotion: false },
   lastMode: 'duel-ai', stats: { completed: 0, p1Wins: 0, p2Wins: 0, draws: 0 }, lastResultId: null,
   selectedMapId: 'sky-citadel', appearances: { 1: presetAppearance('cowboy'), 2: presetAppearance('ronin') },
-  bindings: cloneBindings(), customMatch: cloneCustomMatch(), trainingCompleted: [], recentResults: [],
+  bindings: cloneBindings(), customMatch: cloneCustomMatch(), trainingCompleted: [], campaign: defaultCampaignProgress(), recentResults: [],
 });
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const count = (value: unknown): number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
-export const isGameMode = (value: unknown): value is GameMode => value === 'duel-ai' || value === 'local-duel' || value === 'training' || value === 'custom';
+export const isGameMode = (value: unknown): value is GameMode =>
+  value === 'duel-ai' || value === 'local-duel' || value === 'training' || value === 'custom' || value === 'campaign';
 
 export class SaveStore {
   readonly data: SaveData;
@@ -83,6 +88,7 @@ export class SaveStore {
         : typeof parsed.lastResultId === 'string' ? [parsed.lastResultId] : [];
       this.data.recentResults = [...new Set(recent)].slice(0, RECENT_RESULT_LIMIT);
       if (!this.data.lastResultId && this.data.recentResults.length) this.data.lastResultId = this.data.recentResults[0]!;
+      this.data.campaign = normalizeCampaignProgress(parsed.campaign);
     } catch (error) { this.available = error instanceof SyntaxError; }
   }
 
@@ -95,7 +101,7 @@ export class SaveStore {
   }
 
   recordResult(result: MatchResult): void {
-    if (result.mode === 'training' || this.data.recentResults.includes(result.id)) return;
+    if (result.mode === 'training' || result.mode === 'campaign' || this.data.recentResults.includes(result.id)) return;
     this.data.recentResults = [result.id, ...this.data.recentResults].slice(0, RECENT_RESULT_LIMIT);
     this.data.lastResultId = result.id;
     this.data.stats.completed++;
@@ -103,6 +109,22 @@ export class SaveStore {
     else if (result.winner === 'p2') this.data.stats.p2Wins++;
     else if (result.winner === null) this.data.stats.draws++;
     this.persist();
+  }
+
+  /** A campaign win unlocks the next level; losses and draws never advance. */
+  recordCampaignResult(result: MatchResult): boolean {
+    if (result.mode !== 'campaign' || !result.campaignLevelId) return false;
+    const level = getCampaignLevel(result.campaignLevelId);
+    if (!level || result.winner !== 'p1') return false;
+    if (this.data.recentResults.includes(result.id)) return false;
+    this.data.recentResults = [result.id, ...this.data.recentResults].slice(0, RECENT_RESULT_LIMIT);
+    this.data.lastResultId = result.id;
+    const nextIndex = Math.min(CAMPAIGN_LEVELS.length, level.order + 1);
+    this.data.campaign.unlocked = Math.max(this.data.campaign.unlocked, nextIndex);
+    if (!this.data.campaign.completed.includes(level.id)) this.data.campaign.completed.push(level.id);
+    this.data.campaign.bestScores[level.id] = Math.max(this.data.campaign.bestScores[level.id] ?? 0, campaignScore(result));
+    this.persist();
+    return true;
   }
 
   /** Clears the namespace and all in-memory fields; failure still leaves defaults usable. */
@@ -124,6 +146,7 @@ export class SaveStore {
     this.data.bindings = fresh.bindings;
     this.data.customMatch = fresh.customMatch;
     this.data.trainingCompleted = fresh.trainingCompleted;
+    this.data.campaign = fresh.campaign;
     this.data.recentResults = fresh.recentResults;
     this.persist();
   }

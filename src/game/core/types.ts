@@ -1,6 +1,6 @@
 export interface Vec2 { x: number; y: number }
 export interface Rect { x: number; y: number; width: number; height: number }
-export type GameMode = 'duel-ai' | 'local-duel' | 'training' | 'custom';
+export type GameMode = 'duel-ai' | 'local-duel' | 'training' | 'custom' | 'campaign';
 export type MatchPhase = 'countdown' | 'playing' | 'paused' | 'finished';
 export type ActorStatus = 'alive' | 'respawning' | 'eliminated';
 export type Difficulty = 'easy' | 'normal' | 'hard';
@@ -136,6 +136,8 @@ export interface MatchConfig {
   dropMode?: DropMode;
   /** Training progress restored from the save file. */
   trainingCompleted?: TrainingTaskId[];
+  /** Set only by campaign levels; used for independent progression submission. */
+  campaignLevelId?: string;
 }
 
 export interface ActorState {
@@ -229,6 +231,7 @@ export interface ExplosionResolver {
 export interface MatchResult {
   id: string;
   mode: GameMode;
+  campaignLevelId?: string;
   winner: string | null;
   duration: number;
   overtime: boolean;

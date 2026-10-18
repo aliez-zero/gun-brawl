@@ -140,6 +140,18 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .custom-summary { margin: -4px 0 0; color: var(--lime); font: 10px Consolas, monospace; }
 .custom-form .start-button { margin-top: 2px; }
 .custom-form .dialog-actions { margin-top: 0; }
+.secondary-button { display: flex; justify-content: space-between; width: 100%; margin-top: 8px; padding: 11px 14px; border: 1px solid #4b5f3f; border-radius: 3px; background: #18241a; color: #c3d3b5; font-size: 12px; }
+.secondary-button:hover { border-color: var(--lime); color: var(--lime); }
+.campaign-list { display: grid; gap: 7px; margin-top: 14px; }
+.campaign-level { display: grid; grid-template-columns: 32px 1fr auto; gap: 9px; align-items: center; width: 100%; padding: 9px; border: 1px solid #354832; border-radius: 3px; background: #101811; text-align: left; }
+.campaign-level:hover:not(:disabled) { border-color: var(--lime); }
+.campaign-level.done { border-color: #4e6b3d; }
+.campaign-level.locked { opacity: .45; }
+.campaign-order { color: var(--lime); font-size: 11px; letter-spacing: 1px; }
+.campaign-copy { display: grid; gap: 3px; }
+.campaign-copy strong { color: #dce7d2; font-size: 11px; font-weight: 400; }
+.campaign-copy small { color: #819475; font-size: 9px; line-height: 1.35; }
+.campaign-meta { color: #b6c7a7; font-size: 9px; white-space: nowrap; }
 .danger-button { display: block; width: 100%; margin-top: 14px; padding: 8px; border: 1px solid #6b3d38; border-radius: 3px; background: #201311; color: #d79a91; font-size: 10px; }
 .danger-button:hover { border-color: #e28b7e; color: #ffb3a8; }
 .encyclopedia-entry { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px 12px; border: 1px solid #40533a; border-radius: 3px; background: #1e2b24df; text-align: left; }

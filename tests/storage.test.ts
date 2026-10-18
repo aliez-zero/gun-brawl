@@ -106,9 +106,11 @@ describe('versioned local saves', () => {
     store.data.bindings = rebind(DEFAULT_KEY_BINDINGS, 1, 'shoot', 'KeyU').bindings;
     store.data.customMatch.stocks = 9;
     store.data.trainingCompleted = ['move'];
+    store.data.campaign.unlocked = 4;
     store.recordResult(result);
     store.clear();
     expect(store.data.settings.volume).toBe(0.35);
+    expect(store.data.campaign.unlocked).toBe(1);
     expect(store.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);
     expect(store.data.customMatch.stocks).toBe(3);
     expect(store.data.trainingCompleted).toEqual([]);

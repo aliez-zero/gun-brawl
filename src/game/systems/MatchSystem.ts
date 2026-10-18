@@ -6,6 +6,7 @@ function finish(state: MatchState, winner: string | null, events: BattleEvent[])
   state.result = {
     id: state.config.matchId ?? `${state.config.seed}-${state.config.mode}`,
     mode: state.config.mode, winner, duration: state.elapsed, overtime: state.overtime,
+    ...(state.config.campaignLevelId ? { campaignLevelId: state.config.campaignLevelId } : {}),
     actors: state.actors.map((actor) => ({
       id: actor.config.id, name: actor.config.name, stocks: actor.stocks, ...actor.stats,
     })),

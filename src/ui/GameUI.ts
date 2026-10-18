@@ -8,6 +8,8 @@ import {
 } from '../content/matches';
 import type { CustomMatchSettings, CustomSlot } from '../content/matches';
 import { APPEARANCE_PRESETS, isCharacterStyle, normalizeAppearance, presetAppearance } from '../content/appearances';
+import { CAMPAIGN_LEVELS, getCampaignLevel } from '../content/campaign';
+import type { CampaignProgress } from '../content/campaign';
 import { getArena, isMapId } from '../content/maps';
 import type { CharacterAppearance, Difficulty, DropMode, GameMode, HumanSlot, MatchResult, MatchState, WeaponId } from '../game/core/types';
 import { isGameMode } from '../storage/SaveStore';
@@ -37,6 +39,9 @@ export interface UIActions {
   startTrainingWeapon: (weaponId: WeaponId) => void;
   encyclopedia: () => void;
   clearSave: () => void;
+  selectCampaign: (levelId: string) => void;
+  nextCampaign: () => void;
+  campaignSelect: () => void;
 }
 
 export class GameUI {
@@ -136,6 +141,13 @@ export class GameUI {
         return;
       }
       if (action === 'encyclopedia') { this.actions.encyclopedia(); return; }
+      if (action === 'next-campaign') { this.actions.nextCampaign(); return; }
+      if (action === 'campaign-select') { this.actions.campaignSelect(); return; }
+      if (action === 'campaign-level') {
+        const id = button.dataset.level;
+        if (id) this.actions.selectCampaign(id);
+        return;
+      }
       if (action === 'clear-save') {
         if (window.confirm('清除本地存档？音量、键位、外观、自定义配置、训练进度和战绩都会恢复默认。')) this.actions.clearSave();
         return;
@@ -244,6 +256,7 @@ export class GameUI {
       'local-duel': '叫上身边的朋友，一块键盘决胜负。',
       training: '没有时间限制，找回跳跃和开火的手感。',
       custom: '自选地图、人数、AI 难度、生命、时限与武器池。',
+      campaign: '六关连续挑战；通关解锁下一关并记录最佳成绩。',
     };
     this.overlay.innerHTML = `
       <div class="hero-panel">
@@ -251,13 +264,13 @@ export class GameUI {
         <h1>枪响，<br>就该<span>飞出去。</span></h1>
         <p class="hero-copy">平台之间，谁能站到最后？<br>跳跃、开火，把对手送出场外。</p>
         <div class="mode-picker" role="group" aria-label="选择游戏模式">
-          ${(['duel-ai', 'local-duel', 'training', 'custom'] as const).map((mode, index) => `<button class="mode-option ${this.selected === mode ? 'selected' : ''}" data-action="mode" data-mode="${mode}" aria-pressed="${this.selected === mode}"><small>0${index + 1}</small><span>${MODE_LABELS[mode]}</span><i>${mode === 'duel-ai' ? '◈' : mode === 'local-duel' ? '▦' : mode === 'training' ? '◎' : '⚙'}</i></button>`).join('')}
+          ${(['duel-ai', 'local-duel', 'campaign', 'training', 'custom'] as const).map((mode, index) => `<button class="mode-option ${this.selected === mode ? 'selected' : ''}" data-action="mode" data-mode="${mode}" aria-pressed="${this.selected === mode}"><small>0${index + 1}</small><span>${MODE_LABELS[mode]}</span><i>${mode === 'duel-ai' ? '◈' : mode === 'local-duel' ? '▦' : mode === 'campaign' ? '♛' : mode === 'training' ? '◎' : '⚙'}</i></button>`).join('')}
         </div>
         <p class="mode-description">${descriptions[this.selected]}</p>
         <div class="loadout-actions"><button data-action="appearance"><span>✦ 角色外观</span><small>${look.name} ↗</small></button><button data-action="maps"><span>▧ 更换地图</span><small>${map.name} ↗</small></button></div>
         <button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>八类枪真实数据 / 直接试枪 ↗</small></button>
-        <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${!this.ready ? '正在准备战场' : this.selected === 'custom' ? '配置对局' : '进入战场'}</span><span>↗</span></button>
-        <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : this.selected === 'custom' ? '2—4 人自由配置' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : this.selected === 'custom' ? '可关闭特殊投放' : '最后存活者获胜'}</span></div>
+        <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${!this.ready ? '正在准备战场' : this.selected === 'custom' ? '配置对局' : this.selected === 'campaign' ? '选择关卡' : '进入战场'}</span><span>↗</span></button>
+        <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : this.selected === 'custom' ? '2—4 人自由配置' : this.selected === 'campaign' ? '六关战役' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : this.selected === 'custom' ? '可关闭特殊投放' : this.selected === 'campaign' ? '胜利解锁下一关' : '最后存活者获胜'}</span></div>
       </div>
       <div class="arena-caption"><span class="caption-line"></span><small>${map.subtitle}</small><strong>${map.name}</strong><span>挑个新造型，换座新战场。</span></div>`;
     this.setGuide(this.selected);
@@ -357,12 +370,31 @@ export class GameUI {
     drawMapPreviews(this.overlay);
   }
 
+  showCampaign(progress: CampaignProgress): void {
+    const cards = CAMPAIGN_LEVELS.map((level) => {
+      const locked = level.order > progress.unlocked;
+      const done = progress.completed.includes(level.id);
+      const best = progress.bestScores[level.id];
+      return `<button class="campaign-level ${locked ? 'locked' : ''} ${done ? 'done' : ''}" data-action="campaign-level" data-level="${level.id}" ${locked ? 'disabled' : ''}>
+        <span class="campaign-order">${locked ? '锁' : `0${level.order}`}</span>
+        <span class="campaign-copy"><strong>${escapeLabel(level.name)}</strong><small>${escapeLabel(level.brief)}</small></span>
+        <span class="campaign-meta">${locked ? '完成上一关' : done ? `最佳 ${best ?? 0}` : `${DIFFICULTY_LABELS[level.difficulty]} · ${level.stocks} 命`}</span>
+      </button>`;
+    }).join('');
+    this.dialog('CAMPAIGN', '六关，一条命一条命打上去。', `<p class="dialog-copy">胜利解锁下一关并记录最佳成绩；失败或平局不解锁。当前已解锁 ${progress.unlocked}/6。</p><div class="campaign-list">${cards}</div><div class="dialog-actions"><button data-action="close">返回</button></div>`);
+  }
+
   showResult(result: MatchResult): void {
-    const winner = result.actors.find((actor) => actor.id === result.winner);
-    this.dialog('ROUND COMPLETE', winner ? `${winner.name}，站到了最后。` : '势均力敌，平局。', `
-      <p class="dialog-copy">${MODE_LABELS[result.mode]} · 用时 ${formatTime(result.duration)}${result.overtime ? ' · 决胜加时' : ''}</p>
+    const level = result.campaignLevelId ? getCampaignLevel(result.campaignLevelId) : undefined;
+    const heading = level
+      ? result.winner === 'p1' ? `${level.name} · 通关` : result.winner === null ? `${level.name} · 平局` : `${level.name} · 失败`
+      : winnerHeading(result);
+    this.dialog('ROUND COMPLETE', heading, `
+      <p class="dialog-copy">${level ? `战役第 ${level.order} 关` : MODE_LABELS[result.mode]} · 用时 ${formatTime(result.duration)}${result.overtime ? ' · 决胜加时' : ''}${level && result.winner === 'p1' ? ' · 下一关已解锁' : ''}</p>
       <div class="result-table"><div class="result-row table-label"><span>参战者</span><span>剩余生命</span><span>击出</span><span>出界</span></div>${result.actors.map((actor) => `<div class="result-row ${actor.id === result.winner ? 'winner-row' : ''}"><strong>${actor.name}</strong><span>${actor.stocks}</span><span>${actor.knockouts}</span><span>${actor.falls}</span></div>`).join('')}</div>
-      <button class="start-button" data-action="restart"><span>再来一局</span><span>↗</span></button><div class="dialog-actions"><button data-action="menu">返回主菜单</button></div>`);
+      ${level && result.winner === 'p1' ? '<button class="start-button" data-action="next-campaign"><span>下一关</span><span>↗</span></button>' : ''}
+      <button class="${level && result.winner === 'p1' ? 'secondary-button' : 'start-button'}" data-action="restart"><span>${level ? '重试本关' : '再来一局'}</span><span>↗</span></button>
+      <div class="dialog-actions">${level ? '<button data-action="campaign-select">选择关卡</button>' : ''}<button data-action="menu">返回主菜单</button></div>`);
   }
 
   showEncyclopedia(): void {
@@ -537,6 +569,11 @@ function dropModeOptions(selected: DropMode): string {
     ['none', '关闭特殊投放'],
   ];
   return options.map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('');
+}
+
+function winnerHeading(result: MatchResult): string {
+  const winner = result.actors.find((actor) => actor.id === result.winner);
+  return winner ? `${winner.name}，站到了最后。` : '势均力敌，平局。';
 }
 
 function escapeLabel(value: string): string {
