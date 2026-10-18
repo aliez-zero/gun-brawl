@@ -118,8 +118,38 @@ const PAINTERS: Record<WeaponId, (ctx: Ctx) => void> = {
   pistol, smg, rifle, shotgun, sniper, rocket,
 };
 
+/** Tight local-space content boxes for HUD / crate icons (no grip-origin margins). */
+const ICON_BOUNDS: Record<WeaponId, { x: number; y: number; width: number; height: number }> = {
+  pistol: { x: 18, y: 16, width: 62, height: 54 },
+  smg: { x: 8, y: 19, width: 102, height: 54 },
+  rifle: { x: 4, y: 17, width: 146, height: 55 },
+  shotgun: { x: 4, y: 24, width: 148, height: 48 },
+  sniper: { x: 2, y: 10, width: 150, height: 62 },
+  rocket: { x: 0, y: 18, width: 158, height: 50 },
+};
+
 export function weaponArtKey(id: WeaponId): string {
   return `weapon-art-${id}`;
+}
+
+export function weaponIconKey(id: WeaponId): string {
+  return `weapon-icon-${id}`;
+}
+
+/** Cropped silhouette for 32-64 px HUD slots and crate labels. */
+export function createWeaponIconCanvas(id: WeaponId): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 120;
+  canvas.height = 48;
+  const ctx = canvas.getContext('2d')!;
+  const source = createWeaponArtCanvas(id);
+  const bounds = ICON_BOUNDS[id];
+  ctx.drawImage(
+    source,
+    bounds.x * SAMPLE, bounds.y * SAMPLE, bounds.width * SAMPLE, bounds.height * SAMPLE,
+    0, 0, canvas.width, canvas.height,
+  );
+  return canvas;
 }
 
 export function createWeaponArtCanvas(id: WeaponId): HTMLCanvasElement {

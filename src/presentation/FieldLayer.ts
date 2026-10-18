@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { BattleEvent, MatchState, WeaponId } from '../game/core/types';
-import { createWeaponArtCanvas, weaponArtKey } from './WeaponArt';
+import { createWeaponIconCanvas, weaponIconKey } from './WeaponArt';
 
 const ACCENT: Record<WeaponId, number> = {
   pistol: 0xaab4b7, smg: 0x4fc3b1, rifle: 0xf0a23a,
@@ -76,7 +76,7 @@ export class FieldLayer {
 
       let icon = this.icons.get(drop.id);
       if (!icon) {
-        icon = this.scene.add.image(x, y, this.ensureTexture(drop.weaponId)).setDepth(4.2).setScale(0.1);
+        icon = this.scene.add.image(x, y, this.ensureTexture(drop.weaponId)).setDepth(4.2).setScale(0.32);
         this.icons.set(drop.id, icon);
       }
       icon.setTexture(this.ensureTexture(drop.weaponId)).setPosition(x, y + 2).setAlpha(alphaBox).setVisible(true);
@@ -136,9 +136,9 @@ export class FieldLayer {
   }
 
   private ensureTexture(id: WeaponId): string {
-    const key = weaponArtKey(id);
+    const key = weaponIconKey(id);
     if (!this.scene.textures.exists(key)) {
-      this.scene.textures.addCanvas(key, createWeaponArtCanvas(id));
+      this.scene.textures.addCanvas(key, createWeaponIconCanvas(id));
       this.ownedTextures.add(key);
     }
     return key;

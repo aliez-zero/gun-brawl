@@ -37,7 +37,8 @@
 - `src/presentation/CharacterArt.ts`：`withGun` 开关，实战图集不再烘手枪。
 - `src/presentation/WeaponArt.ts`（新）：六家族纹理。
 - `src/presentation/WeaponLayer.ts`（新）：独立武器 sprite。
-- `src/presentation/FieldLayer.ts`（新）：箱子 / 炸弹 / 爆炸。
+- `src/presentation/FieldLayer.ts`（新）：箱子 / 炸弹 / 爆炸；箱子图标用裁剪武器图标。
+- `src/ui/GameUI.ts` / `src/style.css`：HUD 当前武器剪影，武器切换时重绘。
 - `src/scenes/ArenaScene.ts`：装配与清理。
 - `docs/modules/10-appearance.md`、`docs/WEAPON_ART.md`、本记录。
 
@@ -46,7 +47,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `pnpm typecheck` | 通过 |
-| `pnpm test` | 127 项 / 12 文件通过（T03 节奏追加 1 项 + T06 投弹键 1 项） |
+| `pnpm test` | 134 项 / 12 文件通过（地图布局 / 路线追加 + T03 投放契约） |
 | `pnpm build` | 通过 |
 | 浏览器 smoke | 通过；菜单、训练、暂停、双人、重赛、保存 |
 | 视觉检查 | `artifacts/weapon-layer-gallery.png` 六家族纹理；`artifacts/battle.png` 手内位置；`artifacts/training-bomb.png` 炸弹 + HUD；`artifacts/training-drop.png` 箱子 |
@@ -54,7 +55,7 @@
 ## 仍待完成
 
 1. 17 个具体型号的独立轮廓 / 配件 / 配色。
-2. HUD 32 px 武器图标、图鉴；训练 1—6 热键试枪已接，武器墙 UI 仍待。
+2. HUD 当前武器剪影已接（裁剪纹理，42 px 高）；图鉴 / 武器墙 UI 仍待。
 3. 开火后坐位移、枪口火光、换弹动作；目前换枪只换纹理。
 4. 投弹 / 拾取 / 爆炸音效已接；逐枪独立音色仍待。
 5. 正式地图 `dropPoints` 与箱子落点 / 拾取提示；当前回退到平台下半区派生点。

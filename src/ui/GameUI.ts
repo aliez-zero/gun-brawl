@@ -1,8 +1,9 @@
 import { KEY_BINDINGS } from '../content/controls';
+import { createWeaponIconCanvas } from '../presentation/WeaponArt';
 import { MODE_LABELS } from '../content/matches';
 import { APPEARANCE_PRESETS, isCharacterStyle, normalizeAppearance, presetAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
-import type { CharacterAppearance, GameMode, HumanSlot, MatchResult, MatchState } from '../game/core/types';
+import type { CharacterAppearance, GameMode, HumanSlot, MatchResult, MatchState, WeaponId } from '../game/core/types';
 import { isGameMode } from '../storage/SaveStore';
 import type { SaveData } from '../storage/SaveStore';
 import { appearanceEditor, drawAppearancePreviews } from './appearance/AppearanceEditor';
@@ -33,6 +34,7 @@ export class GameUI {
   private selected: GameMode;
   private hudReady = false;
   private lastPhase = '';
+  private readonly weaponIcons = new Map<string, string>();
   private ready = false;
   private editingSlot: HumanSlot = 1;
   private editNextRound = false;
@@ -172,10 +174,11 @@ export class GameUI {
   showMatch(state: Readonly<MatchState>): void {
     this.hudReady = true;
     this.lastPhase = '';
+    this.weaponIcons.clear();
     this.overlay.className = 'match-overlay';
     this.overlay.innerHTML = `
       <div class="hud-top">
-        <div class="actor-cards">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${actor.config.name}</span></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
+        <div class="actor-cards">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${actor.config.name}</span><canvas class="weapon-icon" id="weapon-icon-${actor.config.id}" width="120" height="48" aria-label="当前武器"></canvas></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
         <div class="timer-block"><span id="round-label">${MODE_LABELS[state.config.mode]}</span><strong id="round-time">03:00</strong></div>
         <button class="pause-button" data-action="pause" aria-label="暂停对战">Ⅱ <kbd>ESC</kbd></button>
       </div>
@@ -201,6 +204,7 @@ export class GameUI {
       const ammo = actor.weapon.ammoRemaining === null ? '∞' : String(actor.weapon.ammoRemaining);
       if (status) status.textContent = actor.status === 'eliminated' ? '已淘汰 · 观战中' : actor.status === 'respawning' ? '正在返回战场' : `${actor.weapon.definition.name} · ${ammo} · 炸弹 ${actor.bombsRemaining}`;
       card?.classList.toggle('eliminated', actor.status === 'eliminated');
+      this.drawWeaponIcon(actor.config.id, actor.weapon.definition.id);
     }
     const countdown = this.overlay.querySelector<HTMLElement>('.countdown');
     if (countdown) {
@@ -275,6 +279,17 @@ export class GameUI {
     this.overlay.className = 'dialog-overlay';
     this.overlay.innerHTML = `<section class="dialog-panel ${panelClass}" role="dialog" aria-modal="true" aria-label="${title}"><div class="eyebrow"><span class="slash">//</span> ${eyebrow}</div><h2>${title}</h2>${body}</section>`;
     this.overlay.querySelector<HTMLButtonElement>('.start-button')?.focus({ preventScroll: true });
+  }
+
+  private drawWeaponIcon(actorId: string, weaponId: WeaponId): void {
+    if (this.weaponIcons.get(actorId) === weaponId) return;
+    const canvas = this.overlay.querySelector<HTMLCanvasElement>(`#weapon-icon-${actorId}`);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(createWeaponIconCanvas(weaponId), 0, 0, canvas.width, canvas.height);
+    this.weaponIcons.set(actorId, weaponId);
   }
 
   private setGuide(mode: GameMode): void {
