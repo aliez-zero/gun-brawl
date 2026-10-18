@@ -47,8 +47,8 @@ export class CombatSystem {
           ...(weapon.impulseCap ? { impulseCap: weapon.impulseCap } : {}),
         });
       }
-      addImpulse(actor, -actor.facing * weapon.recoil, 0);
-      events.push({ type: 'shot', actorId: actor.config.id, position: { ...position } });
+      addImpulse(actor, -actor.facing * weapon.recoil, -(weapon.recoilY ?? 0));
+      events.push({ type: 'shot', actorId: actor.config.id, position: { ...position }, weaponId: weapon.id });
 
       if (ammo !== null) {
         actor.weapon.ammoRemaining = ammo - 1;

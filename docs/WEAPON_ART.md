@@ -1,6 +1,6 @@
 # 武器外观设计（提案）
 
-更新：2026-10-18（北京时间）。状态：**八家族手内版本与 HUD 剪影已接入；17 个具体型号仍是提案**。`WeaponArt` + `WeaponLayer` 已按 `ActorState.weapon.definition.id` 切换八种程序化侧视轮廓；`CharacterArt` 不再把同一把手枪烘进实战图集；本方案继续为 [17 个型号](./WEAPONS.md) 定义独立侧视轮廓、配色、手内尺寸和 HUD 识别规则。
+更新：2026-10-18（北京时间）。状态：**17 个型号已接入程序化侧视 / HUD 图标**。`WeaponArt` 以八家族轮廓为底，叠加 P1911 木托、Deagle 金枪口、AKM 木托、狙击镜筒、AWM 枪口环、AT4 黄色环带等型号色带与部件；`WeaponLayer` 按具体 `definition.id` 创建独立纹理。逐型号手绘换弹 / 火光帧仍待。
 
 ![武器侧视概念图](./assets/weapons-roster.png)
 

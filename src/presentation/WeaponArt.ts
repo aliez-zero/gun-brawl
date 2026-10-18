@@ -1,3 +1,4 @@
+import { getWeapon } from '../content/weapons';
 import type { WeaponId } from '../game/core/types';
 
 const WIDTH = 160;
@@ -146,12 +147,12 @@ function rocket(ctx: Ctx): void {
   arc(ctx, 50, 42, 18, 16, 0, Math.PI);
 }
 
-const PAINTERS: Record<WeaponId, (ctx: Ctx) => void> = {
+const PAINTERS: Partial<Record<WeaponId, (ctx: Ctx) => void>> = {
   pistol, smg, rifle, shotgun, sniper, rocket, gatling, cannon,
 };
 
 /** Tight local-space content boxes for HUD / crate icons (no grip-origin margins). */
-const ICON_BOUNDS: Record<WeaponId, { x: number; y: number; width: number; height: number }> = {
+const ICON_BOUNDS: Partial<Record<WeaponId, { x: number; y: number; width: number; height: number }>> = {
   pistol: { x: 18, y: 16, width: 62, height: 54 },
   smg: { x: 8, y: 19, width: 102, height: 54 },
   rifle: { x: 4, y: 17, width: 146, height: 55 },
@@ -161,6 +162,52 @@ const ICON_BOUNDS: Record<WeaponId, { x: number; y: number; width: number; heigh
   gatling: { x: 4, y: 18, width: 150, height: 56 },
   cannon: { x: 0, y: 8, width: 158, height: 62 },
 };
+
+interface ModelAccent { color: string; style: 'wood' | 'gold' | 'rail' | 'double' | 'scope' | 'ring' | 'stripe'; x: number; y: number; width: number; height: number }
+
+const MODEL_ACCENTS: Partial<Record<WeaponId, ModelAccent>> = {
+  p1911: { color: '#9b6a43', style: 'wood', x: 36, y: 44, width: 12, height: 22 },
+  deagle: { color: '#d8b45a', style: 'gold', x: 66, y: 28, width: 13, height: 10 },
+  ump45: { color: '#4fc3b1', style: 'stripe', x: 32, y: 28, width: 54, height: 6 },
+  vector: { color: '#f0a23a', style: 'stripe', x: 34, y: 38, width: 42, height: 5 },
+  uzi: { color: '#e05a4f', style: 'stripe', x: 36, y: 27, width: 38, height: 5 },
+  m416: { color: '#f0a23a', style: 'rail', x: 32, y: 20, width: 54, height: 4 },
+  akm: { color: '#9b6a43', style: 'wood', x: 6, y: 26, width: 30, height: 20 },
+  'scar-l': { color: '#f0a23a', style: 'rail', x: 30, y: 19, width: 70, height: 4 },
+  s686: { color: '#e05a4f', style: 'double', x: 58, y: 26, width: 88, height: 20 },
+  s1897: { color: '#e05a4f', style: 'double', x: 58, y: 38, width: 80, height: 7 },
+  s12k: { color: '#e05a4f', style: 'stripe', x: 58, y: 27, width: 60, height: 5 },
+  kar98k: { color: '#b48ce0', style: 'ring', x: 146, y: 26, width: 5, height: 10 },
+  m24: { color: '#b48ce0', style: 'scope', x: 44, y: 12, width: 34, height: 9 },
+  awm: { color: '#b48ce0', style: 'ring', x: 145, y: 24, width: 7, height: 16 },
+  rpg7: { color: '#9b6a43', style: 'wood', x: 45, y: 25, width: 30, height: 20 },
+  at4: { color: '#f2c94c', style: 'rail', x: 10, y: 26, width: 116, height: 5 },
+};
+
+const FAMILY_ACCENT: Partial<Record<WeaponId, string>> = {
+  pistol: '#e0b45a', smg: '#4fc3b1', rifle: '#f0a23a', shotgun: '#e05a4f',
+  sniper: '#b48ce0', rocket: '#f2c94c', gatling: '#f2a23a', cannon: '#ff5d73',
+};
+
+export function weaponFamily(id: WeaponId): WeaponId {
+  return getWeapon(id).family ?? id;
+}
+
+export function weaponAccentColor(id: WeaponId): string {
+  return MODEL_ACCENTS[id]?.color ?? FAMILY_ACCENT[weaponFamily(id)] ?? '#aab4b7';
+}
+
+function drawModelAccent(ctx: Ctx, id: WeaponId): void {
+  const accent = MODEL_ACCENTS[id];
+  if (!accent) return;
+  if (accent.style === 'wood') box(ctx, accent.x, accent.y, accent.width, accent.height, accent.color, 1);
+  if (accent.style === 'gold') poly(ctx, [accent.x, accent.y, accent.x + accent.width, accent.y + accent.height / 2, accent.x, accent.y + accent.height], accent.color);
+  if (accent.style === 'rail') line(ctx, accent.x, accent.y, accent.x + accent.width, accent.y, accent.color, 2);
+  if (accent.style === 'double') line(ctx, accent.x, accent.y, accent.x + accent.width, accent.y, accent.color, 2);
+  if (accent.style === 'scope') box(ctx, accent.x, accent.y, accent.width, accent.height, '#20282d', 2);
+  if (accent.style === 'ring') line(ctx, accent.x, accent.y, accent.x, accent.y + accent.height, accent.color, 2.2);
+  if (accent.style === 'stripe') line(ctx, accent.x, accent.y, accent.x + accent.width, accent.y + accent.height, accent.color, 1.6);
+}
 
 export function weaponArtKey(id: WeaponId): string {
   return `weapon-art-${id}`;
@@ -177,7 +224,7 @@ export function createWeaponIconCanvas(id: WeaponId): HTMLCanvasElement {
   canvas.height = 48;
   const ctx = canvas.getContext('2d')!;
   const source = createWeaponArtCanvas(id);
-  const bounds = ICON_BOUNDS[id];
+  const bounds = ICON_BOUNDS[weaponFamily(id)] ?? ICON_BOUNDS.pistol!;
   ctx.drawImage(
     source,
     bounds.x * SAMPLE, bounds.y * SAMPLE, bounds.width * SAMPLE, bounds.height * SAMPLE,
@@ -194,6 +241,8 @@ export function createWeaponArtCanvas(id: WeaponId): HTMLCanvasElement {
   ctx.scale(SAMPLE, SAMPLE);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  PAINTERS[id](ctx);
+  const paint = PAINTERS[weaponFamily(id)] ?? PAINTERS.pistol!;
+  paint(ctx);
+  drawModelAccent(ctx, id);
   return canvas;
 }

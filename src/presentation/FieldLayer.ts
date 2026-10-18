@@ -1,12 +1,8 @@
 import Phaser from 'phaser';
 import type { BattleEvent, MatchState, WeaponId } from '../game/core/types';
-import { createWeaponIconCanvas, weaponIconKey } from './WeaponArt';
+import { createWeaponIconCanvas, weaponAccentColor, weaponIconKey } from './WeaponArt';
 
-const ACCENT: Record<WeaponId, number> = {
-  pistol: 0xaab4b7, smg: 0x4fc3b1, rifle: 0xf0a23a,
-  shotgun: 0xe05a4f, sniper: 0xb48ce0, rocket: 0xf2c94c,
-  gatling: 0xf2a23a, cannon: 0xff5d73,
-};
+const accentOf = (id: WeaponId): number => Number.parseInt(weaponAccentColor(id).slice(1), 16);
 
 interface Burst { x: number; y: number; radius: number; age: number }
 
@@ -42,7 +38,7 @@ export class FieldLayer {
     const interpolate = state.phase === 'playing';
     const visibleIcons = new Set<number>();
     for (const drop of state.drops) {
-      const accent = ACCENT[drop.weaponId];
+      const accent = accentOf(drop.weaponId);
       const x = drop.position.x;
       if (drop.state === 'incoming') {
         const pulse = 0.5 + 0.5 * Math.sin(this.clock * 10);

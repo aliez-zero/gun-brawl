@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { DEFAULT_KEY_BINDINGS } from '../content/controls';
 import type { KeyBindings } from '../content/controls';
 import { MatchRunner } from '../game/core/MatchRunner';
-import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchConfig, MatchState } from '../game/core/types';
+import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchConfig, MatchState, WeaponId } from '../game/core/types';
 import { KeyboardInput } from '../presentation/KeyboardInput';
 import { ArenaRenderer } from '../presentation/ArenaRenderer';
 import { FieldLayer } from '../presentation/FieldLayer';
@@ -84,7 +84,7 @@ export class ArenaScene extends Phaser.Scene {
   setReducedMotion(value: boolean): void { this.arenaView.reducedMotion = value; }
   resetTraining(): void { this.runner?.resetTraining(); this.keyboard.clear(); }
   setDummyMoving(value: boolean): void { this.runner?.setDummyMoving(value); }
-  selectTrainingWeapon(slot: number): void { this.runner?.simulation.selectTrainingWeapon(slot); }
+  selectTrainingWeapon(slotOrId: number | WeaponId): void { this.runner?.simulation.selectTrainingWeapon(slotOrId); }
   get matchState(): Readonly<MatchState> | null { return this.runner?.state ?? null; }
 
   update(_time: number, delta: number): void {

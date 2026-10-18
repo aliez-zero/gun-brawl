@@ -5,13 +5,24 @@ export interface DropPoolEntry {
   weight: number;
 }
 
-/** Standard family weights plus rare ultimate weapons. */
+/** Seventeen-model weights; generic family ids remain training / legacy aliases. */
 export const DEFAULT_DROP_POOL: readonly DropPoolEntry[] = [
-  { weaponId: 'smg', weight: 25 },
-  { weaponId: 'rifle', weight: 30 },
-  { weaponId: 'shotgun', weight: 20 },
-  { weaponId: 'sniper', weight: 15 },
-  { weaponId: 'rocket', weight: 10 },
+  { weaponId: 'p1911', weight: 8 },
+  { weaponId: 'deagle', weight: 4 },
+  { weaponId: 'ump45', weight: 22 },
+  { weaponId: 'vector', weight: 14 },
+  { weaponId: 'uzi', weight: 12 },
+  { weaponId: 'm416', weight: 26 },
+  { weaponId: 'akm', weight: 18 },
+  { weaponId: 'scar-l', weight: 16 },
+  { weaponId: 's686', weight: 14 },
+  { weaponId: 's1897', weight: 10 },
+  { weaponId: 's12k', weight: 8 },
+  { weaponId: 'kar98k', weight: 10 },
+  { weaponId: 'm24', weight: 7 },
+  { weaponId: 'awm', weight: 4 },
+  { weaponId: 'rpg7', weight: 7 },
+  { weaponId: 'at4', weight: 4 },
   { weaponId: 'gatling', weight: 5 },
   { weaponId: 'cannon', weight: 2 },
 ];

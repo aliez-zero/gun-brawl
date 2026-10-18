@@ -1,6 +1,6 @@
 # T01 · 武器实例与八类枪械（含终极武器）
 
-更新：2026-10-18（北京时间）。分组：战斗 / 枪械。状态：核心完成；负责人：当前会话；八把枪（六标准 + 两终极）、弹匣 / 备弹 / 换弹、T03 拾取、T08 训练 1—8 试枪已交付；17 型号 / 图鉴 / 教程仍待。基线 `40df29d`。
+更新：2026-10-18（北京时间）。分组：战斗 / 枪械。状态：核心完成；负责人：当前会话；17 个具体型号 + 两类终极、逐枪弹匣 / 备弹 / 换弹 / 后坐、投放 / HUD / 图鉴 / 训练预选和程序化外观 / 音高已交付；逐枪手绘动作与音色素材仍待。
 
 [模块目录](./README.md) · [认领与依赖总看板](../PARALLEL_PLAN.md) · [当前实现状态](../DEVELOPMENT.md)
 
@@ -8,7 +8,7 @@
 
 先读 [AGENTS.md](../../AGENTS.md)、[架构](../ARCHITECTURE.md) 和 [PRD](../PRD.md)。状态、负责人、工作区与分支只在总看板登记；本文复选框用于子任务，不代表集成完成。
 
-T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`WeaponInstance { definition, ammoRemaining }`、`ActorState.weapon`、`MatchConfig.startingWeapon`、`Projectile.weaponId / velocity / impulse`；冷却仍在 `ActorState.fireCooldown`，切枪不重置。T01 直接在这些字段上补注册表、有限弹、耗尽回退和八枪，不要另建并行类型。普通枪械可与 T02、T04、T06、T12 并行；火箭必须等待 T02 的真实爆炸服务，未完成时如实记为部分交付。17 个具体型号与“弹匣 + 备弹 + 换弹”的后续提案见 [武器型号设计](../WEAPONS.md)；它尚未实现，落地时需替换当前 `maxAmmo` 总弹量语义。2026-10-18 用户反馈“枪的威力不对，和手枪差距太大”，因此重调特殊枪击退，并加入加特林 / 重炮狙击枪两类终极武器。
+T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`WeaponInstance { definition, ammoRemaining }`、`ActorState.weapon`、`MatchConfig.startingWeapon`、`Projectile.weaponId / velocity / impulse`；冷却仍在 `ActorState.fireCooldown`，切枪不重置。T01 直接在这些字段上补注册表、有限弹、耗尽回退和八枪，不要另建并行类型。普通枪械可与 T02、T04、T06、T12 并行；火箭必须等待 T02 的真实爆炸服务，未完成时如实记为部分交付。17 个具体型号与逐枪参数见 [武器型号设计](../WEAPONS.md)；P92 + 16 个标准型号现已注册，八类别名保留给训练 1—8 与旧存档。2026-10-18 用户反馈“枪的威力不对，和手枪差距太大”，因此重调特殊枪击退，并加入加特林 / 重炮狙击枪两类终极武器。
 
 ## 模块范围与验收
 
@@ -31,6 +31,18 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 - [x] **T01.5** 覆盖耗尽回退、切枪后在途弹丸、复活 / 加时复位；交付 HUD 与 AI 读取接口及试射记录。
 - [x] **T01.6** 按用户反馈重调特殊枪威力；新增加特林 / 重炮狙击枪两类终极武器、终极池权重、HUD / 训练入口和“一枪击出”测试。
 - [x] **T01.7** 把总弹量改为弹匣 + 备弹 + 换弹：R / 小键盘 2 手动换弹、空仓按住开火自动换弹、HUD 显示弹匣 / 备弹 / 倒计时，拾取 / 复活 / 训练补满两池。
+- [x] **T01.8** 注册 17 个具体型号：逐枪弹匣 / 备弹 / 换弹 / 后坐 Y、投放权重、图鉴 17 卡、训练任意型号预选、型号色带 / 部件外观与射击音高；8 类别名兼容保留。
+
+## 17 型号当前交付（2026-10-18）
+
+- `ARMORY_WEAPONS`：P92、P1911、Deagle、UMP45、Vector、UZI、M416、AKM、SCAR-L、S686、S1897、S12K、Kar98k、M24、AWM、RPG-7、AT4。
+- `WEAPON_MODELS`：16 个新增型号；`WEAPONS` 保留八类别名，`getWeapon` 同时查两表，旧存档 / 训练槽不破。
+- 逐枪参数来自 [WEAPONS.md](../WEAPONS.md)：弹匣 / 备弹 / 换弹、水平 + 垂直后坐、弹速 / 射程 / 击退、霰弹丸数与散布、火箭爆炸半径 / 推力。
+- 投放池改为 16 个标准型号 + 加特林 / 重炮；`STANDARD_DROP_POOL` 过滤终极。
+- 图鉴 17 卡可直接预选任意型号进入训练；HUD 显示具体型号名。
+- `WeaponArt` 家族轮廓 + 型号色带 / 木托 / 镜筒 / 枪口环；`SoundEffects` 按 `weaponId` 使用逐型号音高。
+- `tests/weapons-models.test.ts` 4 项；完整回归 **182 项 / 19 文件**。
+- 仍待：逐型号手绘换弹 / 枪口火光帧、真实音色素材、人工逐枪平衡。
 
 ## T01 交付结果（八枪核心）
 
@@ -74,7 +86,7 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 
 ### 检查
 
-- `pnpm typecheck` 通过；`pnpm test` **178 项 / 18 文件**通过（含并行地图会话、T03 / T05 / T06 / T07 / T08 / T09 / T11 / T12 测试）；`pnpm build` 通过。
+- `pnpm typecheck` 通过；`pnpm test` **182 项 / 19 文件**通过（含并行地图会话、T03 / T05 / T06 / T07 / T08 / T09 / T11 / T12 测试）；`pnpm build` 通过。
 - `tests/weapons.test.ts` 覆盖八枪注册表 / 切枪 / 补弹、三把直射枪、霰弹五弹道与单发扣弹、火箭命中 / 射程耗尽 / 爆炸快照、重炮一枪击出、加特林高速弹带、耗尽回退、AI 射程读取。
 - `tests/reload.test.ts` 覆盖空仓自动换弹、手动换弹、备弹不足部分装填、无限弹手枪拒绝换弹、补满两池、换弹期间禁射与备弹只扣一次。
 - 未做人工手感 / 平衡试射；T03 游戏内拾取和 T08 训练 1—8 试枪已接，HUD 图鉴 / 教程任务仍未接。

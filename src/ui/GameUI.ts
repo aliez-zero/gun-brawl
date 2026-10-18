@@ -1,7 +1,7 @@
 import { BINDING_ACTIONS, cloneBindings, keyLabel, rebind } from '../content/controls';
 import type { ControlAction, KeyBindings } from '../content/controls';
 import { TRAINING_TASKS } from '../content/tutorial';
-import { getWeapon, WEAPON_SLOTS } from '../content/weapons';
+import { ARMORY_WEAPONS } from '../content/weapons';
 import { createWeaponIconCanvas } from '../presentation/WeaponArt';
 import {
   CUSTOM_MAP_OPTIONS, CUSTOM_MATCH_LIMITS, DIFFICULTY_LABELS, MODE_LABELS, cloneCustomMatch, validateCustomMatch,
@@ -154,7 +154,7 @@ export class GameUI {
       }
       if (action === 'train-weapon') {
         const weaponId = button.dataset.weapon as WeaponId;
-        if (WEAPON_SLOTS.includes(weaponId)) this.actions.startTrainingWeapon(weaponId);
+        if (ARMORY_WEAPONS.some((weapon) => weapon.id === weaponId)) this.actions.startTrainingWeapon(weaponId);
         return;
       }
       if (action === 'appearance-slot') {
@@ -268,7 +268,7 @@ export class GameUI {
         </div>
         <p class="mode-description">${descriptions[this.selected]}</p>
         <div class="loadout-actions"><button data-action="appearance"><span>✦ 角色外观</span><small>${look.name} ↗</small></button><button data-action="maps"><span>▧ 更换地图</span><small>${map.name} ↗</small></button></div>
-        <button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>八类枪真实数据 / 直接试枪 ↗</small></button>
+        <button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>17 个型号真实数据 / 直接试枪 ↗</small></button>
         <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${!this.ready ? '正在准备战场' : this.selected === 'custom' ? '配置对局' : this.selected === 'campaign' ? '选择关卡' : '进入战场'}</span><span>↗</span></button>
         <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : this.selected === 'custom' ? '2—4 人自由配置' : this.selected === 'campaign' ? '六关战役' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : this.selected === 'custom' ? '可关闭特殊投放' : this.selected === 'campaign' ? '胜利解锁下一关' : '最后存活者获胜'}</span></div>
       </div>
@@ -398,8 +398,8 @@ export class GameUI {
   }
 
   showEncyclopedia(): void {
-    const cards = WEAPON_SLOTS.map((id) => {
-      const weapon = getWeapon(id);
+    const cards = ARMORY_WEAPONS.map((weapon) => {
+      const id = weapon.id;
       const magazine = weapon.maxAmmo === null ? '∞' : `${weapon.maxAmmo}/${weapon.reserveAmmo ?? 0}`;
       const spread = weapon.pellets > 1
         ? `${weapon.pellets} 丸 · ±${Math.round(weapon.spreadRadians * 180 / Math.PI)}°`
@@ -413,7 +413,7 @@ export class GameUI {
         <button data-action="train-weapon" data-weapon="${id}">用此枪训练 ↗</button>
       </article>`;
     }).join('');
-    this.dialog('ARMORY', '八类武器，真实参数。', `<p class="dialog-copy">按真实配置展示弹匣、备弹、换弹、射速、射程与击退；训练中按 1—8 可直接切换。</p><div class="encyclopedia-grid">${cards}</div><div class="dialog-actions"><button data-action="close">返回</button></div>`);
+    this.dialog('ARMORY', '十七个型号，真实参数。', `<p class="dialog-copy">六类标准枪共 17 个具体型号，逐枪展示弹匣、备弹、换弹、射速、射程、击退与后坐；点任意型号可直接进入训练场试枪。训练中 1—8 为类别代表。</p><div class="encyclopedia-grid">${cards}</div><div class="dialog-actions"><button data-action="close">返回</button></div>`);
   }
 
   showCustomSetup(settings: CustomMatchSettings): void {

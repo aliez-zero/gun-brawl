@@ -4,7 +4,7 @@ import type { CustomMatchSettings } from '../content/matches';
 import { CAMPAIGN_LEVELS, createCampaignConfig, getCampaignLevel } from '../content/campaign';
 import { normalizeAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
-import { getWeapon, WEAPON_SLOTS } from '../content/weapons';
+import { getWeapon } from '../content/weapons';
 import type { BattleEvent, GameMode, MatchState, WeaponId } from '../game/core/types';
 import { SoundEffects } from '../presentation/SoundEffects';
 import { ArenaScene } from '../scenes/ArenaScene';
@@ -185,11 +185,8 @@ export class GameApplication {
   private startTrainingWeapon(weaponId: WeaponId): void {
     this.start('training');
     if (!this.isReady) return;
-    const slot = WEAPON_SLOTS.indexOf(weaponId) + 1;
-    if (slot > 0) {
-      this.arena.selectTrainingWeapon(slot);
-      this.ui.updateHUD(this.arena.matchState!);
-    }
+    this.arena.selectTrainingWeapon(weaponId);
+    this.ui.updateHUD(this.arena.matchState!);
   }
 
   private frame(state: Readonly<MatchState>): void {

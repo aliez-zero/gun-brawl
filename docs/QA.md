@@ -11,7 +11,7 @@ pnpm build
 pnpm test:browser   # 需要预览服务与 Chrome
 ```
 
-2026-10-18 结果：类型检查通过；**178 项 / 18 文件**通过；构建通过；浏览器 smoke 通过（菜单、画布、键盘、训练、暂停 / 恢复、失焦、设置、双人、重赛、刷新、禁用存储）。
+2026-10-18 结果：类型检查通过；**182 项 / 19 文件**通过；构建通过；浏览器 smoke 通过（菜单、画布、键盘、训练、暂停 / 恢复、失焦、设置、双人、重赛、刷新、禁用存储）。
 
 ## 覆盖矩阵
 
@@ -20,7 +20,7 @@ pnpm test:browser   # 需要预览服务与 Chrome
 | 移动 / 二段跳 / 穿台 / 复活 | `simulation.test.ts`、`map-routes.test.ts`、`map-combat.test.ts` | 最低视口与硬件键位 |
 | 射击 / 击退 / 保护 / 同帧淘汰 | `simulation.test.ts`、`weapons.test.ts`、`quality.test.ts` | 四名真人同帧出界 |
 | 四图路线 / 投放 / 气闸 | `map-routes.test.ts`、`map-combat.test.ts`、`maps-appearance.test.ts` | 四人多角色竞速 |
-| 八枪 / 弹匣 / 终极 | `weapons.test.ts`、`weapon-contract` 相关测试 | 17 具体型号仍待 |
+| 17 型号 / 弹匣 / 终极 | `weapons.test.ts`、`weapons-models.test.ts` | 逐枪手绘动作 / 真实音色 / 人工平衡 |
 | 炸弹 / 爆炸 | `explosives.test.ts`、`ai.test.ts` | 暂停时引信冻结人工复核 |
 | AI 三档 / 导航 | `ai.test.ts`、`map-routes.test.ts` | 困难档完整人工对局 |
 | 自定义 2—4 人 | `match-config.test.ts`、`quality.test.ts` | 2 真人 + 2 AI 浏览器已验；4 真人不可 |
@@ -43,7 +43,7 @@ pnpm test:browser   # 需要预览服务与 Chrome
 1. **性能未验收**：软件渲染冒烟只证明流程可跑，不能作为真实显卡帧率 / 输入延迟结论。
 2. **Edge 与硬件键位未测**：当前浏览器证据为 Chrome headless。
 3. **四人真人不可自动覆盖**：只有 2 真人 + 2 AI；同帧出界 / 观战仍需人工。
-4. **17 个具体武器型号未实现**：仍是八类武器骨架。
+4. **17 个型号已实现程序化外观**：逐枪手绘换弹 / 火光帧与真实音色仍未完成。
 5. **AI 多人战术**：集火 / 掩护未做，三档差异有限。
 6. **战役平衡**：配置与解锁通过，但六关人工实战未调优。
 

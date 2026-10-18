@@ -14,7 +14,14 @@ export interface TrainingState {
 }
 export type HumanSlot = 1 | 2;
 /** Stable IDs for the six PRD families. Five non-rocket families have content; rocket waits for T02. */
-export type WeaponId = 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket' | 'gatling' | 'cannon';
+export type WeaponId =
+  | 'pistol' | 'smg' | 'rifle' | 'shotgun' | 'sniper' | 'rocket' | 'gatling' | 'cannon'
+  | 'p1911' | 'deagle'
+  | 'ump45' | 'vector' | 'uzi'
+  | 'm416' | 'akm' | 'scar-l'
+  | 's686' | 's1897' | 's12k'
+  | 'kar98k' | 'm24' | 'awm'
+  | 'rpg7' | 'at4';
 export type WeaponTier = 'standard' | 'ultimate';
 export type CharacterStyle = 'cowboy' | 'ronin' | 'operative' | 'astronaut' | 'knight';
 export type Headwear = 'cowboy' | 'straw' | 'beret' | 'space' | 'knight' | 'none';
@@ -75,6 +82,8 @@ export interface MapDefinition {
 export interface WeaponDefinition {
   id: WeaponId;
   name: string;
+  /** Concrete model uses a family's art / audio silhouette. */
+  family?: WeaponId;
   /** Ultimate weapons are rare drops / training-only showcases, never the default pistol. */
   tier: WeaponTier;
   interval: number;
@@ -82,6 +91,8 @@ export interface WeaponDefinition {
   range: number;
   knockback: number;
   recoil: number;
+  /** Optional separate vertical recoil; models use it while legacy families keep 0. */
+  recoilY?: number;
   /** Magazine capacity; null means infinite magazine (pistol). */
   maxAmmo: number | null;
   /** Rounds carried outside the magazine; refilled on pickup / spawn, not by firing. */
@@ -261,7 +272,7 @@ export interface MatchState {
 }
 
 export type BattleEvent =
-  | { type: 'shot'; actorId: string; position: Vec2 }
+  | { type: 'shot'; actorId: string; position: Vec2; weaponId?: WeaponId }
   | { type: 'hit'; actorId: string; position: Vec2 }
   | { type: 'bomb'; actorId: string; position: Vec2; bombId: number }
   | { type: 'bomb-empty'; actorId: string; position: Vec2 }

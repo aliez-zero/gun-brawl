@@ -2,7 +2,7 @@ import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../../content/drops';
 import { WEAPON_SLOTS } from '../../content/weapons';
 import { createActor } from './actors';
 import { idleInput } from './types';
-import type { ActorInput, BattleEvent, MatchConfig, MatchState } from './types';
+import type { ActorInput, BattleEvent, MatchConfig, MatchState, WeaponId } from './types';
 import { moveActor } from '../systems/MovementSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { DropSystem } from '../systems/DropSystem';
@@ -40,9 +40,9 @@ export class BattleSimulation {
   }
 
   /** T08.2: training-only hotbar. UI/scene code calls this; DOM never edits actor state. */
-  selectTrainingWeapon(slot: number): boolean {
+  selectTrainingWeapon(slotOrId: number | WeaponId): boolean {
     if (this.state.config.mode !== 'training') return false;
-    const weaponId = WEAPON_SLOTS[slot - 1];
+    const weaponId = typeof slotOrId === 'number' ? WEAPON_SLOTS[slotOrId - 1] : slotOrId;
     if (!weaponId) return false;
     let selected = false;
     for (const actor of this.state.actors) {
