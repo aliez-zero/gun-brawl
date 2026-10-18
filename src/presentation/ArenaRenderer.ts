@@ -148,19 +148,23 @@ export class ArenaRenderer {
       const dy = speed > 1e-8 ? projectile.velocity.y / speed : 0;
       const style = trailStyle(projectile.weaponId);
       const family = getWeapon(projectile.weaponId).family ?? projectile.weaponId;
+      // Never draw the trail behind the muzzle on the first frame after firing.
+      const origin = projectile.origin ?? projectile.position;
+      const travel = Math.hypot(x - origin.x, y - origin.y);
+      const back = Math.min(style.length, travel);
       if (family === 'rocket') {
         g.lineStyle(style.glowWidth, 0xff5b2a, style.glowAlpha);
-        g.lineBetween(x - dx * 26, y - dy * 26, x - dx * 2, y - dy * 2);
+        g.lineBetween(x - dx * back, y - dy * back, x - dx * 2, y - dy * 2);
         g.lineStyle(style.width, 0xffb347, 0.95);
-        g.lineBetween(x - dx * 15, y - dy * 15, x + dx * 2, y + dy * 2);
+        g.lineBetween(x - dx * Math.min(15, back), y - dy * Math.min(15, back), x + dx * 2, y + dy * 2);
         g.fillStyle(0x273036, 1).fillCircle(x + dx * 3, y + dy * 3, 4);
         g.lineStyle(1.2, 0xffdf9a, 1).lineBetween(x - dx * 2, y - dy * 2, x + dx * 7, y + dy * 7);
         continue;
       }
       g.lineStyle(style.glowWidth, style.glow, style.glowAlpha);
-      g.lineBetween(x - dx * style.length, y - dy * style.length, x + dx * 3, y + dy * 3);
+      g.lineBetween(x - dx * back, y - dy * back, x + dx * 3, y + dy * 3);
       g.lineStyle(style.width, style.color, 1);
-      g.lineBetween(x - dx * style.length * 0.72, y - dy * style.length * 0.72, x + dx * 4, y + dy * 4);
+      g.lineBetween(x - dx * back * 0.72, y - dy * back * 0.72, x + dx * 4, y + dy * 4);
     }
     for (const effect of this.effects) {
       if (!frozen) effect.life -= seconds;

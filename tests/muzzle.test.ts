@@ -33,6 +33,7 @@ function fired(id: WeaponId, facing: -1 | 1): { x: number; y: number; shot: { x:
   if (!projectile) throw new Error(`${id} did not fire`);
   const shot = simulation.drainEvents().find((event) => event.type === 'shot' && event.actorId === 'p1');
   if (!shot || shot.type !== 'shot') throw new Error(`${id} did not emit a shot event`);
+  expect(projectile.origin).toEqual(projectile.previous);
   return { x: projectile.previous.x, y: projectile.previous.y, shot: { x: shot.position.x, y: shot.position.y } };
 }
 

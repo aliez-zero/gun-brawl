@@ -43,7 +43,7 @@ export class CombatSystem {
         const spread = pellets === 1 ? 0 : ((index / (pellets - 1)) * 2 - 1) * weapon.spreadRadians;
         state.projectiles.push({
           id: this.nextProjectile++, owner: actor.config.id, weaponId: weapon.id,
-          position: { ...position }, previous: { ...position }, direction: actor.facing,
+          position: { ...position }, previous: { ...position }, origin: { ...position }, direction: actor.facing,
           velocity: {
             x: Math.cos(spread) * weapon.projectileSpeed * actor.facing,
             y: Math.sin(spread) * weapon.projectileSpeed,

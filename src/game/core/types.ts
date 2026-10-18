@@ -187,6 +187,8 @@ export interface Projectile {
   weaponId: WeaponId;
   position: Vec2;
   previous: Vec2;
+  /** Muzzle spawn point; keeps the visual trail from extending behind the barrel. */
+  origin?: Vec2;
   direction: -1 | 1;
   velocity: Vec2;
   impulse: Vec2;
