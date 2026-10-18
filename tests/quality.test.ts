@@ -56,6 +56,17 @@ describe('T11 four-player match regression', () => {
     expect(simulation.state.result?.overtime).toBe(true);
   });
 
+  it('runs twenty four-player simulations without runaway cost', () => {
+    const started = performance.now();
+    for (let match = 0; match < 20; match++) {
+      const simulation = fourPlayer();
+      for (let frame = 0; frame < 120; frame++) simulation.step(FIXED_STEP, inputs());
+    }
+    const elapsed = performance.now() - started;
+    // This is a JS-only guard, not a GPU / frame-time acceptance result.
+    expect(elapsed).toBeLessThan(5000);
+  });
+
   it('keeps four actor slots and independent identities across a restart', () => {
     const first = fourPlayer();
     expect(first.state.actors.map((actor) => actor.config.id)).toEqual(['p1', 'p2', 'bot-1', 'bot-2']);

@@ -53,11 +53,16 @@ export function characterFrame(actor: Readonly<ActorState>, time: number, hurtAg
 
 export const CHARACTER_GRIP = { x: 16, y: -24 } as const;
 
+const RELOAD_TILT: Partial<Record<string, number>> = {
+  pistol: 0.34, smg: 0.48, rifle: 0.55, shotgun: 0.78, sniper: 0.64, rocket: 0.72,
+};
+
 /** Rotation is cosmetic and pivots at the same hand in all poses and facings. */
 export function weaponPose(actor: Readonly<ActorState>): { rotation: number; alpha: number } {
   const duration = actor.weapon.definition.reloadTime ?? 1;
+  const family = actor.weapon.definition.family ?? actor.weapon.definition.id;
   const reload = actor.reloadRemaining > 0 ? Math.max(0, Math.min(1, 1 - actor.reloadRemaining / duration)) : 0;
-  const reloadTilt = actor.reloadRemaining > 0 ? Math.sin(reload * Math.PI) * 0.48 : 0;
+  const reloadTilt = actor.reloadRemaining > 0 ? Math.sin(reload * Math.PI) * (RELOAD_TILT[family] ?? 0.48) : 0;
   const sinceShot = actor.weapon.definition.interval - actor.fireCooldown;
   const recoil = actor.fireCooldown > 0 && sinceShot >= 0 ? Math.max(0, Math.min(1, 1 - sinceShot / 0.11)) : 0;
   return { rotation: (-reloadTilt - recoil * 0.08) * actor.facing, alpha: actor.protectionRemaining > 0 ? 0.78 : 1 };
