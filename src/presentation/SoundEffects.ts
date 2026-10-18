@@ -10,6 +10,16 @@ const SHOT_TONES: Partial<Record<WeaponId, [number, number, number, number]>> = 
   gatling: [240, 110, 0.03, 0.09], cannon: [40, 18, 0.22, 0.3],
 };
 
+const RELOAD_TONES: Partial<Record<WeaponId, [number, number]>> = {
+  pistol: [680, 430], p1911: [640, 400], deagle: [520, 330],
+  smg: [560, 320], ump45: [540, 310], vector: [590, 340], uzi: [610, 350],
+  rifle: [420, 250], m416: [450, 270], akm: [380, 220], 'scar-l': [440, 260],
+  shotgun: [330, 190], s686: [350, 200], s1897: [300, 170], s12k: [360, 210],
+  sniper: [470, 280], kar98k: [500, 300], m24: [480, 290], awm: [430, 250],
+  rocket: [260, 160], rpg7: [250, 150], at4: [230, 140],
+  gatling: [520, 300], cannon: [200, 120],
+};
+
 export class SoundEffects {
   private context: AudioContext | null = null;
   volume = 0.35;
@@ -27,6 +37,11 @@ export class SoundEffects {
       const [start, end, duration, level] = SHOT_TONES[event.weaponId ?? 'pistol'] ?? SHOT_TONES.pistol!;
       this.tone(start, end, duration, 'square', level);
     }
+    if (event.type === 'reload-start') {
+      const [start, end] = RELOAD_TONES[event.weaponId] ?? RELOAD_TONES.pistol!;
+      this.tone(start, end, 0.045, 'square', 0.12);
+      this.tone(end, end * 0.78, 0.06, 'triangle', 0.1, 0.13);
+    }
     if (event.type === 'hit') this.tone(110, 45, 0.07, 'triangle', 0.2);
     if (event.type === 'bomb') this.tone(240, 90, 0.12, 'triangle', 0.16);
     if (event.type === 'explosion') this.tone(90, 35, 0.3, 'sawtooth', 0.25);
@@ -36,19 +51,20 @@ export class SoundEffects {
     if (event.type === 'finished') this.tone(330, 660, 0.35, 'sine', 0.25);
   }
 
-  private tone(start: number, end: number, duration: number, type: OscillatorType, level: number): void {
+  private tone(start: number, end: number, duration: number, type: OscillatorType, level: number, delay = 0): void {
     const context = this.context!;
+    const at = context.currentTime + delay;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = type;
-    oscillator.frequency.setValueAtTime(start, context.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(end, context.currentTime + duration);
-    gain.gain.setValueAtTime(Math.max(0.0001, this.volume * level), context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
+    oscillator.frequency.setValueAtTime(start, at);
+    oscillator.frequency.exponentialRampToValueAtTime(end, at + duration);
+    gain.gain.setValueAtTime(Math.max(0.0001, this.volume * level), at);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
     oscillator.connect(gain).connect(context.destination);
     oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
-    oscillator.start();
-    oscillator.stop(context.currentTime + duration);
+    oscillator.start(at);
+    oscillator.stop(at + duration);
   }
 
   destroy(): void { void this.context?.close().catch(() => undefined); }

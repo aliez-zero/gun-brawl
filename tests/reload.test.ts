@@ -31,6 +31,7 @@ describe('T01 magazine and reload', () => {
     expect(actor.reloadRemaining).toBeGreaterThan(0);
     expect(actor.weapon.ammoRemaining).toBe(0);
     expect(actor.weapon.reserveRemaining).toBe(90);
+    expect(match.drainEvents().some((event) => event.type === 'reload-start' && event.weaponId === 'smg')).toBe(true);
 
     step(match, 100);
     expect(actor.reloadRemaining).toBe(0);

@@ -11,6 +11,7 @@
 - 逐枪换弹时长还会缩放家族姿势（`duration / 1.8`，限制 0.8—1.25 倍），AWM / AT4 等慢换弹枪比 Vector / UZI 下沉更明显。
 - `ArenaRenderer`：`shot` 事件携带具体 `weaponId`，枪口火光按家族绘制：手枪 / 冲锋枪小星、霰弹扇形、狙击长条、火箭尾焰与烟圈、加特林 / 重炮重闪。
 - `SoundEffects`：逐型号射击音高表；`shot` 事件新增可选 `weaponId`，旧事件兼容。
+- 换弹音：`CombatSystem` 在手动 / 空仓自动换弹开始时发 `reload-start`（含具体 `weaponId`），`SoundEffects` 用逐型号双段机械音（约 200—680 Hz，第二段延迟 0.13 秒）；不改变弹药 / 计时逻辑。
 - `WeaponSupport` / `WeaponLayer`：手枪保持单手，冲锋枪 / 步枪 / 霰弹 / 狙击 / 火箭 / 重武器在枪管前部增加支撑手 / 前臂纹理；按角色肤色缓存、随枪械旋转 / 后坐 / 换弹位移和左右朝向移动，`reset` / `destroy` 清理。
 
 ## 验证

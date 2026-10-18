@@ -15,12 +15,17 @@ export class CombatSystem {
       tickReload(actor, dt);
       const input = inputs.get(actor.config.id);
       if (!input) continue;
-      if (input.reloadPressed) startReload(actor);
+      if (input.reloadPressed && startReload(actor)) {
+        events.push({ type: 'reload-start', actorId: actor.config.id, position: { ...actor.position }, weaponId: actor.weapon.definition.id });
+      }
       if (!input.shootHeld || actor.fireCooldown > 1e-8 || actor.reloadRemaining > 1e-8) continue;
       if (!hasAmmo(actor)) {
         // Empty magazine: start a reload when reserve is available. Only a truly
         // depleted loadout reverts, and that frame never grants a free pistol shot.
-        if (startReload(actor)) continue;
+        if (startReload(actor)) {
+          events.push({ type: 'reload-start', actorId: actor.config.id, position: { ...actor.position }, weaponId: actor.weapon.definition.id });
+          continue;
+        }
         revertToPistol(actor);
         actor.fireCooldown = Math.max(actor.fireCooldown, BASIC_PISTOL.interval);
         continue;

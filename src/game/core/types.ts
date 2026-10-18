@@ -273,6 +273,7 @@ export interface MatchState {
 
 export type BattleEvent =
   | { type: 'shot'; actorId: string; position: Vec2; weaponId?: WeaponId }
+  | { type: 'reload-start'; actorId: string; position: Vec2; weaponId: WeaponId }
   | { type: 'hit'; actorId: string; position: Vec2 }
   | { type: 'bomb'; actorId: string; position: Vec2; bombId: number }
   | { type: 'bomb-empty'; actorId: string; position: Vec2 }
