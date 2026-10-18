@@ -36,13 +36,13 @@
 - `WeaponDefinition.maxAmmo: number | null`：`null` 表示无限弹；当前手枪为 `null`。
 - `WeaponInstance { definition, ammoRemaining }`；`ActorState.weapon` 保存当前实例。
 - `MatchConfig.startingWeapon` 是出生 / 复活 / 加时的复位目标；拾取只换当前实例，不改配置。
-- `ActorState.fireCooldown` 继续由角色持有，切枪不重置冷却；T01 负责有限弹扣减、耗尽回退和六枪注册表。
-- `Projectile` 新增 `weaponId`、`velocity: Vec2`、`impulse: Vec2`；发射时冻结，`distanceRemaining` 仍限制射程。换枪不改变在途弹丸，二维速度供 T01 霰弹使用。
+- `ActorState.fireCooldown` 继续由角色持有，切枪不重置冷却；T01 负责有限弹扣减、耗尽回退和八枪注册表。
+- `Projectile` 新增 `weaponId`、`velocity: Vec2`、`impulse: Vec2`、可选 `explosion` / `impulseCap`；发射时冻结，`distanceRemaining` 仍限制射程。换枪不改变在途弹丸，二维速度供 T01 霰弹使用。
 
 ### 投弹与爆炸
 
 - `ActorInput.bombPressed: boolean` 是按下边沿；`idleInput`、`KeyboardInput`、`BotController` 默认 `false`，不改变连续射击语义。
-- 当前没有投弹键绑定和 UI 显示；T02 实现真实炸弹后由 T06 接 K / 小键盘 1，未接入前不显示可用。
+- 投弹键已由 T06 接 K / 小键盘 1，T02 炸弹、引信、遮挡与自伤已实现；HUD 显示剩余炸弹。
 - `ExplosionSource = 'bomb' | 'rocket'`。
 - `ExplosionRequest { ownerId, source, center, radius, centerImpulse, edgeImpulse }`。
 - `ExplosionHit { actorId, impulse }`。
@@ -52,7 +52,7 @@
 
 - 初始化：`BattleSimulation` 用 `MatchConfig.startingWeapon` 创建每个 `ActorState.weapon`。
 - 复活：`respawnActor` 读取 `state.config.startingWeapon`，恢复满弹 / 无限弹并清空 `fireCooldown`；`LifeSystem` 只负责计时触发。
-- 加时：`MatchSystem` 清空弹丸后对并列领先者调用 `respawnActor`；T02/T03 接入时还必须清炸弹、箱子、预告和引信。
+- 加时：`MatchSystem` 清空弹丸、炸弹、箱子和预告后对并列领先者调用 `respawnActor`。
 - 重赛 / 训练重置：`GameApplication.start` 生成新配置和新运行器，`ArenaScene.startMatch` 替换旧 runner；不继承旧局弹丸、计时或武器实例。
 - 结果 ID：应用层每局生成 `matchId`；`MatchSystem` 优先写 `MatchResult.id = config.matchId`，缺省回退 `seed-mode` 兼容旧调用。T12 负责存档历史与去重范围，当前只保存 `lastResultId`。
 
@@ -65,9 +65,9 @@
 
 ### 检查与剩余
 
-- `pnpm typecheck` 通过；`pnpm test` 48 项 / 5 文件通过；`pnpm build` 通过；浏览器 smoke 通过（三模式、默认键位、暂停 / 恢复、失焦、设置、双人、重赛、刷新、禁用存储）。
+- `pnpm typecheck` 通过；`pnpm test` 137 项 / 12 文件通过；`pnpm build` 通过；浏览器 smoke 通过（三模式、默认键位、训练 1—8、暂停 / 恢复、失焦、设置、双人、重赛、刷新、禁用存储）。
 - 新增 `tests/contracts.test.ts` 覆盖默认武器 / 投弹输入、在途弹丸快照、复活 / 加时复位、`matchId` 结果标识。
-- 未完成：T01 有限弹 / 六枪 / 换枪入口；T02 炸弹 / 爆炸运行时；T03 投放与拾取；T06 投弹键 / 设置组件；T12 存档字段与历史去重。
+- 已完成：T01 八枪 / 换枪入口；T02 炸弹 / 爆炸运行时；T03 投放与拾取；T06 投弹键。未完成：T06 完整改键 / 设置组件；T12 存档字段与历史去重。
 - T00 不包含推送远端；本次只做本地提交。
 
 ## 文件与接口交接

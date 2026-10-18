@@ -47,7 +47,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `pnpm typecheck` | 通过 |
-| `pnpm test` | 134 项 / 12 文件通过（地图布局 / 路线追加 + T03 投放契约） |
+| `pnpm test` | 137 项 / 12 文件通过（地图布局 / 路线、T03 投放契约与八枪终极回归） |
 | `pnpm build` | 通过 |
 | 浏览器 smoke | 通过；菜单、训练、暂停、双人、重赛、保存 |
 | 视觉检查 | `artifacts/weapon-layer-gallery.png` 六家族纹理；`artifacts/battle.png` 手内位置；`artifacts/training-bomb.png` 炸弹 + HUD；`artifacts/training-drop.png` 箱子 |
