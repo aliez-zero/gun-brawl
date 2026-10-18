@@ -2,10 +2,13 @@ import { chromium } from 'playwright';
 
 // Headless software-WebGL harness. This measures JS / RAF cadence and heap in the
 // current environment; it is not a reference-GPU acceptance result.
+const software = process.env.PERF_SOFTWARE !== '0';
 const browser = await chromium.launch({
   executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
   headless: true,
-  args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'],
+  args: software
+    ? ['--enable-unsafe-swiftshader', '--use-angle=swiftshader']
+    : ['--enable-gpu', '--ignore-gpu-blocklist'],
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
 page.on('pageerror', (error) => console.error('PAGE', error.message));
@@ -30,14 +33,18 @@ const sample = await page.evaluate(async () => {
   const average = sorted.reduce((sum, value) => sum + value, 0) / Math.max(1, sorted.length);
   const p95 = sorted[Math.floor(sorted.length * 0.95)] ?? 0;
   const memory = performance.memory;
+  const canvas = document.querySelector('#game-canvas canvas');
+  const gl = canvas?.getContext('webgl2') ?? canvas?.getContext('webgl');
+  const debug = gl?.getExtension('WEBGL_debug_renderer_info');
+  const renderer = debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null;
   return {
     frames: sorted.length,
     averageMs: Number(average.toFixed(2)),
     p95Ms: Number(p95.toFixed(2)),
     fps: Number((1000 / average).toFixed(1)),
     heapMb: memory ? Number((memory.usedJSHeapSize / 1024 / 1024).toFixed(1)) : null,
-    canvas: document.querySelector('#game-canvas canvas')?.getAttribute('width') + 'x'
-      + document.querySelector('#game-canvas canvas')?.getAttribute('height'),
+    canvas: canvas?.getAttribute('width') + 'x' + canvas?.getAttribute('height'),
+    renderer,
   };
 });
 const heap = async () => page.evaluate(() => {
@@ -57,7 +64,7 @@ for (let match = 1; match <= 20; match++) {
 }
 await page.screenshot({ path: 'artifacts/perf-20-matches.png', fullPage: true });
 console.log(JSON.stringify({
-  scene: 'local-duel', seconds: 6, ...sample, matches: 20,
+  scene: 'local-duel', seconds: 6, software, ...sample, matches: 20,
   heapStart, heapEnd: heaps.at(-1), heapSamples: heaps,
 }));
 await browser.close();

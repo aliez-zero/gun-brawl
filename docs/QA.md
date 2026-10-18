@@ -9,10 +9,12 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm test:browser   # 需要预览服务与 Chrome
-pnpm test:perf      # 软件 WebGL RAF / 堆；不是参考 GPU
+pnpm test:perf      # 默认 SwiftShader；PowerShell 用 $env:PERF_SOFTWARE='0' 跑硬件 D3D11
 ```
 
-2026-10-18 软件 WebGL 实测（Chrome headless + SwiftShader，1440×1080，local-duel 6 秒 + 连续 20 局重赛）：**289 帧、平均 20.73 ms、p95 30 ms、约 48.2 FPS、画布 1280×720**；JS 堆 **32.2 → 34.6 MiB**（每 4 局采样：32.2 / 33.4 / 34.2 / 32.7 / 32.5 / 34.6），未观察到持续增长。这是软件渲染参考，不能当作真实显卡 60 FPS 结论；p95 已超过 16.7 ms。
+2026-10-18 软件 WebGL 实测（Chrome headless + SwiftShader，1440×1080，local-duel 6 秒 + 连续 20 局重赛）：**289 帧、平均 20.73 ms、p95 30 ms、约 48.2 FPS、画布 1280×720**；JS 堆 **32.2 → 34.6 MiB**（每 4 局采样：32.2 / 33.4 / 34.2 / 32.7 / 32.5 / 34.6），未观察到持续增长。这是软件渲染参考，不能当作低端设备结论；p95 已超过 16.7 ms。
+
+2026-10-18 硬件加速实测（Chrome headless，`PERF_SOFTWARE=0`，NVIDIA GeForce RTX 3050 Ti Laptop GPU / ANGLE D3D11，1440×1080，同一 6 秒 + 20 局流程）：**598 帧、平均 10.02 ms、p95 10.1 ms、约 99.8 FPS、画布 1280×720**；JS 堆 **32.9 → 32.8 MiB**（采样 32.9 / 32.6 / 32.6 / 32.8 / 32.8 / 32.8）。这是本机独显实测，不是参考机 / 低端机结论，也不替代 4 真人验收。
 
 2026-10-18 结果：类型检查通过；**185 项 / 19 文件**通过；构建通过；Chrome 与 Microsoft Edge 156.0.4314.30 的浏览器 smoke 均通过（菜单、画布、键盘、训练、暂停 / 恢复、失焦、设置、双人、重赛、刷新、禁用存储）。
 
@@ -32,7 +34,7 @@ pnpm test:perf      # 软件 WebGL RAF / 堆；不是参考 GPU
 | 存档 / 迁档 / 清档 | `storage.test.ts` + 浏览器清档 | 跨浏览器 profile |
 | 四人淘汰 / 加时 | `quality.test.ts` + 浏览器完整 4 人局 | 四人同帧出界、4 真人观战体验 |
 | 暂停 / 失焦 / 设置 | 浏览器 smoke | 多显示器 / 手柄 |
-| 性能 / 资源 | 20 局四人纯模拟耗时守卫（<5s）+ 软件 WebGL 6 秒 RAF / 堆 + 连续 20 局重赛堆采样 | **软件渲染 48.2 FPS / p95 30 ms / 堆 32.2→34.6 MiB；无参考机、无真实 GPU** |
+| 性能 / 资源 | 20 局四人纯模拟耗时守卫（<5s）+ 软件 / 硬件 WebGL 6 秒 RAF / 堆 + 连续 20 局重赛堆采样 | **RTX 3050 Ti 99.8 FPS / p95 10.1 ms / 堆 32.9→32.8 MiB；SwiftShader 48.2 FPS；无参考机 / 低端机** |
 
 ## T11 新增
 
