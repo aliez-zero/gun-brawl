@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { MatchState } from '../game/core/types';
-import { createWeaponArtCanvas, WEAPON_ART, weaponArtKey } from './WeaponArt';
+import { createWeaponArtCanvas, WEAPON_ART, weaponArtKey, weaponDisplayScale } from './WeaponArt';
 import { CHARACTER_GRIP, weaponPose } from './CharacterMotion';
 import { createSupportHandCanvas, supportGrip, supportHandKey } from './WeaponSupport';
 
@@ -37,7 +37,7 @@ export class WeaponLayer {
       if (!sprite) {
         sprite = this.scene.add.image(0, 0, key)
           .setOrigin(WEAPON_ART.gripX / WEAPON_ART.width, WEAPON_ART.gripY / WEAPON_ART.height)
-          .setScale(WEAPON_ART.displayScale)
+          .setScale(weaponDisplayScale(definition.id))
           .setDepth(3);
         this.sprites.set(actor.config.id, sprite);
       }
@@ -47,6 +47,7 @@ export class WeaponLayer {
       const pose = weaponPose(actor);
       sprite
         .setTexture(key)
+        .setScale(weaponDisplayScale(definition.id))
         .setPosition(x + actor.facing * (CHARACTER_GRIP.x + pose.x), y + CHARACTER_GRIP.y + pose.y)
         .setFlipX(actor.facing < 0)
         .setRotation(pose.rotation)
@@ -72,7 +73,7 @@ export class WeaponLayer {
           .setDepth(3.2);
         this.hands.set(actor.config.id, hand);
       }
-      const scale = WEAPON_ART.displayScale;
+      const scale = weaponDisplayScale(definition.id);
       const dx = (attachment.x - WEAPON_ART.gripX) * scale * (actor.facing < 0 ? -1 : 1);
       const dy = (attachment.y - WEAPON_ART.gripY) * scale;
       const cos = Math.cos(pose.rotation);

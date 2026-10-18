@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../src/content/drops';
-import { ARMORY_WEAPONS, WEAPON_MODELS, createWeapon, getWeapon } from '../src/content/weapons';
+import { ARMORY_WEAPONS, BASIC_PISTOL, WEAPON_MODELS, createWeapon, getWeapon, weaponBurstImpulse, weaponSustainedImpulse } from '../src/content/weapons';
 import { BattleSimulation } from '../src/game/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { supportGrip } from '../src/presentation/WeaponSupport';
@@ -31,8 +31,24 @@ describe('T01 17 concrete weapon models', () => {
     expect(createWeapon('s686')).toMatchObject({ ammoRemaining: 2, reserveRemaining: 10 });
     expect(getWeapon('awm').reloadTime).toBe(2.6);
     expect(getWeapon('vector').reloadTime).toBe(1.5);
-    expect(getWeapon('rpg7').explosion).toEqual({ radius: 140, centerImpulse: 330, edgeImpulse: 80 });
+    expect(getWeapon('rpg7').explosion).toEqual({ radius: 155, centerImpulse: 720, edgeImpulse: 180 });
     expect(getWeapon('at4').recoilY).toBe(24);
+  });
+
+  it('separates models by burst impulse, sustained pressure and role', () => {
+    const burst = (id: Parameters<typeof getWeapon>[0]): number => weaponBurstImpulse(getWeapon(id));
+    const pressure = (id: Parameters<typeof getWeapon>[0]): number => weaponSustainedImpulse(getWeapon(id));
+    expect(burst('deagle')).toBeGreaterThan(burst('p1911'));
+    expect(burst('awm')).toBeGreaterThan(burst('m24'));
+    expect(burst('m24')).toBeGreaterThan(burst('kar98k'));
+    expect(burst('s1897')).toBeGreaterThan(burst('s686'));
+    expect(burst('s686')).toBeGreaterThan(burst('s12k'));
+    expect(pressure('akm')).toBeGreaterThan(pressure('scar-l'));
+    expect(pressure('scar-l')).toBeGreaterThan(pressure('m416'));
+    expect(pressure('vector')).toBeGreaterThan(pressure('ump45'));
+    expect(pressure('ump45')).toBeGreaterThan(pressure('uzi'));
+    expect(pressure('m416')).toBeGreaterThan(weaponSustainedImpulse(BASIC_PISTOL));
+    expect(pressure('ump45')).toBeGreaterThan(weaponSustainedImpulse(BASIC_PISTOL));
   });
 
   it('selects a concrete model directly in training without changing the dummy', () => {

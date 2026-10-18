@@ -38,10 +38,11 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 - `ARMORY_WEAPONS`：P92、P1911、Deagle、UMP45、Vector、UZI、M416、AKM、SCAR-L、S686、S1897、S12K、Kar98k、M24、AWM、RPG-7、AT4。
 - `WEAPON_MODELS`：16 个新增型号；`WEAPONS` 保留八类别名，`getWeapon` 同时查两表，旧存档 / 训练槽不破。
 - 逐枪参数来自 [WEAPONS.md](../WEAPONS.md)：弹匣 / 备弹 / 换弹、水平 + 垂直后坐、弹速 / 射程 / 击退、霰弹丸数与散布、火箭爆炸半径 / 推力。
+- 逐枪定位与单发 / 持续威力曲线：P92 基准、P1911 / Deagle 节奏 / 单发、UMP45 / Vector / UZI 压制分工、M416 / AKM / SCAR-L 均衡 / 重击 / 远距、三霰弹、三狙、两火箭分层；图鉴显示双威力条。
 - 投放池改为 16 个标准型号 + 加特林 / 重炮；`STANDARD_DROP_POOL` 过滤终极。
 - 图鉴 17 卡可直接预选任意型号进入训练；HUD 显示具体型号名。
-- `WeaponArt` 家族轮廓 + 型号色带 / 木托 / 镜筒 / 枪口环；`SoundEffects` 按 `weaponId` 使用逐型号音高。
-- `tests/weapons-models.test.ts` 4 项；完整回归 **182 项 / 19 文件**。
+- `WeaponArt` 家族轮廓 + 型号级几何 / 色带 / 尺寸；`SoundEffects` 按 `weaponId` 使用逐型号射击 / 换弹音高。
+- `tests/weapons-models.test.ts` 6 项；完整回归 **187 项 / 19 文件**。
 - 仍待：逐型号手绘换弹 / 枪口火光帧、真实音色素材、人工逐枪平衡。
 
 ## T01 交付结果（八枪核心）
@@ -86,7 +87,7 @@ T00 已提供武器契约：`WeaponDefinition.maxAmmo`（null 无限）、`Weapo
 
 ### 检查
 
-- `pnpm typecheck` 通过；`pnpm test` **186 项 / 19 文件**通过（含并行地图会话、T03 / T05 / T06 / T07 / T08 / T09 / T11 / T12 测试）；`pnpm build` 通过。
+- `pnpm typecheck` 通过；`pnpm test` **187 项 / 19 文件**通过（含并行地图会话、T03 / T05 / T06 / T07 / T08 / T09 / T11 / T12 测试）；`pnpm build` 通过。
 - `tests/weapons.test.ts` 覆盖八枪注册表 / 切枪 / 补弹、三把直射枪、霰弹五弹道与单发扣弹、火箭命中 / 射程耗尽 / 爆炸快照、重炮一枪击出、加特林高速弹带、耗尽回退、AI 射程读取。
 - `tests/reload.test.ts` 覆盖空仓自动换弹、手动换弹、备弹不足部分装填、无限弹手枪拒绝换弹、补满两池、换弹期间禁射与备弹只扣一次。
 - 未做人工手感 / 平衡试射；T03 游戏内拾取和 T08 训练 1—8 试枪已接，HUD 图鉴 / 教程任务仍未接。

@@ -1,7 +1,7 @@
 import { BINDING_ACTIONS, cloneBindings, keyLabel, rebind } from '../content/controls';
 import type { ControlAction, KeyBindings } from '../content/controls';
 import { TRAINING_TASKS } from '../content/tutorial';
-import { ARMORY_WEAPONS } from '../content/weapons';
+import { ARMORY_WEAPONS, weaponBurstImpulse, weaponRole, weaponSustainedImpulse } from '../content/weapons';
 import { createWeaponIconCanvas } from '../presentation/WeaponArt';
 import {
   CUSTOM_MAP_OPTIONS, CUSTOM_MATCH_LIMITS, DIFFICULTY_LABELS, MODE_LABELS, cloneCustomMatch, validateCustomMatch,
@@ -430,11 +430,17 @@ export class GameUI {
         : '单发直线';
       const blast = weapon.explosion ? ` · 爆炸 ${weapon.explosion.radius}px` : '';
       const selected = id === this.lastTrainingWeaponId;
+      const burst = weaponBurstImpulse(weapon);
+      const sustained = weaponSustainedImpulse(weapon);
+      const burstWidth = Math.max(3, Math.min(100, Math.round(burst / 12.5)));
+      const sustainedWidth = Math.max(3, Math.min(100, Math.round(sustained / 22)));
       return `<article class="weapon-card ${weapon.tier === 'ultimate' ? 'ultimate' : ''} ${selected ? 'selected' : ''}" ${selected ? 'aria-current="true"' : ''}>
-        <div class="weapon-card-head"><strong>${escapeLabel(weapon.name)}</strong><small>${selected ? '当前试枪' : weapon.tier === 'ultimate' ? '终极' : '标准'}</small></div>
+        <div class="weapon-card-head"><strong>${escapeLabel(weapon.name)}</strong><small>${selected ? '当前试枪' : weaponRole(id)}</small></div>
         <p>${magazine} 弹匣 · 换弹 ${weapon.reloadTime ?? '—'}s</p>
         <p>${Math.round(weapon.interval * 1000)}ms / 发 · ${weapon.range}px · 击退 ${weapon.knockback}</p>
         <p>${spread}${blast}</p>
+        <div class="weapon-power"><span>单发 ${burst}</span><i><b style="width:${burstWidth}%"></b></i></div>
+        <div class="weapon-power sustained"><span>持续 ${sustained}/s</span><i><b style="width:${sustainedWidth}%"></b></i></div>
         <button data-action="train-weapon" data-weapon="${id}">用此枪训练 ↗</button>
       </article>`;
     }).join('');

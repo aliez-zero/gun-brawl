@@ -15,6 +15,21 @@ export const WEAPON_ART = {
   handY: 24,
 } as const;
 
+/** World scale per model: pistols stay compact, snipers / launchers read long. */
+const MODEL_SCALE: Partial<Record<WeaponId, number>> = {
+  pistol: 0.46, p1911: 0.45, deagle: 0.54,
+  smg: 0.5, ump45: 0.5, vector: 0.48, uzi: 0.46,
+  rifle: 0.62, m416: 0.62, akm: 0.64, 'scar-l': 0.65,
+  shotgun: 0.62, s686: 0.6, s1897: 0.64, s12k: 0.58,
+  sniper: 0.7, kar98k: 0.7, m24: 0.72, awm: 0.76,
+  rocket: 0.7, rpg7: 0.7, at4: 0.72,
+  gatling: 0.78, cannon: 0.8,
+};
+
+export function weaponDisplayScale(id: WeaponId): number {
+  return MODEL_SCALE[id] ?? WEAPON_ART.displayScale;
+}
+
 const LINE = '#17232c';
 
 type Ctx = CanvasRenderingContext2D;

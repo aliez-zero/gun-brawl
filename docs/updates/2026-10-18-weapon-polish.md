@@ -20,7 +20,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `pnpm typecheck` | 通过 |
-| `pnpm test` | **186 项 / 19 文件**通过 |
+| `pnpm test` | **187 项 / 19 文件**通过 |
 | `pnpm build` | 通过 |
 | Chrome smoke | 通过 |
 | 图鉴 / AWM | 17 卡；AWM 训练 HUD `AWM · 5/15 · 炸弹 2` |

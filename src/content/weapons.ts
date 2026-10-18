@@ -4,9 +4,10 @@ import type { WeaponDefinition, WeaponId, WeaponInstance } from '../game/core/ty
 const DEG = Math.PI / 180;
 
 /**
- * Pistol stays the reference (480 impulse / 0.28 s). Standard specials now beat
- * that per trigger (shotgun counts all pellets), while the two ultimates are
- * deliberately stronger and rarer than the starting pistol.
+ * Pistol stays the reference (480 impulse / 0.28 s ≈ 1714 sustained). Each
+ * concrete model then owns a role: pistols trade burst for cadence, SMGs win on
+ * sustained pressure, rifles on controlled bursts, shotguns / snipers / rockets
+ * on single-trigger burst. The two ultimates stay above the whole standard roster.
  */
 export const BASIC_PISTOL: WeaponDefinition = {
   id: 'pistol', name: '基础手枪', tier: 'standard', interval: 0.28,
@@ -65,101 +66,101 @@ export const CANNON: WeaponDefinition = {
  * training / old saves; drops and the armory use these named models.
  */
 export const P1911: WeaponDefinition = {
-  id: 'p1911', name: 'P1911', family: 'pistol', tier: 'standard', interval: 0.22,
-  projectileSpeed: 1100, range: 600, knockback: 300, recoil: 18, recoilY: 3,
+  id: 'p1911', name: 'P1911', family: 'pistol', tier: 'standard', interval: 0.2,
+  projectileSpeed: 1150, range: 620, knockback: 340, recoil: 20, recoilY: 3,
   maxAmmo: 7, reserveAmmo: 28, reloadTime: 1.4, pellets: 1, spreadRadians: 0,
 };
 
 export const DEAGLE: WeaponDefinition = {
-  id: 'deagle', name: 'Deagle', family: 'pistol', tier: 'standard', interval: 0.45,
-  projectileSpeed: 1400, range: 800, knockback: 650, recoil: 48, recoilY: 10,
+  id: 'deagle', name: 'Deagle', family: 'pistol', tier: 'standard', interval: 0.46,
+  projectileSpeed: 1450, range: 820, knockback: 760, recoil: 52, recoilY: 12,
   maxAmmo: 7, reserveAmmo: 21, reloadTime: 1.7, pellets: 1, spreadRadians: 0,
 };
 
 export const UMP45: WeaponDefinition = {
-  id: 'ump45', name: 'UMP45', family: 'smg', tier: 'standard', interval: 0.11,
-  projectileSpeed: 1100, range: 520, knockback: 55, recoil: 6, recoilY: 2,
+  id: 'ump45', name: 'UMP45', family: 'smg', tier: 'standard', interval: 0.115,
+  projectileSpeed: 1150, range: 560, knockback: 205, recoil: 7, recoilY: 2.5,
   maxAmmo: 25, reserveAmmo: 100, reloadTime: 1.6, pellets: 1, spreadRadians: 0,
 };
 
 export const VECTOR: WeaponDefinition = {
   id: 'vector', name: 'Vector', family: 'smg', tier: 'standard', interval: 0.055,
-  projectileSpeed: 1000, range: 420, knockback: 38, recoil: 4, recoilY: 1.5,
+  projectileSpeed: 1050, range: 430, knockback: 100, recoil: 4, recoilY: 1.5,
   maxAmmo: 19, reserveAmmo: 95, reloadTime: 1.5, pellets: 1, spreadRadians: 0,
 };
 
 export const UZI: WeaponDefinition = {
-  id: 'uzi', name: 'UZI', family: 'smg', tier: 'standard', interval: 0.07,
-  projectileSpeed: 1000, range: 380, knockback: 32, recoil: 3, recoilY: 1,
+  id: 'uzi', name: 'UZI', family: 'smg', tier: 'standard', interval: 0.075,
+  projectileSpeed: 1050, range: 390, knockback: 130, recoil: 3, recoilY: 1,
   maxAmmo: 30, reserveAmmo: 120, reloadTime: 1.4, pellets: 1, spreadRadians: 0,
 };
 
 export const M416: WeaponDefinition = {
-  id: 'm416', name: 'M416', family: 'rifle', tier: 'standard', interval: 0.086,
-  projectileSpeed: 1300, range: 850, knockback: 85, recoil: 12, recoilY: 4,
+  id: 'm416', name: 'M416', family: 'rifle', tier: 'standard', interval: 0.115,
+  projectileSpeed: 1350, range: 860, knockback: 210, recoil: 12, recoilY: 4,
   maxAmmo: 30, reserveAmmo: 120, reloadTime: 1.8, pellets: 1, spreadRadians: 0,
 };
 
 export const AKM: WeaponDefinition = {
-  id: 'akm', name: 'AKM', family: 'rifle', tier: 'standard', interval: 0.1,
-  projectileSpeed: 1250, range: 800, knockback: 120, recoil: 24, recoilY: 8,
+  id: 'akm', name: 'AKM', family: 'rifle', tier: 'standard', interval: 0.13,
+  projectileSpeed: 1300, range: 780, knockback: 285, recoil: 26, recoilY: 9,
   maxAmmo: 30, reserveAmmo: 90, reloadTime: 2, pellets: 1, spreadRadians: 0,
 };
 
 export const SCAR_L: WeaponDefinition = {
-  id: 'scar-l', name: 'SCAR-L', family: 'rifle', tier: 'standard', interval: 0.096,
-  projectileSpeed: 1300, range: 900, knockback: 95, recoil: 15, recoilY: 5,
+  id: 'scar-l', name: 'SCAR-L', family: 'rifle', tier: 'standard', interval: 0.12,
+  projectileSpeed: 1350, range: 920, knockback: 230, recoil: 14, recoilY: 5,
   maxAmmo: 30, reserveAmmo: 120, reloadTime: 1.9, pellets: 1, spreadRadians: 0,
 };
 
 export const S686: WeaponDefinition = {
-  id: 's686', name: 'S686', family: 'shotgun', tier: 'standard', interval: 0.35,
-  projectileSpeed: 1100, range: 260, knockback: 55, recoil: 40, recoilY: 12,
-  maxAmmo: 2, reserveAmmo: 10, reloadTime: 2.2, pellets: 5, spreadRadians: 12 * DEG,
+  id: 's686', name: 'S686', family: 'shotgun', tier: 'standard', interval: 0.42,
+  projectileSpeed: 1150, range: 270, knockback: 120, recoil: 42, recoilY: 12,
+  maxAmmo: 2, reserveAmmo: 10, reloadTime: 2.2, pellets: 6, spreadRadians: 12 * DEG,
 };
 
 export const S1897: WeaponDefinition = {
-  id: 's1897', name: 'S1897', family: 'shotgun', tier: 'standard', interval: 0.75,
-  projectileSpeed: 1100, range: 280, knockback: 50, recoil: 35, recoilY: 10,
-  maxAmmo: 5, reserveAmmo: 25, reloadTime: 2.4, pellets: 6, spreadRadians: 14 * DEG,
+  id: 's1897', name: 'S1897', family: 'shotgun', tier: 'standard', interval: 0.8,
+  projectileSpeed: 1150, range: 300, knockback: 145, recoil: 38, recoilY: 10,
+  maxAmmo: 5, reserveAmmo: 25, reloadTime: 2.4, pellets: 7, spreadRadians: 14 * DEG,
 };
 
 export const S12K: WeaponDefinition = {
   id: 's12k', name: 'S12K', family: 'shotgun', tier: 'standard', interval: 0.45,
-  projectileSpeed: 1150, range: 240, knockback: 45, recoil: 30, recoilY: 8,
-  maxAmmo: 5, reserveAmmo: 25, reloadTime: 2, pellets: 4, spreadRadians: 10 * DEG,
+  projectileSpeed: 1200, range: 250, knockback: 105, recoil: 32, recoilY: 8,
+  maxAmmo: 5, reserveAmmo: 25, reloadTime: 2, pellets: 5, spreadRadians: 10 * DEG,
 };
 
 export const KAR98K: WeaponDefinition = {
-  id: 'kar98k', name: 'Kar98k', family: 'sniper', tier: 'standard', interval: 0.95,
-  projectileSpeed: 1800, range: 1200, knockback: 360, recoil: 55, recoilY: 14,
+  id: 'kar98k', name: 'Kar98k', family: 'sniper', tier: 'standard', interval: 1,
+  projectileSpeed: 1850, range: 1250, knockback: 900, recoil: 58, recoilY: 14,
   maxAmmo: 5, reserveAmmo: 20, reloadTime: 2.2, pellets: 1, spreadRadians: 0,
 };
 
 export const M24: WeaponDefinition = {
-  id: 'm24', name: 'M24', family: 'sniper', tier: 'standard', interval: 0.85,
-  projectileSpeed: 1850, range: 1250, knockback: 380, recoil: 50, recoilY: 12,
+  id: 'm24', name: 'M24', family: 'sniper', tier: 'standard', interval: 0.9,
+  projectileSpeed: 1900, range: 1300, knockback: 980, recoil: 52, recoilY: 12,
   maxAmmo: 5, reserveAmmo: 20, reloadTime: 2.1, pellets: 1, spreadRadians: 0,
 };
 
 export const AWM: WeaponDefinition = {
-  id: 'awm', name: 'AWM', family: 'sniper', tier: 'standard', interval: 1.1,
-  projectileSpeed: 2000, range: 1400, knockback: 500, recoil: 70, recoilY: 18,
+  id: 'awm', name: 'AWM', family: 'sniper', tier: 'standard', interval: 1.2,
+  projectileSpeed: 2050, range: 1450, knockback: 1250, recoil: 72, recoilY: 18,
   maxAmmo: 5, reserveAmmo: 15, reloadTime: 2.6, pellets: 1, spreadRadians: 0,
 };
 
 export const RPG7: WeaponDefinition = {
-  id: 'rpg7', name: 'RPG-7', family: 'rocket', tier: 'standard', interval: 1.1,
-  projectileSpeed: 600, range: 900, knockback: 330, recoil: 65, recoilY: 20,
+  id: 'rpg7', name: 'RPG-7', family: 'rocket', tier: 'standard', interval: 1.15,
+  projectileSpeed: 650, range: 950, knockback: 720, recoil: 68, recoilY: 20,
   maxAmmo: 1, reserveAmmo: 3, reloadTime: 2.8, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 140, centerImpulse: 330, edgeImpulse: 80 },
+  explosion: { radius: 155, centerImpulse: 720, edgeImpulse: 180 },
 };
 
 export const AT4: WeaponDefinition = {
-  id: 'at4', name: 'AT4', family: 'rocket', tier: 'standard', interval: 1.3,
-  projectileSpeed: 700, range: 1000, knockback: 360, recoil: 75, recoilY: 24,
+  id: 'at4', name: 'AT4', family: 'rocket', tier: 'standard', interval: 1.35,
+  projectileSpeed: 750, range: 1050, knockback: 780, recoil: 78, recoilY: 24,
   maxAmmo: 1, reserveAmmo: 2, reloadTime: 3, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 150, centerImpulse: 360, edgeImpulse: 90 },
+  explosion: { radius: 140, centerImpulse: 850, edgeImpulse: 220 },
 };
 
 export const WEAPON_MODELS: Readonly<Partial<Record<WeaponId, WeaponDefinition>>> = {
@@ -170,6 +171,39 @@ export const WEAPON_MODELS: Readonly<Partial<Record<WeaponId, WeaponDefinition>>
   kar98k: KAR98K, m24: M24, awm: AWM,
   rpg7: RPG7, at4: AT4,
 };
+
+const ARMORY_IDS = [
+  'pistol', 'p1911', 'deagle',
+  'ump45', 'vector', 'uzi',
+  'm416', 'akm', 'scar-l',
+  's686', 's1897', 's12k',
+  'kar98k', 'm24', 'awm',
+  'rpg7', 'at4',
+] as const;
+
+/** Short, player-facing role labels shown in the armory. */
+export const WEAPON_ROLES: Readonly<Record<(typeof ARMORY_IDS)[number], string>> = {
+  pistol: '基准 · 全能', p1911: '快速点射', deagle: '重手炮',
+  ump45: '稳健压制', vector: '极速爆发', uzi: '弹幕压制',
+  m416: '均衡步枪', akm: '重击步枪', 'scar-l': '远距精准',
+  s686: '双管爆发', s1897: '泵动重击', s12k: '半自动霰弹',
+  kar98k: '精准狙击', m24: '快速狙击', awm: '重狙',
+  rpg7: '范围重击', at4: '高爆重击',
+};
+
+/** One trigger's total impulse, counting pellets or the explosion center. */
+export function weaponBurstImpulse(weapon: WeaponDefinition): number {
+  return weapon.explosion ? weapon.explosion.centerImpulse : weapon.knockback * Math.max(1, weapon.pellets);
+}
+
+/** Sustained impulse per second; useful for comparing spray guns with hand cannons. */
+export function weaponSustainedImpulse(weapon: WeaponDefinition): number {
+  return Math.round(weaponBurstImpulse(weapon) / Math.max(0.01, weapon.interval));
+}
+
+export function weaponRole(id: WeaponId): string {
+  return WEAPON_ROLES[id as keyof typeof WEAPON_ROLES] ?? '标准';
+}
 
 /** The 17 concrete models in armory order; P92 is the baseline pistol. */
 export const ARMORY_WEAPONS: readonly WeaponDefinition[] = [

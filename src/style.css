@@ -172,6 +172,11 @@ kbd { display: inline-block; padding: 3px 5px; min-width: 21px; border: 1px soli
 .weapon-card-head small { color: #9fc36b; font-size: 9px; }
 .weapon-card.ultimate .weapon-card-head small { color: #e2ba76; }
 .weapon-card p { margin: 5px 0 0; color: #8fa183; font-size: 9px; line-height: 1.45; }
+.weapon-power { display: grid; grid-template-columns: 76px 1fr; gap: 6px; align-items: center; margin-top: 6px; }
+.weapon-power span { color: #b9c9aa; font-size: 8px; letter-spacing: .3px; }
+.weapon-power i { display: block; height: 4px; border-radius: 2px; background: #263123; overflow: hidden; }
+.weapon-power b { display: block; height: 100%; background: var(--lime); }
+.weapon-power.sustained b { background: #d4a253; }
 .weapon-card button { margin-top: 8px; padding: 0; border: 0; background: none; color: var(--lime); font-size: 9px; }
 .weapon-card button:hover { text-decoration: underline; }
 .training-panel { position: absolute; left: 22px; bottom: 22px; width: min(360px, calc(100% - 44px)); padding: 12px; border: 1px solid #4a5c41; border-radius: 4px; background: #101811ed; pointer-events: auto; }
