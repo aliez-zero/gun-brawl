@@ -38,10 +38,16 @@ describe('T01 CF-style knockback roles', () => {
     const deagle = pushedDistance('deagle');
     const m416 = pushedDistance('m416');
     const akm = pushedDistance('akm');
+    const s686 = pushedDistance('s686');
     const s1897 = pushedDistance('s1897');
+    const s12k = pushedDistance('s12k');
     const kar98k = pushedDistance('kar98k');
     const m24 = pushedDistance('m24');
     const awm = pushedDistance('awm');
+    const rpg7 = pushedDistance('rpg7');
+    const at4 = pushedDistance('at4');
+    const shotgun = pushedDistance('shotgun');
+    const rocket = pushedDistance('rocket');
 
     expect(pistol).toBeGreaterThan(100);
     expect(pistol).toBeLessThan(200);
@@ -49,11 +55,24 @@ describe('T01 CF-style knockback roles', () => {
     expect(m416).toBeGreaterThan(pistol * 1.3);
     expect(m416).toBeLessThan(320);
     expect(akm).toBeGreaterThan(m416);
-    expect(s1897).toBeGreaterThan(m416);
-    expect(s1897).toBeLessThan(500);
     expect(kar98k).toBeGreaterThan(akm);
     expect(m24).toBeGreaterThan(kar98k);
     expect(awm).toBeGreaterThan(m24);
     expect(awm).toBeLessThan(750);
+
+    // A close-range shotgun blast and a direct rocket are one-shot screen-outs:
+    // the target starts at x=750 on a 1280-wide view, so >530 px leaves the screen.
+    expect(750 + s686).toBeGreaterThan(1280);
+    expect(750 + s1897).toBeGreaterThan(1280);
+    expect(750 + s12k).toBeGreaterThan(1280);
+    expect(750 + shotgun).toBeGreaterThan(1280);
+    expect(750 + rpg7).toBeGreaterThan(1280);
+    expect(750 + at4).toBeGreaterThan(1280);
+    expect(750 + rocket).toBeGreaterThan(1280);
+    expect(s1897).toBeGreaterThan(s686);
+    expect(s686).toBeGreaterThan(s12k);
+    expect(at4).toBeGreaterThan(rpg7);
+    expect(rpg7).toBeGreaterThan(850);
+    expect(at4).toBeGreaterThan(1000);
   });
 });

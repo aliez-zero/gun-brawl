@@ -58,10 +58,18 @@ export class CombatSystem {
 
       if (ammo !== null) {
         actor.weapon.ammoRemaining = ammo - 1;
-        if (actor.weapon.ammoRemaining === 0 && actor.weapon.reserveRemaining === 0) {
-          revertToPistol(actor);
-          // Preserve cadence: a depleted SMG cannot chain into a pistol shot at 0.1 s.
-          actor.fireCooldown = Math.max(actor.fireCooldown, BASIC_PISTOL.interval);
+        if (actor.weapon.ammoRemaining === 0) {
+          if (actor.weapon.reserveRemaining > 0) {
+            // Emptying the magazine starts the reload immediately, even if the
+            // player releases fire on the last round.
+            if (startReload(actor)) {
+              events.push({ type: 'reload-start', actorId: actor.config.id, position: { ...actor.position }, weaponId: actor.weapon.definition.id });
+            }
+          } else {
+            revertToPistol(actor);
+            // Preserve cadence: a depleted SMG cannot chain into a pistol shot at 0.1 s.
+            actor.fireCooldown = Math.max(actor.fireCooldown, BASIC_PISTOL.interval);
+          }
         }
       }
     }

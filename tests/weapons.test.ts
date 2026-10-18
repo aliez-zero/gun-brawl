@@ -37,7 +37,7 @@ describe('T01 weapon registry and ammo', () => {
     expect(createWeapon('gatling').ammoRemaining).toBe(100);
     expect(createWeapon('gatling').reserveRemaining).toBe(100);
     expect(getWeapon('rocket')).toBe(ROCKET);
-    expect(ROCKET.explosion).toEqual({ radius: 150, centerImpulse: 650, edgeImpulse: 200 });
+    expect(ROCKET.explosion).toEqual({ radius: 170, centerImpulse: 2400, edgeImpulse: 680 });
 
     const simulation = active();
     const actor = simulation.state.actors[0]!;
@@ -241,7 +241,7 @@ describe('T01 weapon registry and ammo', () => {
     equipWeapon(shooter!, 'rocket');
     fire(simulation);
     const rocket = simulation.state.projectiles.find((projectile) => projectile.weaponId === 'rocket')!;
-    expect(rocket.explosion).toEqual({ radius: 150, centerImpulse: 650, edgeImpulse: 200 });
+    expect(rocket.explosion).toEqual({ radius: 170, centerImpulse: 2400, edgeImpulse: 680 });
 
     // Switching to the pistol must not change the rocket already in flight.
     equipWeapon(shooter!, 'pistol');

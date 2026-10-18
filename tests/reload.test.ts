@@ -24,12 +24,8 @@ describe('T01 magazine and reload', () => {
     actor.weapon.ammoRemaining = 1;
     step(match, 1, { ...idleInput(), shootHeld: true });
     expect(actor.weapon.ammoRemaining).toBe(0);
-    expect(actor.reloadRemaining).toBe(0);
-
-    // Holding fire starts the reload after the SMG cadence, without a free round.
-    step(match, 10, { ...idleInput(), shootHeld: true });
+    // The last round starts the reload immediately, without requiring another trigger pull.
     expect(actor.reloadRemaining).toBeGreaterThan(0);
-    expect(actor.weapon.ammoRemaining).toBe(0);
     expect(actor.weapon.reserveRemaining).toBe(90);
     expect(match.drainEvents().some((event) => event.type === 'reload-start' && event.weaponId === 'smg')).toBe(true);
 

@@ -31,8 +31,9 @@ export const RIFLE: WeaponDefinition = {
 
 export const SHOTGUN: WeaponDefinition = {
   id: 'shotgun', name: '霰弹枪', tier: 'standard', interval: 0.75,
-  projectileSpeed: 1200, range: 300, knockback: 120, recoil: 48, maxAmmo: 6,
+  projectileSpeed: 1200, range: 320, knockback: 320, recoil: 48, maxAmmo: 6,
   reserveAmmo: 18, reloadTime: 2, pellets: 5, spreadRadians: 12 * DEG,
+  impulseCap: 1600,
 };
 
 export const SNIPER: WeaponDefinition = {
@@ -43,9 +44,9 @@ export const SNIPER: WeaponDefinition = {
 
 export const ROCKET: WeaponDefinition = {
   id: 'rocket', name: '火箭筒', tier: 'standard', interval: 1.2,
-  projectileSpeed: 600, range: 900, knockback: 650, recoil: 70, maxAmmo: 1,
+  projectileSpeed: 600, range: 900, knockback: 2400, recoil: 70, maxAmmo: 1,
   reserveAmmo: 3, reloadTime: 2.4, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 150, centerImpulse: 650, edgeImpulse: 200 },
+  explosion: { radius: 170, centerImpulse: 2400, edgeImpulse: 680 },
 };
 
 /** Ultimate: fastest fire rate in the game, 100-round magazine + 100 reserve. */
@@ -58,8 +59,8 @@ export const GATLING: WeaponDefinition = {
 /** Ultimate: very slow anti-materiel cannon; one clean hit launches a full stock. */
 export const CANNON: WeaponDefinition = {
   id: 'cannon', name: '重炮狙击枪', tier: 'ultimate', interval: 2.4,
-  projectileSpeed: 2200, range: 1800, knockback: 2600, recoil: 120, maxAmmo: 1,
-  reserveAmmo: 2, reloadTime: 2.6, pellets: 1, spreadRadians: 0, impulseCap: 3200,
+  projectileSpeed: 2200, range: 1800, knockback: 3400, recoil: 120, maxAmmo: 1,
+  reserveAmmo: 2, reloadTime: 2.6, pellets: 1, spreadRadians: 0, impulseCap: 4000,
 };
 
 /**
@@ -116,21 +117,23 @@ export const SCAR_L: WeaponDefinition = {
 
 export const S686: WeaponDefinition = {
   id: 's686', name: 'S686', family: 'shotgun', tier: 'standard', interval: 0.4,
-  projectileSpeed: 1150, range: 270, knockback: 150, recoil: 42, recoilY: 12,
+  projectileSpeed: 1150, range: 270, knockback: 350, recoil: 42, recoilY: 12,
   maxAmmo: 2, reserveAmmo: 10, reloadTime: 2.2, pellets: 6, spreadRadians: 12 * DEG,
+  impulseCap: 2100,
 };
 
 export const S1897: WeaponDefinition = {
   id: 's1897', name: 'S1897', family: 'shotgun', tier: 'standard', interval: 0.85,
-  projectileSpeed: 1150, range: 300, knockback: 160, recoil: 38, recoilY: 10,
-  maxAmmo: 5, reserveAmmo: 25, reloadTime: 2.4, pellets: 7, spreadRadians: 14 * DEG,
-  impulseCap: 1120,
+  projectileSpeed: 1150, range: 300, knockback: 400, recoil: 38, recoilY: 10,
+  maxAmmo: 5, reserveAmmo: 25, reloadTime: 2.4, pellets: 7, spreadRadians: 10 * DEG,
+  impulseCap: 2800,
 };
 
 export const S12K: WeaponDefinition = {
   id: 's12k', name: 'S12K', family: 'shotgun', tier: 'standard', interval: 0.4,
-  projectileSpeed: 1200, range: 250, knockback: 145, recoil: 32, recoilY: 8,
+  projectileSpeed: 1200, range: 250, knockback: 360, recoil: 32, recoilY: 8,
   maxAmmo: 5, reserveAmmo: 25, reloadTime: 2, pellets: 5, spreadRadians: 10 * DEG,
+  impulseCap: 1800,
 };
 
 export const KAR98K: WeaponDefinition = {
@@ -153,16 +156,16 @@ export const AWM: WeaponDefinition = {
 
 export const RPG7: WeaponDefinition = {
   id: 'rpg7', name: 'RPG-7', family: 'rocket', tier: 'standard', interval: 1.2,
-  projectileSpeed: 650, range: 950, knockback: 900, recoil: 68, recoilY: 20,
+  projectileSpeed: 650, range: 950, knockback: 2400, recoil: 68, recoilY: 20,
   maxAmmo: 1, reserveAmmo: 3, reloadTime: 2.8, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 155, centerImpulse: 900, edgeImpulse: 220 },
+  explosion: { radius: 170, centerImpulse: 2400, edgeImpulse: 680 },
 };
 
 export const AT4: WeaponDefinition = {
   id: 'at4', name: 'AT4', family: 'rocket', tier: 'standard', interval: 1.4,
-  projectileSpeed: 750, range: 1050, knockback: 1100, recoil: 78, recoilY: 24,
+  projectileSpeed: 750, range: 1050, knockback: 2800, recoil: 78, recoilY: 24,
   maxAmmo: 1, reserveAmmo: 2, reloadTime: 3, pellets: 1, spreadRadians: 0,
-  explosion: { radius: 140, centerImpulse: 1100, edgeImpulse: 260 },
+  explosion: { radius: 160, centerImpulse: 2800, edgeImpulse: 800 },
 };
 
 export const WEAPON_MODELS: Readonly<Partial<Record<WeaponId, WeaponDefinition>>> = {
