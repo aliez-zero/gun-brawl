@@ -107,11 +107,13 @@
 | T09 | 六关战役、解锁、成绩 | M2 | T01—T05、T07 配置能力、T12 | 待领取 / — |
 | T10 | 多风格外观编辑与角色重绘 | M2 | 箱子 / 炸弹 / 八枪表现依赖 T01—T03 | 部分完成 / 角色精修会话（五人重绘、22 帧动作、连射跑动与握持已验收；专属双手握持 / 换弹、附件惯性与动作预览待续） |
 | T11 | 增量回归、完整验收、性能 / 资源 | 全阶段；发布门槛 M3 | 可立即做基线清单；完整验收依赖对应功能 | 待领取 / — |
-| T12 | 存档扩展、迁移、清档与结果去重 | M1—M2 | T00 已提供 `matchId` 结果接入点；存档字段按模块增量接入 | 待领取 / — |
+| T12 | 存档扩展、迁移、清档与结果去重 | M1—M2 | T00 已提供 `matchId` 结果接入点；战役字段依赖 T09 | 核心完成 / 当前会话（v2 迁移、清档、20 条历史去重；战役字段待 T09） |
 
 本轮执行记录：T00 在 `D:\Code\gun-brawl` 完成，基线为 `332998d`，文档同步为 `1cc7358`；Git HEAD 已建立并已推送 GitHub。负责人同时承担地图 / 外观集成：独占修改地图配置、角色绘制、地图背景、外观 / 地图选择子视图；统一接入类型、场景、主 UI、应用与保存。用户新增需求优先于旧的双塔 / 断桥规划。T00 首批契约已落地，其他任务按上表接入；T12 只接入兼容旧档的外观与地图字段，其他存档工作仍待领取。
 
 已落地契约：`CharacterAppearance` / `ActorConfig.appearance?`、地图可选主题元数据、`createMatchConfig(mode, seed, selections?)` / `createCustomMatchConfig(settings, seed, selections?)`、`CustomMatchSettings` / `validateCustomMatch`、`MatchConfig.dropMode`、`selectedMapId` / 两玩家 `appearances` / `customMatch`（继续 v1）；T00 新增 `WeaponInstance` / `ActorState.weapon` / `MatchConfig.startingWeapon`、`Projectile.weaponId` / `velocity` / `impulse`、`ActorInput.bombPressed`、`ExplosionRequest` / `ExplosionHit` / `ExplosionResolver`、`MatchConfig.matchId`。主 UI 的换装 / 选图回调由应用统一保存，当前对局保持创建时配置。T05 仅补充基于地图的下层恢复与跳跃落点，完整导航未实现。上述公共文件接线已结束，可由后续负责人继续；不要再按旧的“写死训练台”假设修改。
+
+T12 执行记录：存档升 v2 但保留 `gun-brawl:save:v1` key，v1 逐字段迁移；新增最近 20 条结果窗口去重、设置页确认清档、清档后应用默认键位 / 音量 / 外观并回菜单。168 项 / 16 文件通过；浏览器清档确认、toast 与默认值实测通过。战役字段仍待 T09。详见 [存档迁移交付](./updates/2026-10-18-save-migration.md)。
 
 T08 执行记录：训练台新增六项任务、移动 / 静止假人、局部重置和八枪图鉴；任务只由合法输入 / 事件推进，完成标记写入 v1；图鉴可直接预选武器进入训练。浏览器实测移动 / 二段跳 / 穿台 / 投弹 4/6、假人切换与重置通过；训练固定使用训练台。166 项 / 16 文件通过。详见 [训练与图鉴交付](./updates/2026-10-18-training-expansion.md)。首次引导、显式跳过、图鉴返回保留仍待。
 
@@ -131,7 +133,7 @@ T04 适中难度迭代（2026-10-18，已验收）：用户试玩反馈“地图
 
 ### 3.1 T00 / T01 接入清单
 
-T10 角色精修追加（2026-10-18，已验收当前范围）：用户确认直接完成第一轮五角色重绘并留下后续方案。工作区 `D:\Code\gun-brawl` / `main`；角色绘制拆为 `CharacterPainter`、`CharacterMotion` 与 `CharacterArt`，接入 22 帧姿态和稳定握持 / 后坐，连续开火不覆盖运动帧。110 个帧与 150 种混搭检查、5 项动作回归通过；联合 166 项 / 16 文件、构建与两套浏览器流程通过。保留碰撞体、地图、武器和并行改键 / 自定义对局成果。后续 C03—C07 的范围与并行边界见 [角色设计方案](./CHARACTER_DESIGN.md)，文件和证据见 [精修交接](./updates/2026-10-18-character-polish.md)。
+T10 角色精修追加（2026-10-18，已验收当前范围）：用户确认直接完成第一轮五角色重绘并留下后续方案。工作区 `D:\Code\gun-brawl` / `main`；角色绘制拆为 `CharacterPainter`、`CharacterMotion` 与 `CharacterArt`，接入 22 帧姿态和稳定握持 / 后坐，连续开火不覆盖运动帧。110 个帧与 150 种混搭检查、5 项动作回归通过；联合 168 项 / 16 文件、构建与两套浏览器流程通过。保留碰撞体、地图、武器和并行改键 / 自定义对局成果。后续 C03—C07 的范围与并行边界见 [角色设计方案](./CHARACTER_DESIGN.md)，文件和证据见 [精修交接](./updates/2026-10-18-character-polish.md)。
 
 | 任务 | 直接消费 | 仍需完成 / 不要假设 |
 | --- | --- | --- |

@@ -36,6 +36,7 @@ export interface UIActions {
   setDummyMoving: (value: boolean) => void;
   startTrainingWeapon: (weaponId: WeaponId) => void;
   encyclopedia: () => void;
+  clearSave: () => void;
 }
 
 export class GameUI {
@@ -135,6 +136,10 @@ export class GameUI {
         return;
       }
       if (action === 'encyclopedia') { this.actions.encyclopedia(); return; }
+      if (action === 'clear-save') {
+        if (window.confirm('清除本地存档？音量、键位、外观、自定义配置、训练进度和战绩都会恢复默认。')) this.actions.clearSave();
+        return;
+      }
       if (action === 'train-weapon') {
         const weaponId = button.dataset.weapon as WeaponId;
         if (WEAPON_SLOTS.includes(weaponId)) this.actions.startTrainingWeapon(weaponId);
@@ -475,6 +480,7 @@ export class GameUI {
         <p class="setting-note" id="binding-status">点击按键后按新键；Esc 取消；冲突键不会保存。系统键与训练 1—8 保留。</p>
         <div class="binding-grid">${bindingRows}</div>
       </div>
+      <button class="danger-button" data-action="clear-save">清除本地存档</button>
       <button class="start-button" data-action="close"><span>完成</span><span>✓</span></button>`);
   }
 

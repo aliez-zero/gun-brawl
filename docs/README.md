@@ -10,7 +10,7 @@
 4. 到 [并行计划总看板](./PARALLEL_PLAN.md) 确认依赖和领取状态，登记负责人、工作区与文件范围。
 5. 按模块交付清单开发、验证、交接，再由集成者接入主游戏。
 
-文档归档与模块拆分已经完成。T00 已冻结首批武器 / 弹丸 / 投弹 / 爆炸契约与本地 Git 基线；T01 已交付八把枪（含两种终极武器）、弹匣 / 备弹 / 换弹，见 [T01 接手记录](./updates/2026-10-17-weapons.md)、[终极武器追加](./updates/2026-10-18-ultimate-weapons.md) 与 [弹匣换弹](./updates/2026-10-18-magazine-reload.md)；T06 改键 / 持久化见 [改键交付](./updates/2026-10-18-keybindings.md)，T07 自定义 2—4 人对局见 [自定义对局交付](./updates/2026-10-18-custom-match.md)，T08 训练任务 / 图鉴见 [训练交付](./updates/2026-10-18-training-expansion.md)；四图选择、投放点与多风格换装见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md) 和 [适中难度交接](./updates/2026-10-18-moderate-map-difficulty.md)。17 个具体枪械型号、逐枪弹匣与后坐力方案见 [武器型号设计提案](./WEAPONS.md)，该 17 型号提案尚未实现。模块状态以总看板为准。
+文档归档与模块拆分已经完成。T00 已冻结首批武器 / 弹丸 / 投弹 / 爆炸契约与本地 Git 基线；T01 已交付八把枪（含两种终极武器）、弹匣 / 备弹 / 换弹，见 [T01 接手记录](./updates/2026-10-17-weapons.md)、[终极武器追加](./updates/2026-10-18-ultimate-weapons.md) 与 [弹匣换弹](./updates/2026-10-18-magazine-reload.md)；T06 改键 / 持久化见 [改键交付](./updates/2026-10-18-keybindings.md)，T07 自定义 2—4 人对局见 [自定义对局交付](./updates/2026-10-18-custom-match.md)，T08 训练任务 / 图鉴见 [训练交付](./updates/2026-10-18-training-expansion.md)，T12 存档迁移 / 清档 / 去重见 [存档交付](./updates/2026-10-18-save-migration.md)；四图选择、投放点与多风格换装见 [地图 / 外观接手记录](./updates/2026-10-17-appearance-maps.md) 和 [适中难度交接](./updates/2026-10-18-moderate-map-difficulty.md)。17 个具体枪械型号、逐枪弹匣与后坐力方案见 [武器型号设计提案](./WEAPONS.md)，该 17 型号提案尚未实现。模块状态以总看板为准。
 
 ## 文档职责
 

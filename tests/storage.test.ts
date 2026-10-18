@@ -81,6 +81,41 @@ describe('versioned local saves', () => {
     expect(damaged.data.trainingCompleted).toEqual(['move']);
   });
 
+  it('migrates v1 last result into bounded history and dedupes interleaved results', () => {
+    const old = new SaveStore(memoryStorage(JSON.stringify({ version: 1, stats: { completed: 1 }, lastResultId: 'old-result' })));
+    expect(old.data.recentResults).toEqual(['old-result']);
+    expect(old.data.version).toBe(2);
+
+    const storage = memoryStorage();
+    const store = new SaveStore(storage);
+    store.recordResult({ ...result, id: 'a' });
+    store.recordResult({ ...result, id: 'b', winner: 'p2' });
+    store.recordResult({ ...result, id: 'a' });
+    expect(store.data.stats.completed).toBe(2);
+    expect(store.data.recentResults).toEqual(['b', 'a']);
+    expect(store.data.lastResultId).toBe('b');
+    store.recordResult({ ...result, id: 'c', mode: 'training' });
+    expect(store.data.stats.completed).toBe(2);
+    expect(new SaveStore(storage).data.recentResults).toEqual(['b', 'a']);
+  });
+
+  it('clears the namespace and restores every field to defaults', () => {
+    const storage = memoryStorage();
+    const store = new SaveStore(storage);
+    store.data.settings.volume = 0.9;
+    store.data.bindings = rebind(DEFAULT_KEY_BINDINGS, 1, 'shoot', 'KeyU').bindings;
+    store.data.customMatch.stocks = 9;
+    store.data.trainingCompleted = ['move'];
+    store.recordResult(result);
+    store.clear();
+    expect(store.data.settings.volume).toBe(0.35);
+    expect(store.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);
+    expect(store.data.customMatch.stocks).toBe(3);
+    expect(store.data.trainingCompleted).toEqual([]);
+    expect(store.data.recentResults).toEqual([]);
+    expect(new SaveStore(storage).data.stats.completed).toBe(0);
+  });
+
   it('keeps default bindings for old saves', () => {
     const store = new SaveStore(memoryStorage(JSON.stringify({ version: 1, settings: { volume: 0.5 } })));
     expect(store.data.bindings).toEqual(DEFAULT_KEY_BINDINGS);

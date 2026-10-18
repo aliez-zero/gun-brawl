@@ -60,6 +60,7 @@ export class GameApplication {
       setDummyMoving: (value) => { this.arena.setDummyMoving(value); },
       startTrainingWeapon: (weaponId) => this.startTrainingWeapon(weaponId),
       encyclopedia: () => this.openDialog('encyclopedia'),
+      clearSave: () => this.clearSave(),
     }, this.store.data);
     this.arena = new ArenaScene({
       onReady: () => {
@@ -131,6 +132,19 @@ export class GameApplication {
   private restart(): void {
     if (this.activeMode === 'custom') this.startCustom(this.store.data.customMatch);
     else this.start(this.activeMode);
+  }
+
+  private clearSave(): void {
+    this.store.clear();
+    this.arena.setBindings(this.store.data.bindings);
+    this.arena.setReducedMotion(this.store.data.settings.reducedMotion);
+    this.sound.volume = this.store.data.settings.volume;
+    this.screen = 'menu';
+    this.activeMode = this.store.data.lastMode;
+    this.arena.showMenu();
+    this.refreshMenuPreview();
+    this.ui.showMenu();
+    this.ui.notify(this.store.available ? '本地存档已清除' : '存档已重置，但本地存储不可写');
   }
 
   private startTrainingWeapon(weaponId: WeaponId): void {
