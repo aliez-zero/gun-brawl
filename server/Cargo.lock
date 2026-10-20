@@ -389,6 +389,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gunbrawl-bot"
+version = "0.1.0"
+dependencies = [
+ "gunbrawl-core",
+]
+
+[[package]]
 name = "gunbrawl-content"
 version = "0.1.0"
 dependencies = [
@@ -421,6 +428,7 @@ dependencies = [
  "axum",
  "bytes",
  "futures-util",
+ "gunbrawl-bot",
  "gunbrawl-content",
  "gunbrawl-core",
  "gunbrawl-proto",

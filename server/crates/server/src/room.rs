@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
+use gunbrawl_bot::BotController;
 use gunbrawl_content::Content;
 use gunbrawl_core::types::{
     ActorConfig, ActorInput, ActorStatus, BattleEvent, Control, Difficulty, DropMode, DropState,
@@ -145,6 +146,8 @@ pub struct Room {
     simulation: Option<Simulation>,
     /// Actor index -> slot index for the running match.
     actor_slots: Vec<usize>,
+    /// One controller per bot actor, aligned with actor index.
+    bots: Vec<Option<BotController>>,
     inputs: [InputQueue; MAX_SLOTS],
     tick: u32,
     content: Arc<Content>,
@@ -166,6 +169,7 @@ impl Room {
             phase: PHASE_LOBBY,
             simulation: None,
             actor_slots: Vec::new(),
+            bots: Vec::new(),
             inputs: [
                 InputQueue::new(),
                 InputQueue::new(),
@@ -316,6 +320,7 @@ impl Room {
         };
         let mut actors: Vec<ActorConfig> = Vec::with_capacity(MAX_SLOTS);
         self.actor_slots.clear();
+        self.bots.clear();
         for (index, slot) in self.slots.iter().enumerate() {
             if slot.kind == SLOT_EMPTY {
                 continue;
@@ -329,6 +334,13 @@ impl Room {
             } else {
                 Control::Human((index % 2) as u8 + 1)
             };
+            let bot = match control {
+                Control::Bot(difficulty) => Some(BotController::new(
+                    difficulty,
+                    self.seed.wrapping_add(actors.len() as u32),
+                )),
+                _ => None,
+            };
             actors.push(ActorConfig {
                 id: actors.len() as u8,
                 name: slot.name.clone(),
@@ -336,6 +348,7 @@ impl Room {
                 control,
             });
             self.actor_slots.push(index);
+            self.bots.push(bot);
         }
         if actors.len() < 2 {
             return;
@@ -374,12 +387,20 @@ impl Room {
             return;
         };
         let mut table: InputTable = [None; 4];
-        for (actor_index, slot_index) in self.actor_slots.iter().enumerate() {
-            if actor_index >= 4 {
+        let dt = 1.0 / TICK_RATE as f64;
+        for (actor_index, slot) in table.iter_mut().enumerate() {
+            if actor_index >= simulation.state.actors.len() {
                 break;
             }
-            let frame = self.inputs[*slot_index].consume();
-            table[actor_index] = Some(ActorInput {
+            if let Some(Some(bot)) = self.bots.get_mut(actor_index) {
+                *slot = Some(bot.sample(actor_index, &simulation.state, dt));
+                continue;
+            }
+            let Some(slot_index) = self.actor_slots.get(actor_index).copied() else {
+                continue;
+            };
+            let frame = self.inputs[slot_index].consume();
+            *slot = Some(ActorInput {
                 move_x: frame.move_x,
                 jump_pressed: frame.edges & gunbrawl_proto::EDGE_JUMP != 0,
                 drop_pressed: frame.edges & gunbrawl_proto::EDGE_DROP != 0,
@@ -389,7 +410,6 @@ impl Room {
             });
         }
 
-        let dt = 1.0 / TICK_RATE as f64;
         simulation.step(dt, &table);
         let events = simulation.drain_events();
 

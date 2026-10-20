@@ -177,3 +177,62 @@ async fn two_clients_join_start_and_ack_inputs() {
     .await;
     assert_eq!(guest_snapshot.actors.len(), 2);
 }
+
+#[tokio::test]
+async fn bot_slot_moves_after_countdown() {
+    let url = start_server().await;
+    let mut host = connect(&url).await;
+    handshake(&mut host).await;
+
+    send(
+        &mut host,
+        &C2S::CreateRoom {
+            name: "Host".into(),
+            map: "sky-citadel".into(),
+            stocks: 3,
+            duration: 60,
+            drop_mode: 0,
+        },
+    )
+    .await;
+    recv_until(&mut host, |message| match message {
+        S2C::Room(room) => Some(room.code.clone()),
+        _ => None,
+    })
+    .await;
+
+    send(
+        &mut host,
+        &C2S::PickSlot {
+            slot: 1,
+            kind: gunbrawl_proto::SLOT_BOT,
+            difficulty: 1,
+        },
+    )
+    .await;
+    send(&mut host, &C2S::Start).await;
+
+    let mut start_x = None;
+    for _ in 0..900 {
+        if let S2C::Snapshot(snapshot) = recv(&mut host).await {
+            if snapshot.phase == gunbrawl_proto::PHASE_PLAYING {
+                start_x = snapshot.actors.get(1).map(|actor| actor.x);
+                break;
+            }
+        }
+    }
+    let start_x = start_x.expect("bot actor present");
+
+    let mut moved = false;
+    for _ in 0..240 {
+        if let S2C::Snapshot(snapshot) = recv(&mut host).await {
+            if let Some(bot) = snapshot.actors.get(1) {
+                if (bot.x - start_x).abs() > 16 {
+                    moved = true;
+                    break;
+                }
+            }
+        }
+    }
+    assert!(moved, "the bot should move after the countdown");
+}

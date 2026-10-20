@@ -9,6 +9,7 @@ name = "gunbrawl-server"
 path = "src/main.rs"
 
 [dependencies]
+gunbrawl-bot = { path = "../bot" }
 gunbrawl-core = { path = "../core" }
 gunbrawl-content = { path = "../content" }
 gunbrawl-proto = { path = "../proto" }
