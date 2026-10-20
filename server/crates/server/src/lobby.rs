@@ -10,6 +10,8 @@ use gunbrawl_content::Content;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
+use crate::metrics::Metrics;
+use crate::persist::Persist;
 use crate::room::{run_room, Command, Player, Room, RoomConfig, ROOM_CODE_ALPHABET};
 
 #[derive(Clone)]
@@ -22,16 +24,24 @@ pub struct Lobby {
     next_player: AtomicU32,
     code_counter: AtomicU32,
     content: Arc<Content>,
+    metrics: Arc<Metrics>,
+    persist: Arc<Persist>,
 }
 
 impl Lobby {
-    pub fn new(content: Arc<Content>) -> Self {
+    pub fn new(content: Arc<Content>, metrics: Arc<Metrics>, persist: Arc<Persist>) -> Self {
         Self {
             rooms: Mutex::new(HashMap::new()),
             next_player: AtomicU32::new(1),
             code_counter: AtomicU32::new(0),
             content,
+            metrics,
+            persist,
         }
+    }
+
+    pub fn count(&self) -> usize {
+        self.rooms.lock().map(|rooms| rooms.len()).unwrap_or(0)
     }
 
     pub fn next_player_id(&self) -> u32 {
@@ -46,7 +56,14 @@ impl Lobby {
                 continue;
             }
             let (tx, rx) = mpsc::channel(64);
-            let room = Room::new(code.clone(), config.clone(), self.content.clone());
+            let room = Room::new(
+                code.clone(),
+                config.clone(),
+                self.content.clone(),
+                self.metrics.clone(),
+                self.persist.sender(),
+            );
+            Metrics::incr(&self.metrics.rooms_created);
             tokio::spawn(run_room(room, rx));
             rooms.insert(code.clone(), RoomHandle { tx });
             info!(room = %code, map = %config.map, "room created");

@@ -26,6 +26,9 @@ use gunbrawl_proto::{
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
+use crate::metrics::Metrics;
+use crate::persist::{MatchRecord, PlayerRecord};
+
 pub const MAX_SLOTS: usize = 4;
 pub const ROOM_CODE_ALPHABET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -163,11 +166,20 @@ pub struct Room {
     inputs: [InputQueue; MAX_SLOTS],
     tick: u32,
     content: Arc<Content>,
+    metrics: Arc<Metrics>,
+    persist: Option<mpsc::Sender<MatchRecord>>,
+    started_at: i64,
     seed: u32,
 }
 
 impl Room {
-    pub fn new(code: String, config: RoomConfig, content: Arc<Content>) -> Self {
+    pub fn new(
+        code: String,
+        config: RoomConfig,
+        content: Arc<Content>,
+        metrics: Arc<Metrics>,
+        persist: Option<mpsc::Sender<MatchRecord>>,
+    ) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.subsec_nanos())
@@ -192,6 +204,9 @@ impl Room {
             ],
             tick: 0,
             content,
+            metrics,
+            persist,
+            started_at: 0,
             seed,
         }
     }
@@ -392,6 +407,7 @@ impl Room {
             drop_mode,
         };
         self.simulation = Some(Simulation::new(config, self.content.drop_pool(drop_mode)));
+        self.started_at = MatchRecord::now();
         self.phase = PHASE_COUNTDOWN;
         self.tick = 0;
         for queue in &mut self.inputs {
@@ -440,6 +456,7 @@ impl Room {
         }
 
         simulation.step(dt, &table);
+        Metrics::incr(&self.metrics.ticks);
         let events = simulation.drain_events();
 
         self.phase = match simulation.state.phase {
@@ -453,6 +470,7 @@ impl Room {
             let snapshot = self.build_snapshot(&simulation, &events);
             if let Ok(payload) = encode(&S2C::Snapshot(Box::new(snapshot))) {
                 let payload = Bytes::from(payload);
+                Metrics::incr(&self.metrics.snapshots);
                 self.last_snapshot = Some(payload.clone());
                 self.broadcast_bytes(payload);
             }
@@ -477,6 +495,11 @@ impl Room {
                         .collect(),
                 };
                 self.broadcast(&S2C::MatchEnd(wire));
+                Metrics::incr(&self.metrics.matches);
+                if let Some(sender) = &self.persist {
+                    let record = self.match_record(&result);
+                    let _ = sender.try_send(record);
+                }
                 self.phase = PHASE_RESULT;
                 self.broadcast_room();
             }
@@ -598,6 +621,44 @@ impl Room {
                 .iter()
                 .map(|weapon| weapon.id.clone())
                 .collect(),
+        }
+    }
+
+    fn match_record(&self, result: &gunbrawl_core::types::MatchResult) -> MatchRecord {
+        let players = self
+            .actor_slots
+            .iter()
+            .enumerate()
+            .map(|(actor_index, slot_index)| {
+                let slot = &self.slots[*slot_index];
+                let actor = result
+                    .actors
+                    .iter()
+                    .find(|actor| actor.id as usize == actor_index);
+                PlayerRecord {
+                    slot: *slot_index,
+                    player_id: if slot.kind == SLOT_HUMAN {
+                        Some(slot.player)
+                    } else {
+                        None
+                    },
+                    name: slot.name.clone(),
+                    bot: slot.kind == SLOT_BOT,
+                    stocks: actor.map(|actor| actor.stocks).unwrap_or(0),
+                    kos: actor.map(|actor| actor.knockouts).unwrap_or(0),
+                    falls: actor.map(|actor| actor.falls).unwrap_or(0),
+                }
+            })
+            .collect();
+        MatchRecord {
+            id: format!("{}-{}", self.code, self.started_at),
+            code: self.code.clone(),
+            map: self.config.map.clone(),
+            mode: "custom".into(),
+            started_at: self.started_at,
+            ended_at: MatchRecord::now(),
+            winner: result.winner.map(u32::from),
+            players,
         }
     }
 

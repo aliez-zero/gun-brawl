@@ -31,7 +31,7 @@ COPY --from=build /src/target/release/gunbrawl-server /usr/local/bin/
 COPY --from=web /app/dist /srv/web
 USER app
 ENV GUNBRAWL_WEB_DIR=/srv/web \
-    DATABASE_URL=sqlite:///data/gunbrawl.db \
+    GUNBRAWL_DB=/data/gunbrawl.db \
     RUST_LOG=info
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s \

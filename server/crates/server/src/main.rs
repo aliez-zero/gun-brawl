@@ -22,7 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "0.0.0.0:8080".to_owned())
         .parse()?;
 
-    serve(AppState::new(web_dir), addr).await?;
+    let state = AppState::new(web_dir);
+    gunbrawl_server::init_persistence(&state).await;
+    serve(state, addr).await?;
     Ok(())
 }
 

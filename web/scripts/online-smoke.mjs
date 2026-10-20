@@ -83,6 +83,11 @@ try {
   }, { timeout: 10000 });
   check(true, 'snapshots resume after reconnect');
 
+  const metrics = await (await fetch(new URL('/metrics', url))).text();
+  check(/gunbrawl_rooms_active 1/.test(metrics), 'metrics expose the active room');
+  check(/gunbrawl_players_connected 2/.test(metrics), 'metrics expose two connected players');
+  check(/gunbrawl_snapshots_sent_total \d+/.test(metrics), 'metrics count snapshots');
+
   await host.screenshot({ path: 'artifacts/online-host.png', fullPage: true });
   await guest.screenshot({ path: 'artifacts/online-guest.png', fullPage: true });
 } finally {

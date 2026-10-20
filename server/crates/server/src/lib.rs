@@ -21,9 +21,13 @@ use tower_http::services::{ServeDir, ServeFile};
 use tracing::{info, warn};
 
 use crate::lobby::Lobby;
+use crate::metrics::Metrics;
+use crate::persist::Persist;
 use crate::room::{Command as RoomCommand, Player, RoomConfig};
 
 pub mod lobby;
+pub mod metrics;
+pub mod persist;
 pub mod room;
 
 #[derive(Clone)]
@@ -31,6 +35,8 @@ pub struct AppState {
     web_dir: String,
     lobby: Arc<Lobby>,
     content: Arc<Content>,
+    metrics: Arc<Metrics>,
+    persist: Arc<Persist>,
     /// Anonymous device token -> identity, kept for 60 s so a drop can reconnect.
     sessions: Arc<Mutex<HashMap<String, Identity>>>,
 }
@@ -45,10 +51,18 @@ struct Identity {
 impl AppState {
     pub fn new(web_dir: impl Into<String>) -> Self {
         let content = Arc::new(Content::parse().expect("content data must be valid"));
+        let metrics = Arc::new(Metrics::default());
+        let persist = Arc::new(Persist::default());
         Self {
             web_dir: web_dir.into(),
-            lobby: Arc::new(Lobby::new(content.clone())),
+            lobby: Arc::new(Lobby::new(
+                content.clone(),
+                metrics.clone(),
+                persist.clone(),
+            )),
             content,
+            metrics,
+            persist,
             sessions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -58,12 +72,19 @@ impl AppState {
     }
 }
 
+/// Open the match database (or keep running without it) and start the writer.
+pub async fn init_persistence(state: &AppState) -> bool {
+    let path = std::env::var("GUNBRAWL_DB").unwrap_or_else(|_| "gunbrawl.db".to_owned());
+    crate::persist::init(state.persist.clone(), &path).await
+}
+
 pub fn router(state: AppState) -> Router {
     let index = format!("{}/index.html", state.web_dir.trim_end_matches('/'));
     let files = ServeDir::new(state.web_dir.clone()).not_found_service(ServeFile::new(index));
 
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/metrics", get(metrics_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(files)
         .with_state(state)
@@ -71,6 +92,10 @@ pub fn router(state: AppState) -> Router {
 
 async fn healthz() -> &'static str {
     "ok"
+}
+
+async fn metrics_handler(State(state): State<AppState>) -> String {
+    state.metrics.render(state.lobby.count())
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
@@ -102,6 +127,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         token: String::new(),
     };
     let mut greeted = false;
+    let mut counted_player = false;
 
     loop {
         tokio::select! {
@@ -124,6 +150,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                             session.player_id = player_id;
                             session.name = name;
                             session.token = token;
+                            Metrics::incr(&state.metrics.players);
+                            counted_player = true;
                             send(&out_tx, &S2C::Welcome {
                                 player_id,
                                 name: session.name.clone(),
@@ -169,6 +197,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 player: session.player_id,
             },
         );
+    }
+    if counted_player {
+        Metrics::decr(&state.metrics.players);
     }
     info!(player_id = session.player_id, "client disconnected");
 }
