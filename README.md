@@ -24,6 +24,20 @@ pnpm dev
 
 打开终端显示的本地地址，默认是 `http://127.0.0.1:5173/`。
 
+**联机对战**：另开一个终端启动 Rust 房间服务，然后在主菜单点「联机对战」建房或用房间码加入。开发时 Vite 会把 `/ws` 代理到 `127.0.0.1:8080`。
+
+```powershell
+cd D:\Code\gun-brawl\server
+$env:GUNBRAWL_WEB_DIR = "D:\Code\gun-brawl\web\dist"
+cargo run -p gunbrawl-server
+```
+
+```powershell
+pnpm test:online   # 两个浏览器上下文：建房 → 加入 → 开始 → HUD → 延迟
+```
+
+生产部署（Docker + Caddy + CI）见 [部署手册](./docs/DEPLOY.md)；方案与验收口径见 [联机版方案 v2](./docs/CLIENT_SERVER_PLAN_V2.md)、[性能预算](./docs/PERFORMANCE.md)。
+
 **DeepSeek 对战**：复制 `.env.example` 为 `.env.local`，填入 `DEEPSEEK_API_KEY`，重启 `pnpm dev` 后点击主菜单的“DeepSeek 对战”。模型通过状态接口直接操作角色，密钥只在 Node 端使用。配置、预算、延迟和验证边界见 [DeepSeek 接入说明](./docs/DEEPSEEK.md)。没有密钥仍可玩原有模式。
 
 ```powershell

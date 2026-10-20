@@ -1,0 +1,40 @@
+services:
+  app:
+    image: ${IMAGE_PREFIX:-ghcr.io/owner/gun-brawl}:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: [.env]
+    volumes: ["data:/data"]
+    expose: ["8080"]
+    networks: [web]
+
+  gateway:
+    image: ${IMAGE_PREFIX:-ghcr.io/owner/gun-brawl}-gateway:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    restart: unless-stopped
+    env_file: [.env]
+    expose: ["8090"]
+    networks: [web]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    env_file: [.env]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+      - ./logs:/var/log/caddy
+    depends_on: [app, gateway]
+    networks: [web]
+
+volumes:
+  data: {}
+  caddy: {}
+
+networks:
+  web: {}
