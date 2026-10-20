@@ -3,6 +3,7 @@
 - 取代：2026-10-19 的 [CLIENT_SERVER_PLAN.md](./CLIENT_SERVER_PLAN.md)（v1）
 - 日期：2026-10-19（北京时间）
 - 评审结论见：[CLIENT_SERVER_PLAN_REVIEW.md](./CLIENT_SERVER_PLAN_REVIEW.md)
+- 实施状态（2026-10-20）：P1—P5 已落地，见 [联机完成交接](./updates/2026-10-20-online-complete.md)。
 - 性能预算、手段与实测：[PERFORMANCE.md](./PERFORMANCE.md)（硬指标，每阶段记录）
 - 本文只做方案与拆解，不含游戏实现；部署产物（Dockerfile / compose / Caddyfile / CI）在 §10 给出可直接落地的版本
 
