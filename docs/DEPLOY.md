@@ -3,6 +3,8 @@
 一条 `docker compose up -d` 起完整服务：Rust 游戏服务、DeepSeek 边车、Caddy（自动 HTTPS/WS）。
 所有命令在服务器上的 `/srv/gun-brawl` 执行。
 
+腾讯云（备案、安全组、大陆拉镜像、无域名临时访问）见 [DEPLOY_TENCENT.md](./DEPLOY_TENCENT.md)。
+
 ## 1. 前置条件
 
 | 项 | 建议 |
@@ -47,17 +49,23 @@ TAG=<previous-sha> docker compose up -d app
 
 ## 4. 备份与恢复
 
-SQLite 在 `data` 卷：
+SQLite 在 `data` 卷。运行时镜像里没有 `sqlite3` 命令，用停服拷贝或一次性容器：
 
 ```bash
-docker compose exec app sh -c 'mkdir -p /data/backup && sqlite3 /data/gunbrawl.db ".backup /data/backup/$(date +%F).db"'
+# 停服拷贝
+docker compose stop app
+docker compose cp app:/data/gunbrawl.db ./gunbrawl-$(date +%F).db
+docker compose start app
+
+# 不停服、WAL 安全（卷名以 docker volume ls 为准）
+docker run --rm -v gun-brawl_data:/data keinos/sqlite3 \
+  /data/gunbrawl.db ".backup /data/backup.db"
+
 # 恢复
 docker compose stop app
-docker compose run --rm -v gun-brawl_data:/data app sh -c 'cp /data/backup/<date>.db /data/gunbrawl.db'
+docker compose cp ./gunbrawl-<date>.db app:/data/gunbrawl.db
 docker compose start app
 ```
-
-（当前 P2 还没有写库表，备份步骤先保留为约定。）
 
 ## 5. 监控与日志
 

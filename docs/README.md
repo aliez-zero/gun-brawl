@@ -36,6 +36,7 @@
 | [CLIENT_SERVER_PLAN_REVIEW.md](./CLIENT_SERVER_PLAN_REVIEW.md) | 对 v1 方案的评审与修正记录（已并入 v2） | 方案重写后 |
 | [PERFORMANCE.md](./PERFORMANCE.md) | 性能预算、按层优化清单、bench 实测与回归门槛 | 预算、实测或优化手段变化后 |
 | [DEPLOY.md](./DEPLOY.md) | Docker/Caddy 部署、升级回滚、备份与排障手册 | 部署形态或运维流程变化后 |
+| [DEPLOY_TENCENT.md](./DEPLOY_TENCENT.md) | 腾讯云专版：备案、安全组、大陆拉镜像、无域名临时访问、容量估算 | 目标云厂商或上线方式变化后 |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | 已完成 / 未完成、代码入口、参数、测试证据和已知限制 | 功能集成或验证结论变化后 |
 | [WEAPONS.md](./WEAPONS.md) | 已实现的 17 型号、弹匣 / 备弹、射速 / 弹速、后坐力与投放权重设计 | 型号、弹药或平衡方案调整 |
 | [CHARACTER_DESIGN.md](./CHARACTER_DESIGN.md) | 五角色造型、材质、动作、调研取舍、资源预算与 C01—C07 精修任务 | 角色设计、动画或视觉验收变化后 |
