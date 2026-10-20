@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
 use gunbrawl_bot::BotController;
@@ -47,6 +47,14 @@ pub enum Command {
     Join {
         player: Player,
         sender: mpsc::UnboundedSender<Bytes>,
+    },
+    /// Re-attach a known player after a reconnect; the slot is kept for 60 s.
+    Resume {
+        player: Player,
+        sender: mpsc::UnboundedSender<Bytes>,
+    },
+    Disconnect {
+        player: u32,
     },
     Leave {
         player: u32,
@@ -142,6 +150,10 @@ pub struct Room {
     config: RoomConfig,
     slots: [Slot; MAX_SLOTS],
     players: HashMap<u32, mpsc::UnboundedSender<Bytes>>,
+    /// Players that dropped but may still reconnect (60 s grace).
+    missing: HashMap<u32, Instant>,
+    /// Last encoded snapshot, replayed to a reconnecting client.
+    last_snapshot: Option<Bytes>,
     phase: u8,
     simulation: Option<Simulation>,
     /// Actor index -> slot index for the running match.
@@ -166,6 +178,8 @@ impl Room {
             config,
             slots: [Slot::empty(), Slot::empty(), Slot::empty(), Slot::empty()],
             players: HashMap::new(),
+            missing: HashMap::new(),
+            last_snapshot: None,
             phase: PHASE_LOBBY,
             simulation: None,
             actor_slots: Vec::new(),
@@ -227,27 +241,32 @@ impl Room {
                 info!(room = %self.code, player = player.id, slot = slot_index, "player joined");
             }
             Command::Leave { player } => {
-                if let Some(index) = self
+                self.remove_player(player);
+            }
+            Command::Disconnect { player } => {
+                self.players.remove(&player);
+                self.missing.insert(player, Instant::now());
+                info!(room = %self.code, player, "player disconnected, slot held for 60s");
+            }
+            Command::Resume { player, sender } => {
+                let known = self
                     .slots
                     .iter()
-                    .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
-                {
-                    self.slots[index] = Slot::empty();
+                    .any(|slot| slot.kind == SLOT_HUMAN && slot.player == player.id);
+                if !known {
+                    return;
                 }
-                self.players.remove(&player);
-                if self.host == player {
-                    self.host = self
-                        .slots
-                        .iter()
-                        .find(|slot| slot.kind == SLOT_HUMAN)
-                        .map(|slot| slot.player)
-                        .unwrap_or(0);
+                self.missing.remove(&player.id);
+                self.players.insert(player.id, sender.clone());
+                let view = self.room_view();
+                if let Ok(payload) = encode(&S2C::Room(view)) {
+                    let _ = sender.send(Bytes::from(payload));
                 }
-                if self.players.is_empty() {
-                    self.phase = PHASE_LOBBY;
-                    self.simulation = None;
+                if let Some(snapshot) = &self.last_snapshot {
+                    let _ = sender.send(snapshot.clone());
                 }
                 self.broadcast_room();
+                info!(room = %self.code, player = player.id, "player resumed");
             }
             Command::PickSlot {
                 player,
@@ -383,6 +402,16 @@ impl Room {
     }
 
     fn step(&mut self) {
+        let expired: Vec<u32> = self
+            .missing
+            .iter()
+            .filter(|(_, at)| at.elapsed().as_secs() >= 60)
+            .map(|(player, _)| *player)
+            .collect();
+        for player in expired {
+            self.missing.remove(&player);
+            self.remove_player(player);
+        }
         let Some(mut simulation) = self.simulation.take() else {
             return;
         };
@@ -422,7 +451,11 @@ impl Room {
         let finished = simulation.state.phase == MatchPhase::Finished;
         if self.tick.is_multiple_of(TICK_RATE / SNAPSHOT_RATE) || finished {
             let snapshot = self.build_snapshot(&simulation, &events);
-            self.broadcast(&S2C::Snapshot(Box::new(snapshot)));
+            if let Ok(payload) = encode(&S2C::Snapshot(Box::new(snapshot))) {
+                let payload = Bytes::from(payload);
+                self.last_snapshot = Some(payload.clone());
+                self.broadcast_bytes(payload);
+            }
         }
         if finished {
             if let Some(result) = simulation.state.result.clone() {
@@ -573,14 +606,40 @@ impl Room {
     }
 
     fn broadcast(&self, message: &S2C) {
-        let Ok(payload) = encode(message) else {
-            warn!(room = %self.code, "failed to encode message");
-            return;
-        };
-        let payload = Bytes::from(payload);
+        if let Ok(payload) = encode(message) {
+            self.broadcast_bytes(Bytes::from(payload));
+        }
+    }
+
+    fn broadcast_bytes(&self, payload: Bytes) {
         for sender in self.players.values() {
             let _ = sender.send(payload.clone());
         }
+    }
+
+    fn remove_player(&mut self, player: u32) {
+        if let Some(index) = self
+            .slots
+            .iter()
+            .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
+        {
+            self.slots[index] = Slot::empty();
+        }
+        self.players.remove(&player);
+        self.missing.remove(&player);
+        if self.host == player {
+            self.host = self
+                .slots
+                .iter()
+                .find(|slot| slot.kind == SLOT_HUMAN)
+                .map(|slot| slot.player)
+                .unwrap_or(0);
+        }
+        if self.players.is_empty() {
+            self.phase = PHASE_LOBBY;
+            self.simulation = None;
+        }
+        self.broadcast_room();
     }
 }
 

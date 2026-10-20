@@ -179,6 +179,77 @@ async fn two_clients_join_start_and_ack_inputs() {
 }
 
 #[tokio::test]
+async fn token_resumes_the_room_after_reconnect() {
+    let url = start_server().await;
+    let mut first = connect(&url).await;
+    send(
+        &mut first,
+        &C2S::Hello {
+            proto: PROTO_VERSION,
+            content: 0,
+            token: "reconnect-token".into(),
+            build: "test".into(),
+        },
+    )
+    .await;
+    let (first_id, _) = recv_until(&mut first, |message| match message {
+        S2C::Welcome {
+            player_id, name, ..
+        } => Some((*player_id, name.clone())),
+        _ => None,
+    })
+    .await;
+
+    send(
+        &mut first,
+        &C2S::CreateRoom {
+            name: "Host".into(),
+            map: "sky-citadel".into(),
+            stocks: 3,
+            duration: 60,
+            drop_mode: 0,
+        },
+    )
+    .await;
+    let code = recv_until(&mut first, |message| match message {
+        S2C::Room(room) => Some(room.code.clone()),
+        _ => None,
+    })
+    .await;
+
+    // Drop the socket without Leave; the room keeps the slot for 60 s.
+    let _ = first.close(None).await;
+    drop(first);
+
+    let mut second = connect(&url).await;
+    send(
+        &mut second,
+        &C2S::Hello {
+            proto: PROTO_VERSION,
+            content: 0,
+            token: "reconnect-token".into(),
+            build: "test".into(),
+        },
+    )
+    .await;
+    let (second_id, _) = recv_until(&mut second, |message| match message {
+        S2C::Welcome {
+            player_id, name, ..
+        } => Some((*player_id, name.clone())),
+        _ => None,
+    })
+    .await;
+    assert_eq!(first_id, second_id, "same token must keep the player id");
+
+    let resumed = recv_until(&mut second, |message| match message {
+        S2C::Room(room) => Some(room.code.clone()),
+        _ => None,
+    })
+    .await;
+    assert_eq!(resumed, code, "server should rejoin the previous room");
+}
+
+#[tokio::test]
 async fn bot_slot_moves_after_countdown() {
     let url = start_server().await;
     let mut host = connect(&url).await;

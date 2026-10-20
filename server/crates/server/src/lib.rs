@@ -3,8 +3,10 @@
 //! P0 shipped the handshake; P2 adds rooms: create/join, ready/start, 60 Hz
 //! simulation per room and 30 Hz snapshots.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
@@ -29,6 +31,15 @@ pub struct AppState {
     web_dir: String,
     lobby: Arc<Lobby>,
     content: Arc<Content>,
+    /// Anonymous device token -> identity, kept for 60 s so a drop can reconnect.
+    sessions: Arc<Mutex<HashMap<String, Identity>>>,
+}
+
+struct Identity {
+    player_id: u32,
+    name: String,
+    room: Option<String>,
+    seen: Instant,
 }
 
 impl AppState {
@@ -38,6 +49,7 @@ impl AppState {
             web_dir: web_dir.into(),
             lobby: Arc::new(Lobby::new(content.clone())),
             content,
+            sessions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -69,6 +81,7 @@ struct Session {
     player_id: u32,
     name: String,
     room: Option<String>,
+    token: String,
 }
 
 impl Session {
@@ -81,15 +94,14 @@ impl Session {
 }
 
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    let player_id = state.lobby.next_player_id();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Bytes>();
     let mut session = Session {
-        player_id,
-        name: format!("玩家{player_id}"),
+        player_id: 0,
+        name: String::new(),
         room: None,
+        token: String::new(),
     };
     let mut greeted = false;
-    info!(player_id, "client connected");
 
     loop {
         tokio::select! {
@@ -101,13 +113,17 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     _ => continue,
                 };
                 let Ok(message) = decode::<C2S>(&message) else {
-                    warn!(player_id, "undecodable client message");
+                    warn!(player_id = session.player_id, "undecodable client message");
                     continue;
                 };
                 if !greeted {
                     match message {
-                        C2S::Hello { proto, .. } if proto == PROTO_VERSION => {
+                        C2S::Hello { proto, token, .. } if proto == PROTO_VERSION => {
                             greeted = true;
+                            let (player_id, name, room) = identity_for(&state, &token);
+                            session.player_id = player_id;
+                            session.name = name;
+                            session.token = token;
                             send(&out_tx, &S2C::Welcome {
                                 player_id,
                                 name: session.name.clone(),
@@ -115,6 +131,13 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                 tick_rate: gunbrawl_core::TICK_RATE as u16,
                                 snapshot_rate: gunbrawl_core::SNAPSHOT_RATE as u16,
                             });
+                            // Reconnect: the room keeps the slot for 60 s and replays state.
+                            if let Some(code) = room {
+                                if state.lobby.resume(&code, session.player(), out_tx.clone()) {
+                                    session.room = Some(code);
+                                }
+                            }
+                            info!(player_id, "client connected");
                         }
                         C2S::Hello { proto, .. } => {
                             send(&out_tx, &S2C::Kick { code: 426, message: format!("protocol {proto} != {PROTO_VERSION}") });
@@ -142,12 +165,69 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     if let Some(code) = session.room.take() {
         let _ = state.lobby.send(
             &code,
-            RoomCommand::Leave {
+            RoomCommand::Disconnect {
                 player: session.player_id,
             },
         );
     }
-    info!(player_id, "client disconnected");
+    info!(player_id = session.player_id, "client disconnected");
+}
+
+/// Resolve a device token to a stable identity; new tokens get a fresh id.
+fn identity_for(state: &AppState, token: &str) -> (u32, String, Option<String>) {
+    if token.is_empty() {
+        let id = state.lobby.next_player_id();
+        return (id, format!("玩家{id}"), None);
+    }
+    let mut sessions = state
+        .sessions
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    sessions.retain(|_, identity| identity.seen.elapsed() < Duration::from_secs(60));
+    if let Some(identity) = sessions.get_mut(token) {
+        identity.seen = Instant::now();
+        return (
+            identity.player_id,
+            identity.name.clone(),
+            identity.room.clone(),
+        );
+    }
+    let id = state.lobby.next_player_id();
+    let name = format!("玩家{id}");
+    sessions.insert(
+        token.to_owned(),
+        Identity {
+            player_id: id,
+            name: name.clone(),
+            room: None,
+            seen: Instant::now(),
+        },
+    );
+    (id, name, None)
+}
+
+fn remember_room(state: &AppState, token: &str, name: &str, code: &str) {
+    if token.is_empty() {
+        return;
+    }
+    if let Ok(mut sessions) = state.sessions.lock() {
+        if let Some(identity) = sessions.get_mut(token) {
+            identity.room = Some(code.to_owned());
+            identity.name = name.to_owned();
+            identity.seen = Instant::now();
+        }
+    }
+}
+
+fn forget_room(state: &AppState, token: &str) {
+    if token.is_empty() {
+        return;
+    }
+    if let Ok(mut sessions) = state.sessions.lock() {
+        if let Some(identity) = sessions.get_mut(token) {
+            identity.room = None;
+        }
+    }
 }
 
 fn handle_message(
@@ -184,6 +264,7 @@ fn handle_message(
                 return;
             };
             if state.lobby.join(&code, session.player(), out_tx.clone()) {
+                remember_room(state, &session.token, &session.name, &code);
                 session.room = Some(code);
             } else {
                 send(
@@ -210,6 +291,7 @@ fn handle_message(
                 return;
             }
             if state.lobby.join(&code, session.player(), out_tx.clone()) {
+                remember_room(state, &session.token, &session.name, &code);
                 session.room = Some(code);
             } else {
                 send(
@@ -284,6 +366,7 @@ fn handle_message(
             send(out_tx, &S2C::Pong { t, server_tick: 0 });
         }
         C2S::Leave => {
+            forget_room(state, &session.token);
             if let Some(code) = session.room.take() {
                 let _ = state.lobby.send(
                     &code,

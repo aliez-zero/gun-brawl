@@ -97,6 +97,15 @@ impl Lobby {
         }
     }
 
+    /// Re-attach a reconnecting player; the room decides whether a slot exists.
+    pub fn resume(&self, code: &str, player: Player, sender: mpsc::UnboundedSender<Bytes>) -> bool {
+        self.send(code, Command::Resume { player, sender })
+    }
+
+    pub fn disconnect(&self, code: &str, player: u32) {
+        let _ = self.send(code, Command::Disconnect { player });
+    }
+
     fn generate_code(&self) -> String {
         let counter = self.code_counter.fetch_add(1, Ordering::Relaxed);
         let nanos = SystemTime::now()

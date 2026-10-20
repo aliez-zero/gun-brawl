@@ -125,6 +125,11 @@ export class NetClient {
     this.setStatus('closed');
   }
 
+  /** Simulate a network drop (browser smoke test); the client reconnects. */
+  dropConnection(): void {
+    this.socket?.close();
+  }
+
   createRoom(name: string, map: string, stocks: number, duration: number, dropMode: number): void {
     this.send({ type: 'createRoom', name, map, stocks, duration, dropMode });
   }

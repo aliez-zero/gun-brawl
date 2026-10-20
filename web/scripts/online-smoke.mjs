@@ -72,6 +72,17 @@ try {
   const status = await host.locator('#net-status').textContent();
   check(Boolean(status && status.includes('PING')), `latency HUD: ${status}`);
 
+  // Force a socket drop: the client reconnects and the token resumes the room.
+  await host.evaluate(() => window.__gunbrawlDebug.dropConnection());
+  await host.waitForFunction(() => document.body.dataset.net === 'closed', { timeout: 8000 });
+  await host.waitForFunction(() => document.body.dataset.net === 'open', { timeout: 20000 });
+  check(true, 'reconnected and resumed the room');
+  await host.waitForFunction(() => {
+    const element = document.querySelector('#net-status');
+    return Boolean(element && element.textContent && element.textContent.includes('PING'));
+  }, { timeout: 10000 });
+  check(true, 'snapshots resume after reconnect');
+
   await host.screenshot({ path: 'artifacts/online-host.png', fullPage: true });
   await guest.screenshot({ path: 'artifacts/online-guest.png', fullPage: true });
 } finally {

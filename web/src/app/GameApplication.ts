@@ -51,6 +51,9 @@ export class GameApplication {
   private netStatusAt = 0;
   private predictor: Predictor | null = null;
   private predictorPromise: Promise<Predictor | null> | null = null;
+  private reconnectAttempts = 0;
+  private reconnectTimer: number | null = null;
+  private reconnecting = false;
 
   constructor(root: HTMLElement) {
     this.ui = new GameUI(root, {
@@ -142,6 +145,10 @@ export class GameApplication {
     window.addEventListener('pointerdown', this.onAudioGesture, { capture: true, signal });
     window.addEventListener('keydown', this.onAudioGesture, { capture: true, signal });
     window.addEventListener('focus', this.onAudioFocus, { signal });
+    // Test hook for the online smoke: forces a socket drop without a server restart.
+    (window as unknown as { __gunbrawlDebug?: { dropConnection: () => void } }).__gunbrawlDebug = {
+      dropConnection: () => this.online?.dropConnection(),
+    };
   }
 
   private start(mode: GameMode): void {
@@ -302,12 +309,15 @@ export class GameApplication {
 
   private async ensureOnline(): Promise<NetClient> {
     if (this.online?.connected) return this.online;
-    const client = new NetClient({
+    const client = this.online ?? new NetClient({
       onRoom: (room) => this.handleOnlineRoom(room),
       onSnapshot: (snapshot) => this.onlineSource?.applySnapshot(snapshot),
       onMatchEnd: (result) => this.handleOnlineEnd(result),
       onStatus: (status, detail) => {
         this.onlineStatus = detail ?? ({ connecting: '正在连接…', open: '已连接', closed: '连接已断开', error: '连接失败' }[status] ?? '');
+        document.body.dataset.net = status;
+        if (status === 'open') this.reconnectAttempts = 0;
+        if (status === 'closed' && this.onlineSource && !this.reconnecting) this.scheduleReconnect();
         if (this.screen === 'online') this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
       },
       onLatency: (rtt, jitter) => {
@@ -320,6 +330,33 @@ export class GameApplication {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     await client.connect(`${protocol}://${window.location.host}/ws`);
     return client;
+  }
+
+  /** Reconnect with backoff; the server replays room state by device token. */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer !== null) return;
+    if (this.reconnectAttempts >= 5) {
+      this.reconnecting = false;
+      this.ui.notify('重连失败，已离开房间');
+      this.leaveOnline();
+      return;
+    }
+    this.reconnecting = true;
+    const delay = 800 * 2 ** this.reconnectAttempts;
+    this.reconnectAttempts += 1;
+    this.onlineStatus = `连接断开，${(delay / 1000).toFixed(1)} 秒后重连…`;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.ensureOnline()
+        .then(() => {
+          this.reconnecting = false;
+          this.onlineStatus = '已重连';
+        })
+        .catch(() => {
+          this.reconnecting = false;
+          this.scheduleReconnect();
+        });
+    }, delay);
   }
 
   private async createOnlineRoom(name: string, map: string, stocks: number, duration: number): Promise<void> {
@@ -388,13 +425,20 @@ export class GameApplication {
   }
 
   private leaveOnlineSession(): void {
-    this.onlineSource?.dispose();
-    if (this.online) {
-      this.online.leave();
-      this.online.disconnect();
-      this.online = null;
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
+    this.reconnecting = false;
+    this.reconnectAttempts = 0;
+    this.onlineSource?.dispose();
     this.onlineSource = null;
+    const client = this.online;
+    this.online = null;
+    if (client) {
+      client.leave();
+      client.disconnect();
+    }
     this.onlineRoom = null;
     this.onlineLatency = { rtt: 0, jitter: 0 };
     this.ui.updateNetStatus(null);
