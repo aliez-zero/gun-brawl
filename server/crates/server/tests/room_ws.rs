@@ -4,7 +4,7 @@
 //! assertions cover the acknowledgement path and snapshot shape, not rendering.
 
 use futures_util::{SinkExt, StreamExt};
-use gunbrawl_proto::{decode, encode, C2S, InputFrame, S2C, PROTO_VERSION};
+use gunbrawl_proto::{decode, encode, InputFrame, C2S, PROTO_VERSION, S2C};
 use gunbrawl_server::{router, AppState};
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::tungstenite::Message;
@@ -13,7 +13,9 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn start_server() -> String {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
     let addr = listener.local_addr().expect("addr");
     let app = router(AppState::new("web/dist"));
     tokio::spawn(async move {
@@ -29,7 +31,10 @@ async fn connect(url: &str) -> Socket {
 
 async fn send(socket: &mut Socket, message: &C2S) {
     let bytes = encode(message).expect("encode");
-    socket.send(Message::Binary(bytes.into())).await.expect("send");
+    socket
+        .send(Message::Binary(bytes.into()))
+        .await
+        .expect("send");
 }
 
 async fn recv(socket: &mut Socket) -> S2C {
@@ -67,7 +72,9 @@ async fn handshake(socket: &mut Socket) -> (u32, String) {
     )
     .await;
     let welcome = recv_until(socket, |message| match message {
-        S2C::Welcome { player_id, name, .. } => Some((*player_id, name.clone())),
+        S2C::Welcome {
+            player_id, name, ..
+        } => Some((*player_id, name.clone())),
         _ => None,
     })
     .await;
@@ -102,16 +109,30 @@ async fn two_clients_join_start_and_ack_inputs() {
     .await;
     assert_eq!(code.len(), 6);
 
-    send(&mut guest, &C2S::JoinRoom { code: code.clone(), name: "Guest".into() }).await;
+    send(
+        &mut guest,
+        &C2S::JoinRoom {
+            code: code.clone(),
+            name: "Guest".into(),
+        },
+    )
+    .await;
     let room = recv_until(&mut guest, |message| match message {
         S2C::Room(room) => Some(room.clone()),
         _ => None,
     })
     .await;
-    let humans = room.slots.iter().filter(|slot| slot.kind == gunbrawl_proto::SLOT_HUMAN).count();
+    let humans = room
+        .slots
+        .iter()
+        .filter(|slot| slot.kind == gunbrawl_proto::SLOT_HUMAN)
+        .count();
     assert_eq!(humans, 2);
     assert_eq!(room.host, host_id);
-    assert!(room.weapons.iter().any(|weapon| weapon.as_str() == "pistol"));
+    assert!(room
+        .weapons
+        .iter()
+        .any(|weapon| weapon.as_str() == "pistol"));
 
     send(&mut host, &C2S::Start).await;
 
@@ -122,13 +143,22 @@ async fn two_clients_join_start_and_ack_inputs() {
     })
     .await;
     assert_eq!(snapshot.actors.len(), 2);
-    assert!(matches!(snapshot.phase, gunbrawl_proto::PHASE_COUNTDOWN | gunbrawl_proto::PHASE_PLAYING));
+    assert!(matches!(
+        snapshot.phase,
+        gunbrawl_proto::PHASE_COUNTDOWN | gunbrawl_proto::PHASE_PLAYING
+    ));
 
     // Input reaches the room; the next snapshot acknowledges seq 7 for slot 0.
     send(
         &mut host,
         &C2S::Input {
-            frames: vec![InputFrame { seq: 7, tick_hint: 7, move_x: 1, held: 0, edges: 0 }],
+            frames: vec![InputFrame {
+                seq: 7,
+                tick_hint: 7,
+                move_x: 1,
+                held: 0,
+                edges: 0,
+            }],
         },
     )
     .await;

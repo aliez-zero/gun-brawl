@@ -23,8 +23,11 @@ import { isMusicTrack } from '../content/music';
 import type { MusicSettings } from '../content/music';
 import type { MusicStatus } from '../presentation/music/MusicPlayer';
 import { musicSettings, musicStatusText } from './audio/MusicSettings';
+import { onlineLobbyHtml } from './OnlineLobby';
+import type { RoomView } from '../net/protocol';
 import './deepseek.css';
 import './audio/music.css';
+import './online.css';
 
 export interface UIActions {
   deepseek: () => void;
@@ -56,6 +59,14 @@ export interface UIActions {
   selectCampaign: (levelId: string) => void;
   nextCampaign: () => void;
   campaignSelect: () => void;
+  online: () => void;
+  onlineCreate: (name: string, map: string, stocks: number, duration: number) => void;
+  onlineJoin: (name: string, code: string) => void;
+  onlineReady: (ready: boolean) => void;
+  onlineStart: () => void;
+  onlineLeave: () => void;
+  onlineRematch: () => void;
+  onlineBot: (slot: number) => void;
 }
 
 export class GameUI {
@@ -124,6 +135,22 @@ export class GameUI {
       if (action === 'start') { this.actions.start(this.selected); return; }
       if (action === 'deepseek') { this.actions.deepseek(); return; }
       if (action === 'start-deepseek') { this.actions.startDeepSeek(); return; }
+      if (action === 'online') { this.actions.online(); return; }
+      if (action === 'online-create') {
+        this.actions.onlineCreate(
+          this.field('online-name'),
+          this.field('online-map'),
+          Number(this.field('online-stocks')) || 3,
+          Number(this.field('online-duration')) || 180,
+        );
+        return;
+      }
+      if (action === 'online-join') { this.actions.onlineJoin(this.field('online-name'), this.field('online-code')); return; }
+      if (action === 'online-ready') { this.actions.onlineReady(button.dataset.ready !== 'true'); return; }
+      if (action === 'online-start') { this.actions.onlineStart(); return; }
+      if (action === 'online-leave') { this.actions.onlineLeave(); return; }
+      if (action === 'online-rematch') { this.actions.onlineRematch(); return; }
+      if (action === 'online-bot') { this.actions.onlineBot(Number(button.dataset.slot)); return; }
       if (action === 'toggleMusic') { this.actions.toggleMusic(); return; }
       if (action === 'rebind') {
         const slot = Number(button.dataset.slot) as HumanSlot;
@@ -310,7 +337,7 @@ export class GameUI {
         </div>
         <p class="mode-description">${descriptions[this.selected]}</p>
         <div class="loadout-actions"><button data-action="appearance"><span>✦ 角色外观</span><small>${look.name} ↗</small></button><button data-action="maps"><span>▧ 更换地图</span><small>${map.name} ↗</small></button></div>
-        <div class="menu-tools"><button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>17 个型号 / 直接试枪 ↗</small></button><button class="encyclopedia-entry deepseek-entry" data-action="deepseek" ${this.ready ? '' : 'disabled'}><span>◈ DeepSeek 对战</span><small>外部 AI 直接操作 ↗</small></button></div>
+        <div class="menu-tools"><button class="encyclopedia-entry" data-action="encyclopedia"><span>▤ 武器图鉴</span><small>17 个型号 / 直接试枪 ↗</small></button><button class="encyclopedia-entry online-entry" data-action="online"><span>◉ 联机对战</span><small>创建房间 / 房间码加入 ↗</small></button><button class="encyclopedia-entry deepseek-entry" data-action="deepseek" ${this.ready ? '' : 'disabled'}><span>◈ DeepSeek 对战</span><small>外部 AI 直接操作 ↗</small></button></div>
         <button class="start-button" data-action="start" ${this.ready ? '' : 'disabled'}><span>${!this.ready ? '正在准备战场' : this.selected === 'custom' ? '配置对局' : this.selected === 'campaign' ? '选择关卡' : '进入战场'}</span><span>↗</span></button>
         <div class="match-rules"><span>${this.selected === 'training' ? '无限练习' : this.selected === 'custom' ? '2—4 人自由配置' : this.selected === 'campaign' ? '六关战役' : '每人 3 条命'}</span><i></i><span>${this.selected === 'training' ? '随时重新开始' : this.selected === 'custom' ? '可关闭特殊投放' : this.selected === 'campaign' ? '胜利解锁下一关' : '最后存活者获胜'}</span></div>
       </div>
@@ -329,6 +356,7 @@ export class GameUI {
       <div class="hud-top">
         <div class="actor-cards ${state.actors.length > 2 ? 'many' : ''}">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${actor.config.name}</span><canvas class="weapon-icon" id="weapon-icon-${actor.config.id}" width="120" height="48" aria-label="当前武器"></canvas></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
         <div class="timer-block"><span id="round-label">${matchLabel}</span><strong id="round-time">03:00</strong></div>
+        <div class="net-status" id="net-status" hidden></div>
         <button class="pause-button" data-action="pause" aria-label="暂停对战">Ⅱ <kbd>ESC</kbd></button>
       </div>
       <div class="countdown" aria-live="polite" hidden><small>准备就绪</small><strong></strong><span>保持移动，远离边缘。</span></div>
@@ -343,6 +371,22 @@ export class GameUI {
 
   showDeepSeekSetup(info: DeepSeekInfo | null, error: string | null = null, starting = false): void {
     this.dialog('DEEPSEEK / DIRECT CONTROL', '挑战 DeepSeek。', deepSeekSetup(info, getArena(this.save.selectedMapId).name, error, starting));
+  }
+
+  /** Online lobby; re-rendered on every room update. */
+  showOnline(room: RoomView | null, playerId: number, status: string): void {
+    this.dialog('ONLINE / ROOM CODE', '联机对战', onlineLobbyHtml(room, playerId, status), 'online-panel');
+  }
+
+  updateNetStatus(text: string | null): void {
+    const element = document.querySelector<HTMLElement>('#net-status');
+    if (!element) return;
+    element.hidden = text === null;
+    element.textContent = text ?? '';
+  }
+
+  private field(id: string): string {
+    return this.overlay.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value.trim() ?? '';
   }
 
   updateExternalAI(value: DeepSeekStatus | null): void {

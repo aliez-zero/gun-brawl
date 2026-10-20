@@ -13,7 +13,7 @@ use axum::routing::get;
 use axum::Router;
 use bytes::Bytes;
 use gunbrawl_content::Content;
-use gunbrawl_proto::{decode, encode, C2S, S2C, PROTO_VERSION};
+use gunbrawl_proto::{decode, encode, C2S, PROTO_VERSION, S2C};
 use tokio::sync::mpsc;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing::{info, warn};
@@ -34,7 +34,11 @@ pub struct AppState {
 impl AppState {
     pub fn new(web_dir: impl Into<String>) -> Self {
         let content = Arc::new(Content::parse().expect("content data must be valid"));
-        Self { web_dir: web_dir.into(), lobby: Arc::new(Lobby::new(content.clone())), content }
+        Self {
+            web_dir: web_dir.into(),
+            lobby: Arc::new(Lobby::new(content.clone())),
+            content,
+        }
     }
 
     pub fn content_hash(&self) -> u64 {
@@ -69,14 +73,21 @@ struct Session {
 
 impl Session {
     fn player(&self) -> Player {
-        Player { id: self.player_id, name: self.name.clone() }
+        Player {
+            id: self.player_id,
+            name: self.name.clone(),
+        }
     }
 }
 
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     let player_id = state.lobby.next_player_id();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Bytes>();
-    let mut session = Session { player_id, name: format!("玩家{player_id}"), room: None };
+    let mut session = Session {
+        player_id,
+        name: format!("玩家{player_id}"),
+        room: None,
+    };
     let mut greeted = false;
     info!(player_id, "client connected");
 
@@ -129,26 +140,59 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
 
     if let Some(code) = session.room.take() {
-        let _ = state.lobby.send(&code, RoomCommand::Leave { player: session.player_id });
+        let _ = state.lobby.send(
+            &code,
+            RoomCommand::Leave {
+                player: session.player_id,
+            },
+        );
     }
     info!(player_id, "client disconnected");
 }
 
-fn handle_message(state: &AppState, session: &mut Session, message: C2S, out_tx: &mpsc::UnboundedSender<Bytes>) {
+fn handle_message(
+    state: &AppState,
+    session: &mut Session,
+    message: C2S,
+    out_tx: &mpsc::UnboundedSender<Bytes>,
+) {
     match message {
-        C2S::CreateRoom { name, map, stocks, duration, drop_mode } => {
+        C2S::CreateRoom {
+            name,
+            map,
+            stocks,
+            duration,
+            drop_mode,
+        } => {
             if !name.is_empty() && name.chars().count() <= 16 {
                 session.name = name;
             }
-            let config = RoomConfig { map, stocks: stocks.clamp(2, 9), duration: duration.clamp(30, 600), drop_mode: drop_mode.min(2) };
+            let config = RoomConfig {
+                map,
+                stocks: stocks.clamp(2, 9),
+                duration: duration.clamp(30, 600),
+                drop_mode: drop_mode.min(2),
+            };
             let Some(code) = state.lobby.create(config) else {
-                send(out_tx, &S2C::Kick { code: 503, message: "房间已满".into() });
+                send(
+                    out_tx,
+                    &S2C::Kick {
+                        code: 503,
+                        message: "房间已满".into(),
+                    },
+                );
                 return;
             };
             if state.lobby.join(&code, session.player(), out_tx.clone()) {
                 session.room = Some(code);
             } else {
-                send(out_tx, &S2C::Kick { code: 500, message: "建房失败".into() });
+                send(
+                    out_tx,
+                    &S2C::Kick {
+                        code: 500,
+                        message: "建房失败".into(),
+                    },
+                );
             }
         }
         C2S::JoinRoom { code, name } => {
@@ -156,38 +200,84 @@ fn handle_message(state: &AppState, session: &mut Session, message: C2S, out_tx:
                 session.name = name;
             }
             if !state.lobby.exists(&code) {
-                send(out_tx, &S2C::Kick { code: 404, message: "房间不存在".into() });
+                send(
+                    out_tx,
+                    &S2C::Kick {
+                        code: 404,
+                        message: "房间不存在".into(),
+                    },
+                );
                 return;
             }
             if state.lobby.join(&code, session.player(), out_tx.clone()) {
                 session.room = Some(code);
             } else {
-                send(out_tx, &S2C::Kick { code: 409, message: "加入失败".into() });
+                send(
+                    out_tx,
+                    &S2C::Kick {
+                        code: 409,
+                        message: "加入失败".into(),
+                    },
+                );
             }
         }
         C2S::Ready { ready } => {
             if let Some(code) = &session.room {
-                let _ = state.lobby.send(code, RoomCommand::Ready { player: session.player_id, ready });
+                let _ = state.lobby.send(
+                    code,
+                    RoomCommand::Ready {
+                        player: session.player_id,
+                        ready,
+                    },
+                );
             }
         }
-        C2S::PickSlot { slot, kind, difficulty } => {
+        C2S::PickSlot {
+            slot,
+            kind,
+            difficulty,
+        } => {
             if let Some(code) = &session.room {
-                let _ = state.lobby.send(code, RoomCommand::PickSlot { player: session.player_id, slot, kind, difficulty });
+                let _ = state.lobby.send(
+                    code,
+                    RoomCommand::PickSlot {
+                        player: session.player_id,
+                        slot,
+                        kind,
+                        difficulty,
+                    },
+                );
             }
         }
         C2S::Start => {
             if let Some(code) = &session.room {
-                let _ = state.lobby.send(code, RoomCommand::Start { player: session.player_id });
+                let _ = state.lobby.send(
+                    code,
+                    RoomCommand::Start {
+                        player: session.player_id,
+                    },
+                );
             }
         }
         C2S::Rematch => {
             if let Some(code) = &session.room {
-                let _ = state.lobby.send(code, RoomCommand::Rematch { player: session.player_id });
+                let _ = state.lobby.send(
+                    code,
+                    RoomCommand::Rematch {
+                        player: session.player_id,
+                    },
+                );
             }
         }
         C2S::Input { frames } => {
             if let Some(code) = &session.room {
-                let _ = state.lobby.send(code, RoomCommand::Input { player: session.player_id, frames });
+                let _ = state.lobby.send(
+                    code,
+                    RoomCommand::Input {
+                        player: session.player_id,
+                        frames,
+                    },
+                );
             }
         }
         C2S::Ping { t } => {
@@ -195,7 +285,12 @@ fn handle_message(state: &AppState, session: &mut Session, message: C2S, out_tx:
         }
         C2S::Leave => {
             if let Some(code) = session.room.take() {
-                let _ = state.lobby.send(&code, RoomCommand::Leave { player: session.player_id });
+                let _ = state.lobby.send(
+                    &code,
+                    RoomCommand::Leave {
+                        player: session.player_id,
+                    },
+                );
             }
         }
         C2S::Hello { .. } => {}

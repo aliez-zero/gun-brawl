@@ -1,0 +1,75 @@
+.online-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted, #9aa79d);
+}
+
+.online-field input,
+.online-field select {
+  background: rgba(8, 14, 10, 0.72);
+  border: 1px solid rgba(154, 167, 157, 0.35);
+  border-radius: 6px;
+  color: #eaf1e6;
+  font: inherit;
+  letter-spacing: 0.04em;
+  padding: 9px 11px;
+  text-transform: none;
+}
+
+.online-row {
+  display: flex;
+  gap: 12px;
+}
+
+.online-row .online-field {
+  flex: 1;
+}
+
+.online-divider {
+  border: 0;
+  border-top: 1px dashed rgba(154, 167, 157, 0.3);
+  margin: 18px 0;
+}
+
+.online-code {
+  color: #d8ff6b;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 18px;
+  letter-spacing: 0.22em;
+}
+
+.online-slots {
+  list-style: none;
+  margin: 12px 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.online-slots li {
+  align-items: center;
+  background: rgba(8, 14, 10, 0.55);
+  border: 1px solid rgba(154, 167, 157, 0.28);
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.online-status {
+  min-height: 18px;
+  opacity: 0.8;
+}
+
+.net-status {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  opacity: 0.8;
+  text-transform: uppercase;
+}

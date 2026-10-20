@@ -46,9 +46,26 @@ fn sample_snapshot() -> Snapshot {
                 vy: -480,
             })
             .collect(),
-        bombs: vec![BombSnap { id: 1, owner: 0, x: 640, y: 500 }],
-        drops: vec![DropSnap { id: 1, weapon: 5, x: 320, y: 445, state: 1, warning: false }],
-        events: vec![EventSnap { kind: EVENT_HIT, actor: 0, x: 1600, y: -348 }],
+        bombs: vec![BombSnap {
+            id: 1,
+            owner: 0,
+            x: 640,
+            y: 500,
+        }],
+        drops: vec![DropSnap {
+            id: 1,
+            weapon: 5,
+            x: 320,
+            y: 445,
+            state: 1,
+            warning: false,
+        }],
+        events: vec![EventSnap {
+            kind: EVENT_HIT,
+            actor: 0,
+            x: 1600,
+            y: -348,
+        }],
     }
 }
 

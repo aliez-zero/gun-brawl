@@ -19,7 +19,8 @@
     "test:deepseek": "node scripts/deepseek-smoke.mjs",
     "test:perf": "node scripts/perf.mjs",
     "test:latency": "node scripts/latency.mjs",
-    "test:visual": "node scripts/appearance-maps.mjs"
+    "test:visual": "node scripts/appearance-maps.mjs",
+    "test:online": "node scripts/online-smoke.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

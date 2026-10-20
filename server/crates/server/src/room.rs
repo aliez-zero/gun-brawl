@@ -17,10 +17,10 @@ use gunbrawl_core::types::{
 use gunbrawl_core::{Simulation, SNAPSHOT_RATE, TICK_RATE};
 use gunbrawl_proto::{
     encode, quantize_pos, quantize_vel, ActorSnap, BombSnap, DropSnap, EventSnap, InputFrame,
-    MatchResultWire, RoomView, S2C, SlotView, Snapshot, EVENT_BOMB, EVENT_DROP_EXPIRED,
+    MatchResultWire, RoomView, SlotView, Snapshot, EVENT_BOMB, EVENT_DROP_EXPIRED,
     EVENT_DROP_INCOMING, EVENT_DROP_LANDED, EVENT_EXPLOSION, EVENT_HIT, EVENT_PICKUP,
     EVENT_RESPAWN, EVENT_RINGOUT, EVENT_SHOT, PHASE_COUNTDOWN, PHASE_LOBBY, PHASE_PLAYING,
-    PHASE_RESULT, SLOT_BOT, SLOT_EMPTY, SLOT_HUMAN,
+    PHASE_RESULT, S2C, SLOT_BOT, SLOT_EMPTY, SLOT_HUMAN,
 };
 use tokio::sync::mpsc;
 use tracing::{info, warn};
@@ -43,13 +43,33 @@ pub struct Player {
 }
 
 pub enum Command {
-    Join { player: Player, sender: mpsc::UnboundedSender<Bytes> },
-    Leave { player: u32 },
-    PickSlot { player: u32, slot: u8, kind: u8, difficulty: u8 },
-    Ready { player: u32, ready: bool },
-    Start { player: u32 },
-    Rematch { player: u32 },
-    Input { player: u32, frames: Vec<InputFrame> },
+    Join {
+        player: Player,
+        sender: mpsc::UnboundedSender<Bytes>,
+    },
+    Leave {
+        player: u32,
+    },
+    PickSlot {
+        player: u32,
+        slot: u8,
+        kind: u8,
+        difficulty: u8,
+    },
+    Ready {
+        player: u32,
+        ready: bool,
+    },
+    Start {
+        player: u32,
+    },
+    Rematch {
+        player: u32,
+    },
+    Input {
+        player: u32,
+        frames: Vec<InputFrame>,
+    },
 }
 
 #[derive(Clone)]
@@ -63,7 +83,13 @@ struct Slot {
 
 impl Slot {
     fn empty() -> Self {
-        Self { kind: SLOT_EMPTY, player: 0, name: String::new(), ready: false, difficulty: 1 }
+        Self {
+            kind: SLOT_EMPTY,
+            player: 0,
+            name: String::new(),
+            ready: false,
+            difficulty: 1,
+        }
     }
 }
 
@@ -75,7 +101,11 @@ struct InputQueue {
 
 impl InputQueue {
     fn new() -> Self {
-        Self { frames: VecDeque::with_capacity(4), last: None, last_seq: 0 }
+        Self {
+            frames: VecDeque::with_capacity(4),
+            last: None,
+            last_seq: 0,
+        }
     }
 
     fn push(&mut self, frame: InputFrame) {
@@ -90,7 +120,13 @@ impl InputQueue {
             Some(frame) => frame,
             None => match self.last {
                 Some(last) => InputFrame::repeat(last, self.last_seq, self.last_seq),
-                None => InputFrame { seq: 0, tick_hint: 0, move_x: 0, held: 0, edges: 0 },
+                None => InputFrame {
+                    seq: 0,
+                    tick_hint: 0,
+                    move_x: 0,
+                    held: 0,
+                    edges: 0,
+                },
             },
         };
         self.last = Some(frame);
@@ -117,7 +153,10 @@ pub struct Room {
 
 impl Room {
     pub fn new(code: String, config: RoomConfig, content: Arc<Content>) -> Self {
-        let seed = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(1);
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(1);
         Self {
             code,
             host: 0,
@@ -127,7 +166,12 @@ impl Room {
             phase: PHASE_LOBBY,
             simulation: None,
             actor_slots: Vec::new(),
-            inputs: [InputQueue::new(), InputQueue::new(), InputQueue::new(), InputQueue::new()],
+            inputs: [
+                InputQueue::new(),
+                InputQueue::new(),
+                InputQueue::new(),
+                InputQueue::new(),
+            ],
             tick: 0,
             content,
             seed,
@@ -143,7 +187,15 @@ impl Room {
             Command::Join { player, sender } => {
                 if self.phase != PHASE_LOBBY {
                     let mut bytes = Vec::new();
-                    if gunbrawl_proto::encode_into(&S2C::Kick { code: 409, message: "对局进行中".into() }, &mut bytes).is_ok() {
+                    if gunbrawl_proto::encode_into(
+                        &S2C::Kick {
+                            code: 409,
+                            message: "对局进行中".into(),
+                        },
+                        &mut bytes,
+                    )
+                    .is_ok()
+                    {
                         let _ = sender.send(Bytes::from(bytes));
                     }
                     return;
@@ -151,7 +203,11 @@ impl Room {
                 if self.slots.iter().all(|slot| slot.kind != SLOT_EMPTY) {
                     return;
                 }
-                let slot_index = self.slots.iter().position(|slot| slot.kind == SLOT_EMPTY).unwrap_or(0);
+                let slot_index = self
+                    .slots
+                    .iter()
+                    .position(|slot| slot.kind == SLOT_EMPTY)
+                    .unwrap_or(0);
                 if self.host == 0 {
                     self.host = player.id;
                 }
@@ -167,12 +223,21 @@ impl Room {
                 info!(room = %self.code, player = player.id, slot = slot_index, "player joined");
             }
             Command::Leave { player } => {
-                if let Some(index) = self.slots.iter().position(|slot| slot.kind == SLOT_HUMAN && slot.player == player) {
+                if let Some(index) = self
+                    .slots
+                    .iter()
+                    .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
+                {
                     self.slots[index] = Slot::empty();
                 }
                 self.players.remove(&player);
                 if self.host == player {
-                    self.host = self.slots.iter().find(|slot| slot.kind == SLOT_HUMAN).map(|slot| slot.player).unwrap_or(0);
+                    self.host = self
+                        .slots
+                        .iter()
+                        .find(|slot| slot.kind == SLOT_HUMAN)
+                        .map(|slot| slot.player)
+                        .unwrap_or(0);
                 }
                 if self.players.is_empty() {
                     self.phase = PHASE_LOBBY;
@@ -180,13 +245,24 @@ impl Room {
                 }
                 self.broadcast_room();
             }
-            Command::PickSlot { player, slot, kind, difficulty } => {
+            Command::PickSlot {
+                player,
+                slot,
+                kind,
+                difficulty,
+            } => {
                 let slot_index = slot as usize;
                 if slot_index >= MAX_SLOTS || self.phase != PHASE_LOBBY {
                     return;
                 }
                 if kind == SLOT_BOT {
-                    self.slots[slot_index] = Slot { kind: SLOT_BOT, player: 0, name: format!("AI {}", slot_index + 1), ready: true, difficulty };
+                    self.slots[slot_index] = Slot {
+                        kind: SLOT_BOT,
+                        player: 0,
+                        name: format!("AI {}", slot_index + 1),
+                        ready: true,
+                        difficulty,
+                    };
                 } else if kind == SLOT_EMPTY && self.slots[slot_index].player != player {
                     self.slots[slot_index] = Slot::empty();
                 }
@@ -194,7 +270,11 @@ impl Room {
                 self.broadcast_room();
             }
             Command::Ready { player, ready } => {
-                if let Some(slot) = self.slots.iter_mut().find(|slot| slot.kind == SLOT_HUMAN && slot.player == player) {
+                if let Some(slot) = self
+                    .slots
+                    .iter_mut()
+                    .find(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
+                {
                     slot.ready = ready;
                 }
                 self.broadcast_room();
@@ -215,7 +295,11 @@ impl Room {
                 }
             }
             Command::Input { player, frames } => {
-                let Some(slot_index) = self.slots.iter().position(|slot| slot.kind == SLOT_HUMAN && slot.player == player) else {
+                let Some(slot_index) = self
+                    .slots
+                    .iter()
+                    .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
+                else {
                     return;
                 };
                 for frame in frames.into_iter().take(4) {
@@ -355,7 +439,8 @@ impl Room {
             .actors
             .iter()
             .map(|actor| {
-                let flags = u8::from(actor.grounded_on.is_some()) | ((actor.jumps_remaining.min(3)) << 1);
+                let flags =
+                    u8::from(actor.grounded_on.is_some()) | ((actor.jumps_remaining.min(3)) << 1);
                 ActorSnap {
                     id: actor.config.id,
                     x: quantize_pos(actor.position.x as f32),
@@ -371,7 +456,11 @@ impl Room {
                     },
                     stocks: actor.stocks.clamp(0, 255) as u8,
                     weapon: actor.weapon.weapon,
-                    ammo: actor.weapon.ammo.map(|ammo| ammo.clamp(0, 254) as u8).unwrap_or(255),
+                    ammo: actor
+                        .weapon
+                        .ammo
+                        .map(|ammo| ammo.clamp(0, 254) as u8)
+                        .unwrap_or(255),
                     reserve: actor.weapon.reserve.clamp(0, 255) as u8,
                     fire_cd: (actor.fire_cooldown * 100.0).clamp(0.0, 255.0) as u8,
                     reload: (actor.reload_remaining * 100.0).clamp(0.0, 255.0) as u8,
@@ -450,7 +539,12 @@ impl Room {
                     difficulty: slot.difficulty,
                 })
                 .collect(),
-            weapons: self.content.weapons.iter().map(|weapon| weapon.id.clone()).collect(),
+            weapons: self
+                .content
+                .weapons
+                .iter()
+                .map(|weapon| weapon.id.clone())
+                .collect(),
         }
     }
 
@@ -472,13 +566,21 @@ impl Room {
 
 fn event_snap(event: &BattleEvent) -> EventSnap {
     let (kind, actor, position) = match event {
-        BattleEvent::Shot { actor, position, .. } => (EVENT_SHOT, *actor, *position),
+        BattleEvent::Shot {
+            actor, position, ..
+        } => (EVENT_SHOT, *actor, *position),
         BattleEvent::Hit { actor, position } => (EVENT_HIT, *actor, *position),
-        BattleEvent::Bomb { actor, position, .. } => (EVENT_BOMB, *actor, *position),
+        BattleEvent::Bomb {
+            actor, position, ..
+        } => (EVENT_BOMB, *actor, *position),
         BattleEvent::Explosion { position, .. } => (EVENT_EXPLOSION, 0, *position),
-        BattleEvent::Ringout { actor, position, .. } => (EVENT_RINGOUT, *actor, *position),
+        BattleEvent::Ringout {
+            actor, position, ..
+        } => (EVENT_RINGOUT, *actor, *position),
         BattleEvent::Respawn { actor, position } => (EVENT_RESPAWN, *actor, *position),
-        BattleEvent::Pickup { actor, position, .. } => (EVENT_PICKUP, *actor, *position),
+        BattleEvent::Pickup {
+            actor, position, ..
+        } => (EVENT_PICKUP, *actor, *position),
         BattleEvent::DropIncoming { position, .. } => (EVENT_DROP_INCOMING, 0, *position),
         BattleEvent::DropLanded { position, .. } => (EVENT_DROP_LANDED, 0, *position),
         BattleEvent::DropExpired { position, .. } => (EVENT_DROP_EXPIRED, 0, *position),

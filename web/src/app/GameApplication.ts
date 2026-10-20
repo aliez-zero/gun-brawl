@@ -13,13 +13,17 @@ import { MusicPlayer } from '../presentation/music/MusicPlayer';
 import { normalizeMusic, sceneMusic } from '../content/music';
 import type { MusicSettings } from '../content/music';
 import { ArenaScene } from '../scenes/ArenaScene';
+import { NetClient } from '../net/NetClient';
+import { NetMatchSource } from '../net/NetMatchSource';
+import type { RoomView } from '../net/protocol';
+import { PHASE_COUNTDOWN, PHASE_PLAYING } from '../net/protocol';
 import { BootScene } from '../scenes/BootScene';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
 import { GameUI } from '../ui/GameUI';
 
-type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia' | 'campaign' | 'deepseek';
+type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia' | 'campaign' | 'deepseek' | 'online';
 type Screen = 'menu' | 'match' | 'pause' | 'result' | Dialog;
-const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia', 'campaign', 'deepseek'].includes(screen);
+const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia', 'campaign', 'deepseek', 'online'].includes(screen);
 
 export class GameApplication {
   private readonly store = new SaveStore(browserStorage());
@@ -38,6 +42,12 @@ export class GameApplication {
   private deepSeekActive = false;
   private deepSeekInfo: DeepSeekInfo | null = null;
   private deepSeekSetupRequest: AbortController | null = null;
+  private online: NetClient | null = null;
+  private onlineSource: NetMatchSource | null = null;
+  private onlineRoom: RoomView | null = null;
+  private onlineStatus = '';
+  private onlineLatency = { rtt: 0, jitter: 0 };
+  private netStatusAt = 0;
 
   constructor(root: HTMLElement) {
     this.ui = new GameUI(root, {
@@ -84,6 +94,14 @@ export class GameApplication {
       selectCampaign: (levelId) => this.startCampaign(levelId),
       nextCampaign: () => this.nextCampaign(),
       campaignSelect: () => this.openDialog('campaign'),
+      online: () => { void this.openOnline(); },
+      onlineCreate: (name, map, stocks, duration) => { void this.createOnlineRoom(name, map, stocks, duration); },
+      onlineJoin: (name, code) => { void this.joinOnlineRoom(name, code); },
+      onlineReady: (ready) => { this.online?.ready(ready); },
+      onlineStart: () => { this.online?.start(); },
+      onlineLeave: () => this.leaveOnline(),
+      onlineRematch: () => { this.online?.rematch(); },
+      onlineBot: (slot) => { this.online?.pickSlot(slot, 2, 1); },
     }, this.store.data);
     this.arena = new ArenaScene({
       onReady: () => {
@@ -247,8 +265,145 @@ export class GameApplication {
     } finally { clearTimeout(timer); }
   }
 
-  private clearSave(): void {
-    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
+  /** Online lobby: connect once, then create or join a room. */
+  private async openOnline(): Promise<void> {
+    if (!this.isReady) return;
+    this.cancelDeepSeekSetup();
+    if (this.screen === 'match' && !this.onlineSource) this.pause();
+    this.returnScreen = this.screen === 'pause' ? 'pause' : this.screen === 'result' ? 'result' : 'menu';
+    this.screen = 'online';
+    this.onlineStatus = '正在连接服务器…';
+    this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+    this.syncMusic();
+    try {
+      await this.ensureOnline();
+      this.onlineStatus = '已连接，创建或加入房间。';
+    } catch (error) {
+      this.onlineStatus = error instanceof Error ? error.message : '连接失败';
+    }
+    if (this.screen === 'online') {
+      this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+    }
+  }
+
+  private async ensureOnline(): Promise<NetClient> {
+    if (this.online?.connected) return this.online;
+    const client = new NetClient({
+      onRoom: (room) => this.handleOnlineRoom(room),
+      onSnapshot: (snapshot) => this.onlineSource?.applySnapshot(snapshot),
+      onMatchEnd: (result) => this.handleOnlineEnd(result),
+      onStatus: (status, detail) => {
+        this.onlineStatus = detail ?? ({ connecting: '正在连接…', open: '已连接', closed: '连接已断开', error: '连接失败' }[status] ?? '');
+        if (this.screen === 'online') this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+      },
+      onLatency: (rtt, jitter) => {
+        this.onlineLatency = { rtt, jitter };
+        this.onlineSource?.setLatency(rtt, jitter);
+        this.updateNetStatus();
+      },
+    });
+    this.online = client;
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    await client.connect(`${protocol}://${window.location.host}/ws`);
+    return client;
+  }
+
+  private async createOnlineRoom(name: string, map: string, stocks: number, duration: number): Promise<void> {
+    try {
+      const client = await this.ensureOnline();
+      client.createRoom(name || client.name, map, stocks, duration, 0);
+      this.onlineStatus = '正在创建房间…';
+    } catch (error) {
+      this.onlineStatus = error instanceof Error ? error.message : '连接失败';
+    }
+    if (this.screen === 'online') this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+  }
+
+  private async joinOnlineRoom(name: string, code: string): Promise<void> {
+    try {
+      const client = await this.ensureOnline();
+      if (!code) { this.onlineStatus = '请输入房间码'; } else { client.joinRoom(code, name || client.name); this.onlineStatus = '正在加入房间…'; }
+    } catch (error) {
+      this.onlineStatus = error instanceof Error ? error.message : '连接失败';
+    }
+    if (this.screen === 'online') this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+  }
+
+  private handleOnlineRoom(room: RoomView): void {
+    this.onlineRoom = room;
+    if ((room.phase === PHASE_COUNTDOWN || room.phase === PHASE_PLAYING) && !this.onlineSource) {
+      this.startOnlineMatch(room);
+      return;
+    }
+    if (this.screen === 'online') this.ui.showOnline(room, this.online?.playerId ?? 0, this.onlineStatus);
+  }
+
+  private startOnlineMatch(room: RoomView): void {
+    if (!this.online) return;
+    const source = new NetMatchSource(this.online, room);
+    source.setLatency(this.onlineLatency.rtt, this.onlineLatency.jitter);
+    this.onlineSource = source;
+    this.screen = 'match';
+    this.sound.unlock();
+    this.arena.startOnline(source);
+    this.ui.showMatch(source.state);
+    this.updateNetStatus();
+    this.syncMusic();
+    (document.activeElement as HTMLElement | null)?.blur();
+  }
+
+  private handleOnlineEnd(result: import('../net/protocol').MatchResultWire): void {
+    const matchResult = {
+      id: `online-${this.onlineRoom?.code ?? 'room'}`,
+      mode: 'custom' as const,
+      winner: result.winner === null ? null : `p${result.winner}`,
+      duration: result.durationMs / 1000,
+      overtime: result.overtime,
+      actors: result.actors.map((actor) => ({
+        id: `p${actor.id}`,
+        name: actor.name,
+        stocks: actor.stocks,
+        knockouts: actor.knockouts,
+        falls: actor.falls,
+        selfFalls: actor.selfFalls,
+      })),
+    };
+    this.screen = 'result';
+    this.ui.showResult(matchResult);
+    this.syncMusic();
+  }
+
+  private leaveOnlineSession(): void {
+    if (this.online) {
+      this.online.leave();
+      this.online.disconnect();
+      this.online = null;
+    }
+    this.onlineSource = null;
+    this.onlineRoom = null;
+    this.onlineLatency = { rtt: 0, jitter: 0 };
+    this.ui.updateNetStatus(null);
+  }
+
+  private leaveOnline(): void {
+    this.leaveOnlineSession();
+    this.onlineStatus = '已离开房间';
+    this.menu();
+  }
+
+  private updateNetStatus(): void {
+    if (!this.onlineSource) {
+      this.ui.updateNetStatus(null);
+      return;
+    }
+    const now = performance.now();
+    if (now - this.netStatusAt < 500) return;
+    this.netStatusAt = now;
+    const { rtt, jitter } = this.onlineLatency;
+    this.ui.updateNetStatus(`PING ${Math.round(rtt)}ms · JITTER ${Math.round(jitter)}ms`);
+  }
+
+  private clearSave(): void {    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
     this.store.clear();
     this.arena.setBindings(this.store.data.bindings);
     this.arena.setReducedMotion(this.store.data.settings.reducedMotion);
@@ -272,6 +427,7 @@ export class GameApplication {
 
   private frame(state: Readonly<MatchState>): void {
     if (this.screen === 'match') this.ui.updateHUD(state);
+    if (this.onlineSource) this.updateNetStatus();
     if (state.config.mode === 'training' && state.training) {
       const completed = state.training.completedTasks;
       if (completed.length !== this.store.data.trainingCompleted.length) {
@@ -306,6 +462,7 @@ export class GameApplication {
 
   private pause(): void {
     if (this.screen !== 'match') return;
+    if (this.onlineSource) { this.leaveOnline(); return; }
     this.arena.pauseMatch();
     this.screen = 'pause';
     this.ui.showPause();
@@ -325,6 +482,7 @@ export class GameApplication {
   private menu(): void {
     if (!this.isReady) return;
     this.cancelDeepSeekSetup();
+    this.leaveOnlineSession();
     this.screen = 'menu';
     this.arena.showMenu();
     this.refreshMenuPreview();
@@ -365,11 +523,12 @@ export class GameApplication {
   private handleEscape(): void {
     if (this.screen === 'match') this.pause();
     else if (this.screen === 'pause') this.resume();
+    else if (this.screen === 'online') this.leaveOnline();
     else this.closeDialog();
   }
 
-  private readonly onBlur = (): void => { this.pause(); this.music.setPaused(true); };
-  private readonly onVisibility = (): void => { if (document.hidden) this.pause(); this.syncMusic(); };
+  private readonly onBlur = (): void => { if (!this.onlineSource) this.pause(); this.music.setPaused(true); };
+  private readonly onVisibility = (): void => { if (document.hidden && !this.onlineSource) this.pause(); this.syncMusic(); };
   private readonly onAudioFocus = (): void => { this.syncMusic(); };
   private readonly onAudioGesture = (): void => { void this.music.unlock(); };
 

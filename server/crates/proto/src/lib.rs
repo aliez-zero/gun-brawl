@@ -55,7 +55,13 @@ impl InputFrame {
 
     /// A repeated frame keeps held buttons but never repeats an edge.
     pub fn repeat(previous: InputFrame, seq: u32, tick_hint: u32) -> Self {
-        Self { seq, tick_hint, move_x: previous.move_x, held: previous.held, edges: 0 }
+        Self {
+            seq,
+            tick_hint,
+            move_x: previous.move_x,
+            held: previous.held,
+            edges: 0,
+        }
     }
 }
 
@@ -191,7 +197,9 @@ pub fn dequantize_pos(value: i32) -> f32 {
 }
 
 pub fn quantize_vel(value: f32) -> i16 {
-    (value * VEL_SCALE).round().clamp(i16::MIN as f32, i16::MAX as f32) as i16
+    (value * VEL_SCALE)
+        .round()
+        .clamp(i16::MIN as f32, i16::MAX as f32) as i16
 }
 
 pub fn dequantize_vel(value: i16) -> f32 {
@@ -329,7 +337,12 @@ mod tests {
         };
         let bytes = encode(&hello).expect("encode");
         match decode::<C2S>(&bytes).expect("decode") {
-            C2S::Hello { proto, content, token, .. } => {
+            C2S::Hello {
+                proto,
+                content,
+                token,
+                ..
+            } => {
                 assert_eq!(proto, PROTO_VERSION);
                 assert_eq!(content, 0xdead_beef);
                 assert_eq!(token, "t");
@@ -396,9 +409,26 @@ mod tests {
                     vy: -480,
                 })
                 .collect(),
-            bombs: vec![BombSnap { id: 1, owner: 0, x: 640, y: 500 }],
-            drops: vec![DropSnap { id: 1, weapon: 5, x: 320, y: 445, state: 1, warning: false }],
-            events: vec![EventSnap { kind: EVENT_HIT, actor: 0, x: 1600, y: -348 }],
+            bombs: vec![BombSnap {
+                id: 1,
+                owner: 0,
+                x: 640,
+                y: 500,
+            }],
+            drops: vec![DropSnap {
+                id: 1,
+                weapon: 5,
+                x: 320,
+                y: 445,
+                state: 1,
+                warning: false,
+            }],
+            events: vec![EventSnap {
+                kind: EVENT_HIT,
+                actor: 0,
+                x: 1600,
+                y: -348,
+            }],
         }
     }
 
@@ -422,6 +452,10 @@ mod tests {
         encode_into(&snapshot, &mut buffer).expect("encode");
         assert!(!buffer.is_empty());
         encode_into(&snapshot, &mut buffer).expect("encode again");
-        assert_eq!(buffer.capacity(), capacity, "encoding must not grow a warm buffer");
+        assert_eq!(
+            buffer.capacity(),
+            capacity,
+            "encoding must not grow a warm buffer"
+        );
     }
 }

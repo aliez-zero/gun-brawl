@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
   }],
   base: './',
   server: {
+    // The Rust room server owns the WebSocket; DeepSeek stays a local middleware.
+    proxy: { '/ws': { target: 'ws://127.0.0.1:8080', ws: true } },
     // Browser evidence and parallel helpers can be written atomically on Windows.
     // They are not application inputs and must not interrupt the dev watcher.
     watch: { ignored: ['**/artifacts/**', '**/*.tmp', '**/*.tmpdir', '**/*.tmpdir/**'] },

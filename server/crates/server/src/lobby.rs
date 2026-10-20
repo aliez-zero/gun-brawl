@@ -85,7 +85,10 @@ impl Lobby {
     }
 
     pub fn exists(&self, code: &str) -> bool {
-        self.rooms.lock().map(|rooms| rooms.contains_key(code)).unwrap_or(false)
+        self.rooms
+            .lock()
+            .map(|rooms| rooms.contains_key(code))
+            .unwrap_or(false)
     }
 
     pub fn remove(&self, code: &str) {
@@ -96,7 +99,10 @@ impl Lobby {
 
     fn generate_code(&self) -> String {
         let counter = self.code_counter.fetch_add(1, Ordering::Relaxed);
-        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(1);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(1);
         let mut state = nanos ^ counter.wrapping_mul(0x9e37_79b9);
         let mut code = String::with_capacity(6);
         for _ in 0..6 {
