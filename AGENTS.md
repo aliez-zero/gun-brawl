@@ -55,7 +55,16 @@ pnpm test
 pnpm build
 # 浏览器检查需先启动开发服务器
 pnpm test:browser
+
+# 联机后端（server/ Rust workspace）
+cd server
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo run -p gunbrawl-server   # GUNBRAWL_WEB_DIR 指向 web/dist
 ```
+
+联机验收还需要 `pnpm test:online`（两个浏览器上下文跑建房/加入/开始/延迟，需先启动上面的服务）。黄金回放夹具由 `GOLDEN=1 pnpm vitest run tests/tools/golden.test.ts` 生成，内容 JSON 由 `EXPORT_CONTENT=1 pnpm vitest run tests/tools/export-content.test.ts` 生成；两者都要提交。
 
 `pnpm build` 包含严格类型检查；单独检查可用 `pnpm typecheck`。使用 `pnpm-lock.yaml`，不要引入其他包管理器锁文件。当前机器的 pnpm 后备路径见开发现状文档。
 
