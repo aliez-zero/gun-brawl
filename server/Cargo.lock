@@ -413,6 +413,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gunbrawl-predict"
+version = "0.1.0"
+dependencies = [
+ "gunbrawl-content",
+ "gunbrawl-core",
+]
+
+[[package]]
 name = "gunbrawl-proto"
 version = "0.1.0"
 dependencies = [

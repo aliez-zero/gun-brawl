@@ -20,7 +20,8 @@
     "test:perf": "node scripts/perf.mjs",
     "test:latency": "node scripts/latency.mjs",
     "test:visual": "node scripts/appearance-maps.mjs",
-    "test:online": "node scripts/online-smoke.mjs"
+    "test:online": "node scripts/online-smoke.mjs",
+    "build:wasm": "node scripts/build-predict.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

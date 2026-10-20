@@ -15,6 +15,7 @@ import type { MusicSettings } from '../content/music';
 import { ArenaScene } from '../scenes/ArenaScene';
 import { NetClient } from '../net/NetClient';
 import { NetMatchSource } from '../net/NetMatchSource';
+import { Predictor } from '../net/Predictor';
 import type { RoomView } from '../net/protocol';
 import { PHASE_COUNTDOWN, PHASE_PLAYING } from '../net/protocol';
 import { BootScene } from '../scenes/BootScene';
@@ -48,6 +49,8 @@ export class GameApplication {
   private onlineStatus = '';
   private onlineLatency = { rtt: 0, jitter: 0 };
   private netStatusAt = 0;
+  private predictor: Predictor | null = null;
+  private predictorPromise: Promise<Predictor | null> | null = null;
 
   constructor(root: HTMLElement) {
     this.ui = new GameUI(root, {
@@ -111,6 +114,7 @@ export class GameApplication {
         this.ui.setReady();
         this.syncMusic();
         this.notifyStorage();
+        this.loadPredictor();
       },
       onFrame: (state) => this.frame(state),
       onEvents: (events) => this.handleEvents(events),
@@ -265,6 +269,16 @@ export class GameApplication {
     } finally { clearTimeout(timer); }
   }
 
+  /** Warm up the WASM predictor; online play silently falls back if it fails. */
+  private loadPredictor(): void {
+    if (this.predictorPromise) return;
+    this.predictorPromise = Predictor.load();
+    void this.predictorPromise.then((predictor) => {
+      this.predictor = predictor;
+      document.body.dataset.predictor = predictor ? 'ready' : 'off';
+    });
+  }
+
   /** Online lobby: connect once, then create or join a room. */
   private async openOnline(): Promise<void> {
     if (!this.isReady) return;
@@ -340,7 +354,7 @@ export class GameApplication {
 
   private startOnlineMatch(room: RoomView): void {
     if (!this.online) return;
-    const source = new NetMatchSource(this.online, room);
+    const source = new NetMatchSource(this.online, room, this.predictor);
     source.setLatency(this.onlineLatency.rtt, this.onlineLatency.jitter);
     this.onlineSource = source;
     this.screen = 'match';
@@ -374,6 +388,7 @@ export class GameApplication {
   }
 
   private leaveOnlineSession(): void {
+    this.onlineSource?.dispose();
     if (this.online) {
       this.online.leave();
       this.online.disconnect();
@@ -391,8 +406,7 @@ export class GameApplication {
     this.menu();
   }
 
-  private updateNetStatus(): void {
-    if (!this.onlineSource) {
+  private updateNetStatus(): void {    if (!this.onlineSource) {
       this.ui.updateNetStatus(null);
       return;
     }

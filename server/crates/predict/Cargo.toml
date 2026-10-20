@@ -1,0 +1,12 @@
+[package]
+name = "gunbrawl-predict"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gunbrawl-core = { path = "../core" }
+gunbrawl-content = { path = "../content" }

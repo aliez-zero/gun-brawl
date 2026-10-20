@@ -33,6 +33,8 @@ try {
 
   await host.goto(url, { waitUntil: 'networkidle' });
   await guest.goto(url, { waitUntil: 'networkidle' });
+  await host.waitForFunction(() => document.body.dataset.predictor === 'ready', { timeout: 10000 });
+  check(true, 'wasm predictor loaded');
 
   // Host creates a room.
   await host.locator('[data-action="online"]').click();

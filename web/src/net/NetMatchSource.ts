@@ -26,6 +26,7 @@ import type {
 } from '../game/core/types';
 import type { MatchSource } from './MatchSource';
 import type { NetClient } from './NetClient';
+import type { Predictor } from './Predictor';
 import {
   EDGE_BOMB,
   EDGE_DROP,
@@ -72,17 +73,24 @@ export class NetMatchSource implements MatchSource {
   private alphaValue = 0;
   private seq = 0;
   private pendingEvents: BattleEvent[] = [];
+  private readonly predictor: Predictor | null;
+  private predictHandle: number | null = null;
   readonly localActor: number;
 
-  constructor(client: NetClient, room: RoomView) {
+  constructor(client: NetClient, room: RoomView, predictor: Predictor | null = null) {
     this.client = client;
     this.room = room;
+    this.predictor = predictor;
     this.map = getArena(room.map);
     this.weapons = room.weapons.map((id) => getWeapon(id as WeaponId));
     const active = room.slots
       .map((slot, slotIndex) => ({ slot, slotIndex }))
       .filter(({ slot }) => slot.kind !== SLOT_EMPTY);
     this.localActor = active.findIndex(({ slot }) => slot.player === client.playerId);
+    if (predictor && this.localActor >= 0) {
+      const spawn = this.map.spawns[this.localActor] ?? this.map.spawns[0]!;
+      this.predictHandle = predictor.create(predictor.mapIndex(this.map.id), spawn.x, spawn.y);
+    }
 
     const actors: ActorState[] = active.map(({ slot }, index) => {
       const style = STYLES[index % STYLES.length]!;
@@ -165,6 +173,31 @@ export class NetMatchSource implements MatchSource {
       actor.reloadRemaining = wire.reload / 100;
       actor.protectionRemaining = wire.protection / 10;
       actor.respawnRemaining = wire.respawn / 10;
+    }
+
+    // Reconcile the local prediction; small errors are ignored, big ones snap.
+    if (this.predictor && this.predictHandle !== null && this.localActor >= 0) {
+      const wire = snapshot.actors[this.localActor];
+      if (wire) {
+        const predicted = this.predictor.pose(this.predictHandle);
+        const authoritative = position(wire.x, wire.y);
+        if (
+          wire.status !== 0
+          || Math.abs(predicted.x - authoritative.x) > 24
+          || Math.abs(predicted.y - authoritative.y) > 24
+        ) {
+          this.predictor.reconcile(this.predictHandle, {
+            x: authoritative.x,
+            y: authoritative.y,
+            vx: wire.vx / VEL_SCALE,
+            vy: wire.vy / VEL_SCALE,
+            facing: wire.facing,
+            grounded: wire.flags & 1,
+            jumps: (wire.flags >> 1) & 0b11,
+            dropRemaining: 0,
+          });
+        }
+      }
     }
 
     state.projectiles = snapshot.projectiles.map((wire) => {
@@ -268,10 +301,45 @@ export class NetMatchSource implements MatchSource {
     this.client.sendInput([
       { seq: this.seq, tickHint: 0, moveX: input.moveX, held: input.shootHeld ? HELD_FIRE : 0, edges },
     ]);
+
+    // Immediate local movement; snapshots reconcile it a round trip later.
+    if (
+      this.predictor
+      && this.predictHandle !== null
+      && this.localActor >= 0
+      && this.stateValue.phase === 'playing'
+    ) {
+      this.predictor.step(this.predictHandle, {
+        moveX: input.moveX,
+        jump: input.jumpPressed,
+        drop: input.dropPressed,
+        fire: input.shootHeld,
+        bomb: input.bombPressed,
+        reload: input.reloadPressed,
+      });
+      const predicted = this.predictor.pose(this.predictHandle);
+      const actor = this.stateValue.actors[this.localActor];
+      if (actor) {
+        const at = { x: predicted.x, y: predicted.y };
+        actor.position = at;
+        actor.previous = at;
+        actor.facing = predicted.facing < 0 ? -1 : 1;
+        actor.groundedOn = predicted.grounded ? 'net' : null;
+        actor.jumpsRemaining = predicted.jumps;
+      }
+    }
+
     this.alphaValue = this.snapshot ? Math.min(1, (performance.now() - this.snapshotAt) / SNAPSHOT_INTERVAL) : 0;
     const events = this.pendingEvents;
     this.pendingEvents = [];
     return events;
+  }
+
+  dispose(): void {
+    if (this.predictor && this.predictHandle !== null) {
+      this.predictor.destroy(this.predictHandle);
+      this.predictHandle = null;
+    }
   }
 
   pause(): void {
