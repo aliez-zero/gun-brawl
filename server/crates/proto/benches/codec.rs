@@ -1,5 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use gunbrawl_proto::{decode, encode, encode_into, ActorSnap, EventSnap, ProjSnap, Snapshot};
+use gunbrawl_proto::{
+    decode, encode, encode_into, ActorSnap, BombSnap, DropSnap, EventSnap, ProjSnap, Snapshot,
+    EVENT_HIT, PHASE_PLAYING,
+};
 
 fn sample_snapshot() -> Snapshot {
     let actor = ActorSnap {
@@ -17,34 +20,35 @@ fn sample_snapshot() -> Snapshot {
         reserve: 48,
         fire_cd: 0,
         reload: 0,
+        protection: 0,
         respawn: 0,
     };
     Snapshot {
         tick: 12_345,
         server_ms: 205_750,
+        phase: PHASE_PLAYING,
+        remaining_ms: 120_000,
         acks: [42, 41, 40, 0],
         actors: vec![
+            actor,
             ActorSnap { id: 1, ..actor },
             ActorSnap { id: 2, ..actor },
             ActorSnap { id: 3, ..actor },
-            actor,
         ],
         projectiles: (0..20)
             .map(|index| ProjSnap {
                 id: index as u8,
                 owner: (index % 4) as u8,
+                weapon: 2,
                 x: 900 + index * 40,
                 y: 300,
                 vx: 960,
                 vy: -480,
             })
             .collect(),
-        events: vec![EventSnap {
-            tick: 12_345,
-            kind: 1,
-            a: 0,
-            b: 2,
-        }],
+        bombs: vec![BombSnap { id: 1, owner: 0, x: 640, y: 500 }],
+        drops: vec![DropSnap { id: 1, weapon: 5, x: 320, y: 445, state: 1, warning: false }],
+        events: vec![EventSnap { kind: EVENT_HIT, actor: 0, x: 1600, y: -348 }],
     }
 }
 

@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 gunbrawl-core = { path = "../core" }
+gunbrawl-content = { path = "../content" }
 gunbrawl-proto = { path = "../proto" }
 axum.workspace = true
 tokio.workspace = true
@@ -18,3 +19,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 bytes.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+futures-util = "0.3"
+tokio-tungstenite = "0.29"
