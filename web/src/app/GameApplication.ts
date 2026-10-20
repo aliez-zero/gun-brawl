@@ -19,6 +19,7 @@ import { Predictor } from '../net/Predictor';
 import type { RoomView } from '../net/protocol';
 import { PHASE_COUNTDOWN, PHASE_PLAYING } from '../net/protocol';
 import { BootScene } from '../scenes/BootScene';
+import { randomId } from '../ids';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
 import { GameUI } from '../ui/GameUI';
 
@@ -162,7 +163,7 @@ export class GameApplication {
     this.persist();
     this.screen = 'match';
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-    const matchId = crypto.randomUUID();
+    const matchId = randomId();
     this.arena.startMatch(createMatchConfig(mode, seed, {
       mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances, matchId,
       trainingCompleted: this.store.data.trainingCompleted,
@@ -185,7 +186,7 @@ export class GameApplication {
     this.persist();
     this.screen = 'match';
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-    const matchId = crypto.randomUUID();
+    const matchId = randomId();
     this.arena.startMatch(createCustomMatchConfig(normalized, seed, {
       appearances: this.store.data.appearances, matchId,
     }));
@@ -207,7 +208,7 @@ export class GameApplication {
     this.persist();
     this.screen = 'match';
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-    const matchId = crypto.randomUUID();
+    const matchId = randomId();
     this.arena.startMatch(createCampaignConfig(level, seed, {
       appearances: this.store.data.appearances, matchId,
     }));
@@ -254,7 +255,7 @@ export class GameApplication {
     this.cancelDeepSeekSetup();
     const request = new AbortController(); this.deepSeekSetupRequest = request;
     this.ui.showDeepSeekSetup(this.deepSeekInfo, null, true);
-    const matchId = crypto.randomUUID();
+    const matchId = randomId();
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
     const timer = setTimeout(() => request.abort(), 6000);
     try {

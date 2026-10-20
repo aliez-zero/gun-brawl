@@ -11,6 +11,7 @@ import {
   type RoomView,
   type Snapshot,
 } from './protocol';
+import { randomId } from '../ids';
 
 export type NetStatus = 'connecting' | 'open' | 'closed' | 'error';
 
@@ -204,7 +205,7 @@ export class NetClient {
     try {
       const existing = window.localStorage.getItem(key);
       if (existing) return existing;
-      const created = crypto.randomUUID();
+      const created = randomId();
       window.localStorage.setItem(key, created);
       return created;
     } catch {
