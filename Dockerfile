@@ -7,6 +7,9 @@ RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
+# `tsc` covers tests/ and vite.config.ts, which import `../server/ai`.
+# Without this copy the image build dies with TS2307 even though CI type-checks clean.
+COPY server/ai /server/ai
 RUN pnpm build
 
 # ---- rust ----

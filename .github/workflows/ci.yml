@@ -68,7 +68,9 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build and push gateway image
@@ -77,13 +79,17 @@ jobs:
           context: .
           file: Dockerfile.gateway
           push: true
-          tags: ghcr.io/${{ github.repository }}-gateway:${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository }}-gateway:${{ github.sha }}
+            ghcr.io/${{ github.repository }}-gateway:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
     needs: image
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Opt-in: set repository variable DEPLOY_ENABLED=true (plus DEPLOY_HOST/DOMAIN and the
+    # DEPLOY_SSH_KEY secret) once a server is ready. Otherwise `main` stays green.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy over SSH
