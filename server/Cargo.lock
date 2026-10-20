@@ -377,10 +377,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gunbrawl-content"
+version = "0.1.0"
+dependencies = [
+ "gunbrawl-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gunbrawl-core"
 version = "0.1.0"
 dependencies = [
  "libm",
+ "serde",
 ]
 
 [[package]]

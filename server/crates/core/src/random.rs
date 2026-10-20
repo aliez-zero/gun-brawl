@@ -1,9 +1,8 @@
-//! mulberry32, bit-compatible with `web/src/game/core/Random.ts`.
+//! Deterministic random streams.
 //!
-//! JavaScript does its arithmetic on doubles and converts with `ToInt32` /
-//! `ToUint32`; every step here is `u32` wrapping arithmetic, which produces the
-//! same 32-bit state. The reference values in the tests were produced by the
-//! TypeScript implementation itself.
+//! `Random` is mulberry32, bit-compatible with `web/src/game/core/Random.ts`.
+//! `Lcg` is the 32-bit linear congruential stream used by the drop scheduler.
+//! Both were checked against values produced by the TypeScript implementation.
 
 pub struct Random {
     seed: u32,
@@ -36,9 +35,28 @@ impl Random {
     }
 }
 
+/// 32-bit LCG used by `DropSystem.SeededRandom`.
+pub struct Lcg {
+    state: u32,
+}
+
+impl Lcg {
+    pub fn new(seed: u32) -> Self {
+        let state = if seed == 0 { 1 } else { seed };
+        Self { state }
+    }
+
+    pub fn next_f64(&mut self) -> f64 {
+        self.state = 1_664_525u32
+            .wrapping_mul(self.state)
+            .wrapping_add(1_013_904_223);
+        self.state as f64 / 4_294_967_296.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Random;
+    use super::{Lcg, Random};
 
     /// Produced by the TypeScript `Random` with the same seeds.
     const SEED_1234: [f64; 5] = [
@@ -80,5 +98,18 @@ mod tests {
         for _ in 0..1000 {
             assert!(random.below(17) < 17);
         }
+    }
+
+    #[test]
+    fn lcg_is_deterministic_and_stays_unit() {
+        let mut first = Lcg::new(1234);
+        let mut second = Lcg::new(1234);
+        for _ in 0..100 {
+            let a = first.next_f64();
+            let b = second.next_f64();
+            assert_eq!(a, b);
+            assert!((0.0..1.0).contains(&a));
+        }
+        assert!(Lcg::new(0).next_f64() >= 0.0);
     }
 }

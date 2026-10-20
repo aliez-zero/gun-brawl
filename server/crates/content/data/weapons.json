@@ -1,0 +1,508 @@
+[
+  {
+    "id": "pistol",
+    "name": "基础手枪",
+    "tier": "standard",
+    "interval": 0.3,
+    "projectileSpeed": 1600,
+    "range": 750,
+    "knockback": 360,
+    "recoil": 12,
+    "maxAmmo": null,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 36,
+      "y": -38
+    }
+  },
+  {
+    "id": "smg",
+    "name": "冲锋枪",
+    "tier": "standard",
+    "interval": 0.075,
+    "projectileSpeed": 1650,
+    "range": 520,
+    "knockback": 200,
+    "recoil": 9,
+    "maxAmmo": 30,
+    "reserveAmmo": 90,
+    "reloadTime": 1.3,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 48,
+      "y": -38
+    }
+  },
+  {
+    "id": "rifle",
+    "name": "突击步枪",
+    "tier": "standard",
+    "interval": 0.2,
+    "projectileSpeed": 2100,
+    "range": 860,
+    "knockback": 400,
+    "recoil": 16,
+    "maxAmmo": 30,
+    "reserveAmmo": 90,
+    "reloadTime": 1.4,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 70,
+      "y": -38
+    }
+  },
+  {
+    "id": "shotgun",
+    "name": "霰弹枪",
+    "tier": "standard",
+    "interval": 0.75,
+    "projectileSpeed": 1500,
+    "range": 300,
+    "knockback": 240,
+    "recoil": 32,
+    "maxAmmo": 6,
+    "reserveAmmo": 18,
+    "reloadTime": 1.2,
+    "pellets": 5,
+    "spreadRadians": 0.15707963267948966,
+    "impulseCap": 1250,
+    "muzzle": {
+      "x": 72,
+      "y": -38
+    }
+  },
+  {
+    "id": "sniper",
+    "name": "狙击枪",
+    "tier": "standard",
+    "interval": 1,
+    "projectileSpeed": 3200,
+    "range": 1200,
+    "knockback": 1150,
+    "recoil": 50,
+    "maxAmmo": 5,
+    "reserveAmmo": 30,
+    "reloadTime": 1.4,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 79,
+      "y": -39
+    }
+  },
+  {
+    "id": "rocket",
+    "name": "火箭筒",
+    "tier": "standard",
+    "interval": 1.2,
+    "projectileSpeed": 760,
+    "range": 950,
+    "knockback": 2000,
+    "recoil": 54,
+    "maxAmmo": 1,
+    "reserveAmmo": 6,
+    "reloadTime": 1.6,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "explosion": {
+      "radius": 220,
+      "centerImpulse": 2000,
+      "edgeImpulse": 700
+    },
+    "muzzle": {
+      "x": 75,
+      "y": -38
+    }
+  },
+  {
+    "id": "gatling",
+    "name": "加特林",
+    "tier": "ultimate",
+    "interval": 0.06,
+    "projectileSpeed": 2000,
+    "range": 700,
+    "knockback": 90,
+    "recoil": 5,
+    "maxAmmo": 100,
+    "reserveAmmo": 100,
+    "reloadTime": 3.2,
+    "pellets": 1,
+    "spreadRadians": 0.020943951023931952,
+    "muzzle": {
+      "x": 78,
+      "y": -39
+    }
+  },
+  {
+    "id": "cannon",
+    "name": "重炮狙击枪",
+    "tier": "ultimate",
+    "interval": 2.4,
+    "projectileSpeed": 3600,
+    "range": 1800,
+    "knockback": 2800,
+    "recoil": 110,
+    "maxAmmo": 1,
+    "reserveAmmo": 2,
+    "reloadTime": 2.6,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "impulseCap": 3200,
+    "muzzle": {
+      "x": 84,
+      "y": -39
+    }
+  },
+  {
+    "id": "p1911",
+    "name": "P1911",
+    "family": "pistol",
+    "tier": "standard",
+    "interval": 0.2,
+    "projectileSpeed": 1550,
+    "range": 620,
+    "knockback": 300,
+    "recoil": 22,
+    "recoilY": 3,
+    "maxAmmo": 10,
+    "reserveAmmo": 40,
+    "reloadTime": 1,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 38,
+      "y": -38
+    }
+  },
+  {
+    "id": "deagle",
+    "name": "Deagle",
+    "family": "pistol",
+    "tier": "standard",
+    "interval": 0.46,
+    "projectileSpeed": 1900,
+    "range": 820,
+    "knockback": 620,
+    "recoil": 46,
+    "recoilY": 10,
+    "maxAmmo": 8,
+    "reserveAmmo": 32,
+    "reloadTime": 1.2,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 43,
+      "y": -38
+    }
+  },
+  {
+    "id": "ump45",
+    "name": "UMP45",
+    "family": "smg",
+    "tier": "standard",
+    "interval": 0.075,
+    "projectileSpeed": 1600,
+    "range": 560,
+    "knockback": 250,
+    "recoil": 10,
+    "recoilY": 2.5,
+    "maxAmmo": 30,
+    "reserveAmmo": 90,
+    "reloadTime": 1.3,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 48,
+      "y": -38
+    }
+  },
+  {
+    "id": "vector",
+    "name": "Vector",
+    "family": "smg",
+    "tier": "standard",
+    "interval": 0.05,
+    "projectileSpeed": 1500,
+    "range": 470,
+    "knockback": 210,
+    "recoil": 4,
+    "recoilY": 1.2,
+    "maxAmmo": 22,
+    "reserveAmmo": 66,
+    "reloadTime": 1.1,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 44,
+      "y": -38
+    }
+  },
+  {
+    "id": "uzi",
+    "name": "UZI",
+    "family": "smg",
+    "tier": "standard",
+    "interval": 0.055,
+    "projectileSpeed": 1450,
+    "range": 440,
+    "knockback": 220,
+    "recoil": 4,
+    "recoilY": 1,
+    "maxAmmo": 32,
+    "reserveAmmo": 96,
+    "reloadTime": 1.1,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 38,
+      "y": -38
+    }
+  },
+  {
+    "id": "m416",
+    "name": "M416",
+    "family": "rifle",
+    "tier": "standard",
+    "interval": 0.08333333333333333,
+    "projectileSpeed": 2100,
+    "range": 860,
+    "knockback": 380,
+    "recoil": 13,
+    "recoilY": 3.5,
+    "maxAmmo": 30,
+    "reserveAmmo": 90,
+    "reloadTime": 1.4,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 70,
+      "y": -38
+    }
+  },
+  {
+    "id": "akm",
+    "name": "AKM",
+    "family": "rifle",
+    "tier": "standard",
+    "interval": 0.1,
+    "projectileSpeed": 2000,
+    "range": 780,
+    "knockback": 520,
+    "recoil": 24,
+    "recoilY": 8,
+    "maxAmmo": 30,
+    "reserveAmmo": 75,
+    "reloadTime": 1.5,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 70,
+      "y": -38
+    }
+  },
+  {
+    "id": "scar-l",
+    "name": "SCAR-L",
+    "family": "rifle",
+    "tier": "standard",
+    "interval": 0.1,
+    "projectileSpeed": 2200,
+    "range": 920,
+    "knockback": 480,
+    "recoil": 15,
+    "recoilY": 4.5,
+    "maxAmmo": 30,
+    "reserveAmmo": 90,
+    "reloadTime": 1.4,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 73,
+      "y": -38
+    }
+  },
+  {
+    "id": "s686",
+    "name": "S686",
+    "family": "shotgun",
+    "tier": "standard",
+    "interval": 0.3,
+    "projectileSpeed": 1500,
+    "range": 360,
+    "knockback": 270,
+    "recoil": 30,
+    "recoilY": 9,
+    "maxAmmo": 2,
+    "reserveAmmo": 20,
+    "reloadTime": 1,
+    "pellets": 6,
+    "spreadRadians": 0.13962634015954636,
+    "impulseCap": 1720,
+    "muzzle": {
+      "x": 67,
+      "y": -38
+    }
+  },
+  {
+    "id": "s1897",
+    "name": "S1897",
+    "family": "shotgun",
+    "tier": "standard",
+    "interval": 0.85,
+    "projectileSpeed": 1450,
+    "range": 340,
+    "knockback": 250,
+    "recoil": 30,
+    "recoilY": 8,
+    "maxAmmo": 7,
+    "reserveAmmo": 35,
+    "reloadTime": 1.5,
+    "pellets": 7,
+    "spreadRadians": 0.12217304763960307,
+    "impulseCap": 1800,
+    "muzzle": {
+      "x": 73,
+      "y": -38
+    }
+  },
+  {
+    "id": "s12k",
+    "name": "S12K",
+    "family": "shotgun",
+    "tier": "standard",
+    "interval": 0.4,
+    "projectileSpeed": 1600,
+    "range": 290,
+    "knockback": 260,
+    "recoil": 26,
+    "recoilY": 7,
+    "maxAmmo": 8,
+    "reserveAmmo": 40,
+    "reloadTime": 1.3,
+    "pellets": 5,
+    "spreadRadians": 0.13962634015954636,
+    "impulseCap": 1350,
+    "muzzle": {
+      "x": 63,
+      "y": -38
+    }
+  },
+  {
+    "id": "kar98k",
+    "name": "Kar98k",
+    "family": "sniper",
+    "tier": "standard",
+    "interval": 1,
+    "projectileSpeed": 3000,
+    "range": 1250,
+    "knockback": 1150,
+    "recoil": 50,
+    "recoilY": 12,
+    "maxAmmo": 5,
+    "reserveAmmo": 30,
+    "reloadTime": 1.4,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 79,
+      "y": -39
+    }
+  },
+  {
+    "id": "m24",
+    "name": "M24",
+    "family": "sniper",
+    "tier": "standard",
+    "interval": 0.9,
+    "projectileSpeed": 3200,
+    "range": 1300,
+    "knockback": 1300,
+    "recoil": 54,
+    "recoilY": 13,
+    "maxAmmo": 5,
+    "reserveAmmo": 30,
+    "reloadTime": 1.3,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 79,
+      "y": -39
+    }
+  },
+  {
+    "id": "awm",
+    "name": "AWM",
+    "family": "sniper",
+    "tier": "standard",
+    "interval": 1.25,
+    "projectileSpeed": 3400,
+    "range": 1450,
+    "knockback": 1800,
+    "recoil": 72,
+    "recoilY": 18,
+    "maxAmmo": 5,
+    "reserveAmmo": 25,
+    "reloadTime": 1.6,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "muzzle": {
+      "x": 80,
+      "y": -39
+    }
+  },
+  {
+    "id": "rpg7",
+    "name": "RPG-7",
+    "family": "rocket",
+    "tier": "standard",
+    "interval": 1.2,
+    "projectileSpeed": 720,
+    "range": 950,
+    "knockback": 2000,
+    "recoil": 54,
+    "recoilY": 16,
+    "maxAmmo": 1,
+    "reserveAmmo": 6,
+    "reloadTime": 1.6,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "explosion": {
+      "radius": 220,
+      "centerImpulse": 2000,
+      "edgeImpulse": 700
+    },
+    "muzzle": {
+      "x": 75,
+      "y": -38
+    }
+  },
+  {
+    "id": "at4",
+    "name": "AT4",
+    "family": "rocket",
+    "tier": "standard",
+    "interval": 1.4,
+    "projectileSpeed": 800,
+    "range": 1050,
+    "knockback": 2200,
+    "recoil": 60,
+    "recoilY": 18,
+    "maxAmmo": 1,
+    "reserveAmmo": 5,
+    "reloadTime": 1.8,
+    "pellets": 1,
+    "spreadRadians": 0,
+    "explosion": {
+      "radius": 200,
+      "centerImpulse": 2200,
+      "edgeImpulse": 800
+    },
+    "muzzle": {
+      "x": 78,
+      "y": -38
+    }
+  }
+]

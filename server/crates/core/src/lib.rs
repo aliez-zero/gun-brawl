@@ -1,21 +1,31 @@
 //! Authoritative rules core.
 //!
-//! P0 only carries the pieces every later port depends on: the fixed step, a
-//! single math implementation shared by native and wasm, and the exact
-//! mulberry32 random stream. The movement/combat/drop systems land in P1.
+//! Pure logic: no tokio, no network, no wall clock. Native and `wasm32` compile
+//! the same code, and every transcendental call goes through [`crate::math`] so
+//! client prediction and server authority cannot drift apart.
 
+pub mod actor;
+pub mod combat;
+pub mod constants;
+pub mod drops;
+pub mod grenade;
+pub mod life;
+pub mod match_rule;
 pub mod math;
+pub mod movement;
 pub mod random;
+pub mod simulation;
+pub mod types;
 
-/// Simulation rate. Mirrors `web/src/game/core/constants.ts`.
-pub const TICK_RATE: u32 = 60;
-pub const SNAPSHOT_RATE: u32 = 30;
-pub const FIXED_STEP: f32 = 1.0 / TICK_RATE as f32;
+pub use constants::{FIXED_STEP, SNAPSHOT_RATE, TICK_RATE};
+pub use drops::DropPoolEntry;
+pub use simulation::Simulation;
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn fixed_step_matches_typescript() {
-        assert_eq!(super::FIXED_STEP, 1.0f32 / 60.0f32);
+        assert_eq!(super::FIXED_STEP, 1.0f64 / 60.0f64);
+        assert_eq!(super::TICK_RATE, 60);
     }
 }
