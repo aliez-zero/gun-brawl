@@ -2,6 +2,8 @@
 
 本文件适用于 `D:\Code\gun-brawl` 及其子目录。用户当前指令优先于本文。
 
+> **2026-10-19 目录调整**：前端在 `web/`，后端在 `server/`。下文出现的 `src/**`、`tests/**`、`scripts/**`、`package.json`、`vite.config.ts` 与 `pnpm` 命令，除特别说明外都指 `web/` 下的同名路径；`src/game/**` 的纯 TypeScript 约束现在是 `web/src/game/**`。联机方案见 [v2](./docs/CLIENT_SERVER_PLAN_V2.md)。
+
 ## 先读这些文档
 
 1. [README.md](./README.md)：启动、操作与项目入口。

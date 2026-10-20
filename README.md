@@ -17,7 +17,7 @@ TypeScript + Phaser + Vite 的桌面浏览器平台乱斗游戏。当前完成�
 需要 Node.js 22.12+（建议 24 LTS）和 pnpm。
 
 ```powershell
-cd D:\Code\gun-brawl
+cd D:\Code\gun-brawl\web
 pnpm install
 pnpm dev
 ```
@@ -68,7 +68,7 @@ pnpm test:deepseek # 外部 AI 完整流程；模拟响应，不产生模型费�
 
 ## 架构入口
 
-完整说明见 [架构文档](./docs/ARCHITECTURE.md)。
+完整说明见 [架构文档](./docs/ARCHITECTURE.md)。前端在 `web/`，后端在 `server/`；下面的路径都相对 `web/`，`pnpm` 命令在 `web/` 下执行。
 
 ```text
 src/
@@ -84,7 +84,9 @@ src/
   ui/              DOM 菜单、HUD、暂停、设置与结算
 tests/             核心规则与存档的自动化测试
 scripts/           浏览器流程检查
-docs/              架构、开发现状和并行任务计划
+
+server/            后端：Rust workspace（crates/core、crates/proto、crates/server）与现有 Node DeepSeek 网关
+docs/              架构、开发现状和并行任务计划（仓库根）
 ```
 
 `src/game` 不导入 Phaser、DOM 或 localStorage；Phaser 负责呈现，核心碰撞由纯 TypeScript 系统负责。逻辑固定 60 Hz，显示做位置插值。渲染、DOM HUD 和音效通过状态及事件消费战斗结果。

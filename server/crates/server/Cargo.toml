@@ -1,0 +1,20 @@
+[package]
+name = "gunbrawl-server"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "gunbrawl-server"
+path = "src/main.rs"
+
+[dependencies]
+gunbrawl-core = { path = "../core" }
+gunbrawl-proto = { path = "../proto" }
+axum.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+bytes.workspace = true
+serde.workspace = true

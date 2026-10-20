@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { loadEnv } from 'vite';
-import { createDeepSeekGateway } from './server/ai/deepseek.mjs';
+import { createDeepSeekGateway } from '../server/ai/deepseek.mjs';
 
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
     apiKey: env.DEEPSEEK_API_KEY, model: env.DEEPSEEK_MODEL,
     maxRequests: env.DEEPSEEK_MAX_REQUESTS, requestIntervalMs: env.DEEPSEEK_INTERVAL_MS,
     timeoutMs: env.DEEPSEEK_TIMEOUT_MS, contextTokens: env.DEEPSEEK_CONTEXT_TOKENS,
+    thinking: env.DEEPSEEK_THINKING, reasoningEffort: env.DEEPSEEK_REASONING_EFFORT,
   });
   return {
   plugins: [{

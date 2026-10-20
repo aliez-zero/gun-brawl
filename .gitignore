@@ -4,6 +4,7 @@ dist-weapon-preview/
 .vite/
 coverage/
 artifacts/
+target/
 *.local
 *.log
 .DS_Store

@@ -1,5 +1,7 @@
 export const MAX_CONTEXT_TOKENS = 512000;
-export const MAX_OUTPUT_TOKENS = 256;
+// Thinking mode returns a short JSON command plus a hidden reasoning trace.
+// Reserve enough completion budget for both; the visible action is still tiny.
+export const MAX_OUTPUT_TOKENS = 4096;
 
 // Conservative budget, not a provider tokenizer: one token per UTF-8 byte,
 // plus headroom for chat framing. Actual billed tokens come from upstream usage.

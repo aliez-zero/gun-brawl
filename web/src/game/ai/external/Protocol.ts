@@ -59,6 +59,16 @@ export function createObservation(
   const nearestDistance = nearestEnemy
     ? Math.hypot(nearestEnemy.position.x - self.position.x, nearestEnemy.position.y - self.position.y)
     : null;
+  const nearestDrop = state.drops
+    .filter((drop) => drop.state === 'active')
+    .sort((left, right) => Math.hypot(left.position.x - self.position.x, left.position.y - self.position.y)
+      - Math.hypot(right.position.x - self.position.x, right.position.y - self.position.y))[0];
+  const targetAligned = Boolean(nearestEnemy)
+    && Math.abs(nearestEnemy!.position.y - self.position.y) < 55
+    && self.facing === (nearestEnemy!.position.x < self.position.x ? -1 : 1);
+  const targetInRange = Boolean(nearestEnemy)
+    && Math.abs(nearestEnemy!.position.x - self.position.x) <= self.weapon.definition.range
+    && Math.abs(nearestEnemy!.position.y - self.position.y) < 55;
   const currentPlatform = map.platforms.find((platform) => platform.id === self.groundedOn);
   const enemyPlatform = nearestEnemy
     ? platformForActor(map, nearestEnemy) ?? nearestPlatform(map, nearestEnemy.position.x, nearestEnemy.position.y)
@@ -114,6 +124,9 @@ export function createObservation(
       weapon: {
         id: self.weapon.definition.id, ammo: self.weapon.ammoRemaining, reserve: self.weapon.reserveRemaining,
         range: self.weapon.definition.range, interval: self.weapon.definition.interval,
+        projectileSpeed: self.weapon.definition.projectileSpeed, knockback: self.weapon.definition.knockback,
+        maxAmmo: self.weapon.definition.maxAmmo, pellets: self.weapon.definition.pellets,
+        explosionRadius: self.weapon.definition.explosion?.radius ?? null,
       },
     },
     tactical: {
@@ -125,6 +138,8 @@ export function createObservation(
       nearestEnemyDx: nearestEnemy ? round(nearestEnemy.position.x - self.position.x) : null,
       nearestEnemyDy: nearestEnemy ? round(nearestEnemy.position.y - self.position.y) : null,
       nearestEnemyDistance: nearestDistance === null ? null : round(nearestDistance),
+      targetAligned,
+      targetInRange,
       currentPlatformId: self.groundedOn,
       isFalling: self.groundedOn === null && self.verticalVelocity > 0,
       routeAction: routeStep?.action ?? 'hold',
@@ -136,6 +151,10 @@ export function createObservation(
       nearestProjectileDistance: nearestProjectile ? round(Math.hypot(nearestProjectile.position.x - self.position.x, nearestProjectile.position.y - self.position.y)) : null,
       nearestBombDx: nearestBomb ? round(nearestBomb.position.x - self.position.x) : null,
       nearestBombDistance: nearestBomb ? round(Math.hypot(nearestBomb.position.x - self.position.x, nearestBomb.position.y - self.position.y)) : null,
+      nearestDropId: nearestDrop?.id ?? null,
+      nearestDropDx: nearestDrop ? round(nearestDrop.position.x - self.position.x) : null,
+      nearestDropDy: nearestDrop ? round(nearestDrop.position.y - self.position.y) : null,
+      nearestDropDistance: nearestDrop ? round(Math.hypot(nearestDrop.position.x - self.position.x, nearestDrop.position.y - self.position.y)) : null,
       priority,
     },
     recentActions: recentActions.slice(-MAX_RECENT_ACTIONS).map((action) => ({
@@ -152,7 +171,7 @@ export function createObservation(
     })),
     enemies: enemies.map((a) => ({
       id: a.config.id, ...position(a.position), vx: round(a.moveVelocity + a.impulse.x),
-      vy: round(a.verticalVelocity + a.impulse.y), facing: a.facing, stocks: a.stocks,
+      vy: round(a.verticalVelocity + a.impulse.y), facing: a.facing, groundedOn: a.groundedOn, stocks: a.stocks,
       status: a.status, weaponId: a.weapon.definition.id,
     })),
     projectiles: state.projectiles.slice(-48).map((p) => ({ id: p.id, owner: p.owner, ...position(p.position), vx: round(p.velocity.x), vy: round(p.velocity.y) })),

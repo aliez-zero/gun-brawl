@@ -37,6 +37,20 @@ describe('external direct control', () => {
     expect(actor.moveVelocity).toBe(0);
   });
 
+  it('turns an attack intent into approach and fire even when the model omits shootHeld', () => {
+    const runner = externalRunner();
+    const actor = runner.state.actors[1]!;
+    const before = actor.position.x;
+    const c = context(runner);
+    expect(runner.applyExternalInput('deepseek', {
+      ...idleInput(), intent: 'attack', moveX: 0, shootHeld: false, holdFrames: 12,
+    }, c)).toBe(true);
+    const events = [];
+    for (let frame = 0; frame < 4; frame++) events.push(...runner.advance(1000 / 60, idleInput));
+    expect(actor.position.x).toBeLessThan(before);
+    expect(events.filter((event) => event.type === 'shot' && event.actorId === 'deepseek')).toHaveLength(1);
+  });
+
   it('rejects duplicates, future and stale inputs, invalid values, and cross-actor input', () => {
     const runner = externalRunner(); const c = context(runner);
     expect(runner.applyExternalInput('p1', action, c)).toBe(false);
@@ -52,16 +66,16 @@ describe('external direct control', () => {
     expect(parseExternalAction({ ...action, intent: 'teleport' })).toBeNull();
   });
 
-  it('invalidates commands on pause, countdown and respawn with no rule-bot takeover', () => {
+  it('invalidates commands on pause, countdown and respawn while the latency skill keeps moving', () => {
     const runner = externalRunner(); const c = context(runner);
     runner.applyExternalInput('deepseek', { ...action, holdFrames: 45 }, c);
     runner.pause(); runner.resume();
     expect(runner.applyExternalInput('deepseek', action, c)).toBe(false);
     for (let f = 0; f < 190; f++) runner.advance(1000 / 60, idleInput);
-    expect(runner.state.actors[1]!.position.x).toBe(800);
+    expect(runner.state.actors[1]!.position.x).not.toBe(800);
     const beforeDeath = context(runner, 2);
     runner.state.actors[1]!.position.y = 1000;
-    runner.advance(1000 / 60, idleInput);
+    for (let frame = 0; frame < 4; frame++) runner.advance(1000 / 60, idleInput);
     for (let f = 0; f < 70; f++) runner.advance(1000 / 60, idleInput);
     expect(runner.state.actors[1]!.status).toBe('alive');
     expect(runner.state.actors[1]!.stocks).toBe(2);
@@ -103,6 +117,8 @@ describe('external direct control', () => {
     const runner = externalRunner();
     const actor = runner.state.actors[1]!;
     actor.position.x = runner.state.config.map.bounds.left + 10;
+    actor.moveVelocity = 0;
+    actor.impulse.x = 0;
     actor.groundedOn = 'floor';
     const before = actor.position.x;
     runner.advance(1000 / 60, idleInput);
@@ -130,7 +146,7 @@ describe('DeepSeek transport lifecycle', () => {
     resolve(new Response(JSON.stringify({ action, sequence: sent!.sequence, epoch: sent!.epoch, observationTick: sent!.observation.tick, usage: { requests: 1, promptTokens: 10, completionTokens: 5 } })));
     await flush();
     const before = runner.state.actors[1]!.position.x;
-    runner.advance(1000 / 60, idleInput);
+    for (let frame = 0; frame < 4; frame++) runner.advance(1000 / 60, idleInput);
     expect(runner.state.actors[1]!.position.x).toBeGreaterThan(before);
     expect(statuses.at(-1)?.decisions).toBe(1);
     client.destroy();
@@ -170,11 +186,11 @@ describe('DeepSeek transport lifecycle', () => {
     resolve(new Response(JSON.stringify({ action, sequence: sent!.sequence, epoch: sent!.epoch, observationTick: sent!.observation.tick })));
     await flush(); runner.resume();
     for (let f = 0; f < 190; f++) runner.advance(1000 / 60, idleInput);
-    expect(runner.state.actors[1]!.position.x).toBe(800);
+    expect(runner.state.actors[1]!.position.x).not.toBe(800);
     client.destroy();
   });
 
-  it.each(['BUDGET', 'CONTEXT_TOO_LARGE'])('stops requesting after a terminal %s error instead of silently using a rule bot', async (code) => {
+  it.each(['BUDGET', 'CONTEXT_TOO_LARGE'])('stops requesting after a terminal %s error while the latency skill remains active', async (code) => {
     const runner = externalRunner(); let calls = 0; let time = 0;
     const statuses: DeepSeekStatus[] = [];
     const fetcher: typeof fetch = async (_url, options) => {
@@ -185,7 +201,7 @@ describe('DeepSeek transport lifecycle', () => {
     client.update(); await flush(); time = 30000; client.update();
     expect(calls).toBe(1); expect(statuses.at(-1)?.phase).toBe('error');
     for (let f = 0; f < 60; f++) runner.advance(1000 / 60, idleInput);
-    expect(runner.state.actors[1]!.position.x).toBe(800);
+    expect(runner.state.actors[1]!.position.x).not.toBe(800);
     client.destroy();
   });
 });

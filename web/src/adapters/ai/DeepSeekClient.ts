@@ -4,6 +4,7 @@ import type { MatchRunner } from '../../game/core/MatchRunner';
 
 export interface DeepSeekInfo {
   configured: boolean; model: string; maxRequests: number; requestIntervalMs: number; timeoutMs: number; contextTokens: number;
+  thinking?: 'enabled' | 'disabled'; reasoningEffort?: 'none' | 'low' | 'high' | 'max';
 }
 export interface DeepSeekSession extends Omit<DeepSeekInfo, 'configured'> { sessionId: string }
 export interface DeepSeekStatus {
@@ -35,7 +36,10 @@ function infoFields(body: Record<string, unknown>): Omit<DeepSeekInfo, 'configur
     || !Number.isInteger(body.requestIntervalMs) || (body.requestIntervalMs as number) < 500 || (body.requestIntervalMs as number) > 10000
     || !Number.isInteger(body.timeoutMs) || (body.timeoutMs as number) < 500 || (body.timeoutMs as number) > 20000
     || !Number.isInteger(body.contextTokens) || (body.contextTokens as number) < 4096 || (body.contextTokens as number) > 512000) throw new DeepSeekError('AI 服务配置响应无效', 'GATEWAY');
-  return { model: body.model, maxRequests: body.maxRequests as number, requestIntervalMs: body.requestIntervalMs as number, timeoutMs: body.timeoutMs as number, contextTokens: body.contextTokens as number };
+  const thinking = body.thinking === 'enabled' || body.thinking === 'disabled' ? body.thinking : undefined;
+  const reasoningEffort = body.reasoningEffort === 'none' || body.reasoningEffort === 'low'
+    || body.reasoningEffort === 'high' || body.reasoningEffort === 'max' ? body.reasoningEffort : undefined;
+  return { model: body.model, maxRequests: body.maxRequests as number, requestIntervalMs: body.requestIntervalMs as number, timeoutMs: body.timeoutMs as number, contextTokens: body.contextTokens as number, thinking, reasoningEffort };
 }
 
 export async function openDeepSeekSession(episodeId: string, actorId: string, signal?: AbortSignal): Promise<DeepSeekSession> {

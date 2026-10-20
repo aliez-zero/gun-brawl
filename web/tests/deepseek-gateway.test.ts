@@ -2,8 +2,8 @@ import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { once } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createDeepSeekGateway } from '../server/ai/deepseek.mjs';
-import type { GatewayOptions } from '../server/ai/deepseek.mjs';
+import { createDeepSeekGateway } from '../../server/ai/deepseek.mjs';
+import type { GatewayOptions } from '../../server/ai/deepseek.mjs';
 import { createDeepSeekMatchConfig } from '../src/content/matches';
 import { MatchRunner } from '../src/game/core/MatchRunner';
 import { createObservation } from '../src/game/ai/external/Protocol';
@@ -48,7 +48,7 @@ describe('local DeepSeek gateway', () => {
     expect(response.status).toBe(503);
   });
 
-  it('calls the official endpoint with JSON/non-thinking mode and strips unknown observation fields', async () => {
+  it('calls the official endpoint with thinking JSON mode and strips unknown observation fields', async () => {
     let sent: Record<string, unknown> = {};
     let authorization = '';
     const { post, request } = await start({ fetchImpl: async (url, init) => {
@@ -62,8 +62,9 @@ describe('local DeepSeek gateway', () => {
     const body = await response.json() as { action: unknown; sequence: number; usage: { requests: number } };
     expect(body.action).toEqual(action); expect(body.sequence).toBe(1); expect(body.usage.requests).toBe(1);
     expect(sent.response_format).toEqual({ type: 'json_object' });
-    expect(sent.thinking).toEqual({ type: 'disabled' });
-    expect(sent.max_tokens).toBe(256);
+    expect(sent.thinking).toEqual({ type: 'enabled' });
+    expect(sent.reasoning_effort).toBe('low');
+    expect(sent.max_tokens).toBe(4096);
     expect(JSON.stringify(sent)).not.toContain('MUST-NOT-FORWARD');
     const sentObservation = JSON.parse((sent.messages as { role: string; content: string }[])[1]!.content) as typeof request.observation;
     expect(sentObservation.tactical).toEqual(request.observation.tactical);
@@ -120,14 +121,14 @@ describe('local DeepSeek gateway', () => {
 
   it('applies the context budget separately to each request instead of accumulating match usage', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(1000000);
-    const { post, request } = await start({ contextTokens: 10000 });
+    const { post, request } = await start({ contextTokens: 16000 });
     const estimates: number[] = [];
     for (let sequence = 1; sequence <= 8; sequence++) {
       clock.mockReturnValue(1000000 + sequence * 1000);
       const response = await post('/action', { ...request, sequence });
       expect(response.status).toBe(200);
       const { context } = await response.json() as { context: { estimatedInputTokens: number } };
-      expect(context.estimatedInputTokens + 256).toBeLessThanOrEqual(10000);
+      expect(context.estimatedInputTokens + 4096).toBeLessThanOrEqual(16000);
       estimates.push(context.estimatedInputTokens);
     }
     expect(new Set(estimates).size).toBe(1);

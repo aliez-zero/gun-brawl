@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS, prepareModelContext } from '../server/ai/context-budget.mjs';
+import { MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS, prepareModelContext } from '../../server/ai/context-budget.mjs';
 
 describe('per-request model context', () => {
   it('sends only the rules and current observation independently on every call', () => {
@@ -20,10 +20,10 @@ describe('per-request model context', () => {
   });
 
   it('budgets multibyte text conservatively and rejects oversized input without affecting later requests', () => {
-    const ascii = prepareModelContext('Rules', 'a'.repeat(500), 4096)!;
-    const chinese = prepareModelContext('Rules', '中'.repeat(500), 4096)!;
+    const ascii = prepareModelContext('Rules', 'a'.repeat(500), 10000)!;
+    const chinese = prepareModelContext('Rules', '中'.repeat(500), 10000)!;
     expect(chinese.context.estimatedInputTokens).toBeGreaterThan(ascii.context.estimatedInputTokens);
-    expect(prepareModelContext('Rules', '中'.repeat(2000), 4096)).toBeNull();
-    expect(prepareModelContext('Rules', 'small', 4096)!.messages).toHaveLength(2);
+    expect(prepareModelContext('Rules', '中'.repeat(2000), 10000)).toBeNull();
+    expect(prepareModelContext('Rules', 'small', 10000)!.messages).toHaveLength(2);
   });
 });

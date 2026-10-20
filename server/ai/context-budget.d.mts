@@ -1,5 +1,5 @@
 export const MAX_CONTEXT_TOKENS: 512000;
-export const MAX_OUTPUT_TOKENS: 256;
+export const MAX_OUTPUT_TOKENS: 4096;
 export interface ContextBudget {
   limitTokens: number;
   estimatedInputTokens: number;

@@ -60,7 +60,18 @@ export class ExternalInputController {
     }
     this.lastPosition = { ...actor.position };
     const emergency = this.emergencyInput(tick, actor, state);
-    if (!this.action || tick >= this.untilTick) return emergency ?? idleInput();
+    if (!this.action || tick >= this.untilTick) {
+      // Thinking requests can take longer than a short command. Keep the
+      // character alive and active with the deterministic 60 Hz skill layer
+      // until the next model command arrives instead of freezing in place.
+      const assist = this.tacticalAssist.sample(actor, state, dt);
+      if (emergency) return emergency;
+      // Preserve the old low-level protocol's last held direction during a
+      // short gap. New intent-bearing model commands use the skill layer so
+      // they can recover, aim and route while thinking is in flight.
+      if (this.action && (this.action.intent === undefined || this.action.intent === null)) return idleInput();
+      return assist;
+    }
     const edge = this.edgePending;
     this.edgePending = false;
     const a = this.action;
@@ -73,18 +84,32 @@ export class ExternalInputController {
         - Math.hypot(right.position.x - actor.position.x, right.position.y - actor.position.y))[0];
     const targetDx = target ? target.position.x - actor.position.x : 0;
     const targetDy = target ? target.position.y - actor.position.y : 0;
-    const aligned = Boolean(target)
+    const targetDirection: -1 | 1 = targetDx < 0 ? -1 : 1;
+    const targetInRange = Boolean(target)
       && Math.abs(targetDy) < 55
-      && Math.abs(targetDx) <= actor.weapon.definition.range
-      && actor.facing === (targetDx < 0 ? -1 : 1);
-    const aimCorrection: -1 | 0 | 1 = a.shootHeld && target && Math.abs(targetDy) < 55
-      && Math.abs(targetDx) <= actor.weapon.definition.range && a.moveX === 0
-      ? (targetDx < 0 ? -1 : 1) : 0;
-    const useTacticalSkill = stalled || a.intent === 'recover' || a.intent === 'collect'
+      && Math.abs(targetDx) <= actor.weapon.definition.range;
+    const aimCorrection: -1 | 0 | 1 = a.intent === 'attack' && targetInRange
+      ? targetDirection : 0;
+    // An attack intent is a tactical goal, not merely a request to press a
+    // boolean for one frame. If the model omits a direction while the target
+    // is still outside the firing lane, close the distance locally so network
+    // latency cannot turn the command into a stationary actor.
+    const attackApproach: -1 | 0 | 1 = a.intent === 'attack' && target && !targetInRange
+      && (a.moveX === 0 || a.moveX !== targetDirection) ? targetDirection : 0;
+    const shotDirection = aimCorrection || a.moveX || actor.facing;
+    const aligned = targetInRange && shotDirection === targetDirection;
+    const falling = actor.groundedOn === null && actor.verticalVelocity > 0;
+    const useTacticalSkill = falling || stalled || a.intent === 'recover' || a.intent === 'collect'
       || (a.intent === 'reposition' && a.moveX === 0);
-    const moveX = useTacticalSkill ? assist.moveX : aimCorrection || a.moveX;
+    const moveX = useTacticalSkill ? assist.moveX : attackApproach || aimCorrection || a.moveX;
+    // Legacy callers without an intent retain direct fire semantics. Model
+    // commands are gated by the derived target line so they stop wasting ammo
+    // into empty space and correct their facing before the first shot.
+    const shootHeld = a.intent === undefined || a.intent === null
+      ? a.shootHeld
+      : (a.shootHeld && aligned) || (a.intent === 'attack' && aligned);
     return {
-      moveX, shootHeld: a.shootHeld || (a.intent === 'attack' && assist.shootHeld && aligned),
+      moveX, shootHeld: shootHeld || (a.intent === 'attack' && assist.shootHeld && aligned),
       jumpPressed: (edge && a.jumpPressed) || (assist.jumpPressed && actor.groundedOn !== null),
       dropPressed: (edge && a.dropPressed) || (assist.dropPressed && actor.groundedOn !== null),
       bombPressed: edge && a.bombPressed,

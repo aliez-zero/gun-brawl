@@ -20,7 +20,7 @@ T10-R2 人体比例与自然动作修正（已完成当前范围，2026-10-18）
 
 T10-R 牛仔分层骨架样板（已完成当前范围，2026-10-18）：本会话负责，工作区 `D:\Code\gun-brawl` / `main`，领取基线 `0467a75`，验证包含并行武器提交 `3cf8707`。新增 `src/presentation/characters/**`、骨架测试 / 浏览器专项与独立预览控制；串行接入 `CharacterPainter.ts`、`CharacterArt.ts`、`ArenaRenderer.ts`、`WeaponLayer.ts`、`ArenaScene.ts`、`ui/appearance/**` 和 `GameUI.ts` 销毁钩子。牛仔造型、连续骨架 / 双手 IK / 附件动作、五风格动作与朝向 / 1× 预览已接入。25 文件 / 221 项测试、严格构建、原玩法 / 外观浏览器流程、110 帧 / 150 混搭及骨架专项通过；24 次换装重赛对象数稳定，纹理最多 8 套，预览关闭零残留 RAF。保留其他四种风格与所有混搭；本轮不改规则 / 地图 / 武器参数 / 存档，不含提交推送。后续其他角色骨架、逐枪完整换弹与性能验收见 [交接](./updates/2026-10-18-cowboy-rig.md)。
 
-EAI-C（单次模型请求 512K 上限）：负责人为本会话，工作区 `D:\Code\gun-brawl` / `main`。范围为 `server/ai/context-budget.*`、网关与相关声明、Vite 配置、DeepSeek 客户端 / 配置视图、模拟脚本 / 测试、`.env.example` 和交接文档。已完成每次请求独立检查 512000 token 上限及 256 token 输出预留，只发规则 / 当前观测，不累计历史。213 项 / 23 文件测试、严格构建、生产预览 DeepSeek 模拟流程和配置视图截图检查通过。真实模型待密钥验证，交接见 [DeepSeek 文档](./DEEPSEEK.md)。
+EAI-C（单次模型请求 512K 上限）：负责人为本会话，工作区 `D:\Code\gun-brawl` / `main`。范围为 `server/ai/context-budget.*`、网关与相关声明、Vite 配置、DeepSeek 客户端 / 配置视图、模拟脚本 / 测试、`.env.example` 和交接文档。已完成每次请求独立检查 512000 token 上限及 4096 token 输出预留，只发规则 / 当前观测，不累计完整历史；默认启用 low thinking 推理并允许服务端调节。真实模型待密钥验证，交接见 [DeepSeek 文档](./DEEPSEEK.md)。
 
 DeepSeek 接入交付（EAI-D，2026-10-18）：本会话在 `D:\Code\gun-brawl` / `main`、基线 `8ebb019` 实现直接操作模式：纯输入协议 / 信箱、Node 网关、浏览器适配、单人对战入口、生命周期清理、预算与用量。串行集成公共类型、运行器、场景、应用 / UI、Vite 及文档；保留并行武器开发成果。状态：代码接入与模拟验收完成，真实模型验收待密钥。联合 203 项 / 22 文件测试、严格构建、密钥打包隔离检查通过；DeepSeek 专项在 dev / preview 通过，原玩法在 preview 完整通过。配置与限制见 [DeepSeek 交接](./DEEPSEEK.md)。未调用付费模型；全 AI 观战、视觉和训练仍未实现。
 

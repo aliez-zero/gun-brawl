@@ -2,11 +2,20 @@ import { randomUUID } from 'node:crypto';
 import { prepareModelContext, resolveContextTokens, MAX_CONTEXT_TOKENS, MAX_OUTPUT_TOKENS } from './context-budget.mjs';
 
 const MAX_BODY = 64 * 1024;
-const SYSTEM = `You control a character in a 2D platform gun brawl. Win by knocking opponents outside map.bounds; there is no HP damage. x goes right, y goes down; actor x/y is feet center. Physics runs at 60 FPS. Platforms may be one-way (drop through) or solid. Two jumps, limited bombs and weapon ammo. Facing follows moveX; shooting is horizontal in facing direction. Reload takes time. Avoid walking beyond a landing platform without jumping. Move toward enemies and shoot when aligned, recover to platforms when falling, collect active weapon drops when useful. Use this human-like priority loop on every decision: (1) survive threats and recover to a platform, (2) choose the route or height that keeps a landing option, (3) close distance while braking before the platform edge, (4) turn toward an aligned enemy and fire a short burst, (5) reload during a safe gap and use bombs only for a clear nearby opportunity. Prioritize survival: follow tactical.priority first; recover when it says recover, use tactical.safePlatform* or tactical.route* to choose the next landing, collect only when safe, then attack. Keep a safe distance from both map edges, steer toward a reachable platform while falling, and jump before crossing an exposed platform edge. When platformEdgeDistanceLeft or platformEdgeDistanceRight is below about 80, brake or jump inward. Treat a nearby projectile or bomb distance below 150 as an immediate escape signal. Use tactical.nearestEnemy* and tactical.currentPlatformId instead of estimating these values from scratch. recentActions is a short memory of your previous commands; the latest entry may include outcome.deltaX/deltaY and outcome.platformId, which tells you whether the previous decision actually moved or landed. If an action made little progress, change direction or choose a shorter holdFrames. Use 6-18 holdFrames for risky movement, 18-30 for stable travel, and never hold a jump or bomb repeatedly. Do not fire continuously while facing away from the nearest enemy. Never assume unseen future events. Use the provided telemetry only.
-Return ONLY a JSON object with all fields, no explanation:
+const SYSTEM = `You control one character in a 2D platform gun brawl. The only win condition is knocking opponents outside map.bounds; there is no HP damage. x goes right, y goes down, and actor x/y is the feet center. Physics advances at 60 FPS, while this request is a slow tactical decision. Platforms can be one-way or solid, and the character has two jumps, limited bombs, and weapon ammo. Facing follows the last non-zero moveX; shooting is horizontal in the facing direction. A command is held for holdFrames, then becomes neutral until the next decision.
+
+Treat every decision as a small state machine, in this exact order:
+1. SURVIVE: if tactical.priority is recover, self.isFalling is true, a projectile/bomb is within 150, or either platform edge distance is below 80, steer inward toward tactical.safePlatformDx or tactical.routePlatformDx. Use a short 6-12 frame command. Jump once when grounded or when a second jump is the only way to reach a landing; never walk off an edge while looking at an enemy.
+2. ROUTE: if tactical.routeAction is jump or drop, move toward the signed routePlatformDx and trigger that action once. Keep a landing option; do not hold jump/drop for the whole command. If the previous outcome did not change platform or position, reverse or shorten the next hold.
+3. COLLECT: choose collect only when tactical.nearestDropDistance is below 340 and there is no threat. Move to the drop, then resume attack; do not cross an exposed edge for a box.
+4. ATTACK: the objective is ring-out knockback, not damage. Approach the nearest living enemy while braking before the platform edge. A shot is useful only when targetAligned/targetInRange is true; turn toward nearestEnemyDx before firing a 6-18 frame burst. Higher knockback weapons are for edge, air, or recovery punish windows; automatic weapons need repeated safe hits. Do not waste shots while facing away or while the target is on another height.
+5. RESOURCE: if ammo is empty or low and reserve is available, reload during a safe gap; never request reload while reloadRemaining is non-zero. Use a bomb only when bombsRemaining is positive, bombCooldown is zero, the target is nearby and roughly level, and the blast will not remove your own landing option.
+
+Use the supplied tactical fields as authoritative derivations instead of recomputing them from raw coordinates. edgeDistance and platformEdgeDistance are distances to death, not distances to an enemy. nearestEnemyDx is signed (positive means enemy is right). routePlatformDx and safePlatformDx are signed offsets to platform centers. recentActions is short-term memory: the latest outcome.deltaX/deltaY, outcome.platformId and grounded tell you whether the previous command worked. If it stalled, change direction or select a shorter holdFrames. Network latency is real, so anticipate vx/vy but never invent future events. Do not set coordinates, ammo, lives, or any state outside the returned input.
+
+Return ONLY one JSON object, with no markdown or explanation:
 {"intent":"attack","moveX":1,"jumpPressed":false,"dropPressed":false,"shootHeld":true,"bombPressed":false,"reloadPressed":false,"holdFrames":12}
-intent must be one of recover, attack, collect, reposition. It is a tactical preference, while the other fields are the immediate input.
-moveX must be -1, 0 or 1. The five action flags are booleans. holdFrames is an integer from 1 to 45. Movement and firing are held for holdFrames; jump/drop/bomb/reload trigger ONCE on the first frame. Never jump and drop together. Commands expire and inputs become neutral until the next decision. Requests have network latency: use velocity to anticipate movement. You cannot set coordinates, ammo or lives.`;
+intent must be exactly recover, attack, collect, or reposition. It is the tactical preference; the other fields are the immediate input. moveX must be -1, 0, or 1. All five action flags are booleans. holdFrames is an integer from 1 to 45. jumpPressed, dropPressed, bombPressed, and reloadPressed trigger once on the first frame; never jump and drop together. Keep commands short near an edge, while falling, or during a jump.`;
 
 class GatewayError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -48,21 +57,23 @@ const readObservation = shape({
     id: text, ...xy, ...velocity, facing: enumeration(-1, 1), groundedOn: nullable(text),
     jumpsRemaining: integer(0, 2), stocks: integer(0, 99), protection: number(0, 100),
     reloadRemaining: number(0, 100), fireCooldown: number(0, 100), bombsRemaining: integer(0, 99), bombCooldown: number(0, 100),
-    weapon: shape({ id: text, ammo: nullable(integer()), reserve: integer(), range: number(0), interval: number(0, 100) }),
+    weapon: shape({ id: text, ammo: nullable(integer()), reserve: integer(), range: number(0), interval: number(0, 100), projectileSpeed: number(0), knockback: number(0), maxAmmo: nullable(integer()), pellets: integer(1, 32), explosionRadius: nullable(number(0)) }),
   }),
   tactical: shape({
     edgeDistanceLeft: number(0), edgeDistanceRight: number(0), nearestEnemyId: nullable(text),
     platformEdgeDistanceLeft: nullable(number(0)), platformEdgeDistanceRight: nullable(number(0)),
     nearestEnemyDx: nullable(number()), nearestEnemyDy: nullable(number()), nearestEnemyDistance: nullable(number(0)),
+    targetAligned: optional((v) => typeof v === 'boolean' ? v : fail(), false), targetInRange: optional((v) => typeof v === 'boolean' ? v : fail(), false),
     currentPlatformId: nullable(text), isFalling: (v) => typeof v === 'boolean' ? v : fail(),
     routeAction: optional(enumeration('walk', 'jump', 'drop', 'hold'), 'hold'), routePlatformId: optional(nullable(text), null), routePlatformDx: optional(nullable(number()), null),
     safePlatformId: optional(nullable(text), null), safePlatformDx: optional(nullable(number()), null),
     nearestProjectileDx: optional(nullable(number()), null), nearestProjectileDistance: optional(nullable(number(0)), null),
     nearestBombDx: optional(nullable(number()), null), nearestBombDistance: optional(nullable(number(0)), null),
+    nearestDropId: optional(nullable(integer()), null), nearestDropDx: optional(nullable(number()), null), nearestDropDy: optional(nullable(number()), null), nearestDropDistance: optional(nullable(number(0)), null),
     priority: optional(enumeration('recover', 'attack', 'collect', 'reposition'), 'reposition'),
   }),
   recentActions: optional(list(actionHistory, 8), []),
-  enemies: list(shape({ id: text, ...xy, ...velocity, facing: enumeration(-1, 1), stocks: integer(0, 99), status: enumeration('alive', 'respawning', 'eliminated'), weaponId: text }), 3),
+  enemies: list(shape({ id: text, ...xy, ...velocity, facing: enumeration(-1, 1), groundedOn: nullable(text), stocks: integer(0, 99), status: enumeration('alive', 'respawning', 'eliminated'), weaponId: text }), 3),
   projectiles: list(shape({ id: integer(), owner: text, ...xy, ...velocity }), 48),
   bombs: list(shape({ id: integer(), owner: text, ...xy, ...velocity, radius: number(0) }), 16),
   drops: list(shape({ id: integer(), ...xy, weaponId: text, state: enumeration('incoming', 'active') }), 16),
@@ -107,14 +118,17 @@ async function readBody(req) {
 }
 
 /** Local-only HTTP middleware. API key and upstream address never come from browser input. */
-export function createDeepSeekGateway({ apiKey = '', model = 'deepseek-flash', maxRequests = 180, requestIntervalMs = 500, timeoutMs = 5000, contextTokens = MAX_CONTEXT_TOKENS, fetchImpl = globalThis.fetch } = {}) {
+export function createDeepSeekGateway({ apiKey = '', model = 'deepseek-flash', maxRequests = 180, requestIntervalMs = 500, timeoutMs = 10000, contextTokens = MAX_CONTEXT_TOKENS, thinking = 'enabled', reasoningEffort = 'low', fetchImpl = globalThis.fetch } = {}) {
   const sessions = new Map();
   const limited = (n, fallback, min, max) => Number.isInteger(Number(n)) ? Math.max(min, Math.min(max, Number(n))) : fallback;
   maxRequests = limited(maxRequests, 180, 1, 360);
   requestIntervalMs = limited(requestIntervalMs, 500, 500, 10000);
-  timeoutMs = limited(timeoutMs, 5000, 500, 20000);
+  timeoutMs = limited(timeoutMs, 10000, 500, 20000);
   contextTokens = resolveContextTokens(contextTokens);
   model = /^[a-zA-Z0-9_.-]{1,80}$/.test(model) ? model : 'deepseek-flash';
+  thinking = thinking === 'disabled' ? 'disabled' : 'enabled';
+  reasoningEffort = ['none', 'low', 'high', 'max'].includes(reasoningEffort) ? reasoningEffort : 'low';
+  if (thinking === 'disabled') reasoningEffort = 'none';
   apiKey = apiKey.trim();
   const configured = Boolean(apiKey);
   let totalRequests = 0;
@@ -141,7 +155,7 @@ export function createDeepSeekGateway({ apiKey = '', model = 'deepseek-flash', m
       sweep();
       if (path === '/status') {
         if (req.method !== 'GET') throw new GatewayError(405, 'METHOD', '请求方法不支持');
-        reply(res, 200, { configured, model, maxRequests, requestIntervalMs, timeoutMs, contextTokens }); return;
+        reply(res, 200, { configured, model, maxRequests, requestIntervalMs, timeoutMs, contextTokens, thinking, reasoningEffort }); return;
       }
       if (!configured) throw new GatewayError(503, 'NOT_CONFIGURED', '尚未配置 DeepSeek API Key，请配置 .env.local 后重启服务');
       if (req.method !== 'POST') throw new GatewayError(405, 'METHOD', '请求方法不支持');
@@ -155,7 +169,7 @@ export function createDeepSeekGateway({ apiKey = '', model = 'deepseek-flash', m
         const episodeId = text(body.episodeId), actorId = text(body.actorId);
         const sessionId = randomUUID();
         sessions.set(sessionId, { episodeId, actorId, requests: 0, promptTokens: 0, completionTokens: 0, lastStart: 0, sequence: -1, expires: Date.now() + 20 * 60000, controller: null });
-        reply(res, 200, { sessionId, model, maxRequests, requestIntervalMs, timeoutMs, contextTokens }); return;
+        reply(res, 200, { sessionId, model, maxRequests, requestIntervalMs, timeoutMs, contextTokens, thinking, reasoningEffort }); return;
       }
 
       const sessionId = text(body.sessionId);
@@ -178,7 +192,7 @@ export function createDeepSeekGateway({ apiKey = '', model = 'deepseek-flash', m
         const upstream = await fetchImpl('https://api.deepseek.com/chat/completions', {
           method: 'POST', signal: controller.signal,
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages: prepared.messages, thinking: { type: 'disabled' }, response_format: { type: 'json_object' }, stream: false, max_tokens: MAX_OUTPUT_TOKENS }),
+          body: JSON.stringify({ model, messages: prepared.messages, thinking: { type: thinking }, reasoning_effort: reasoningEffort, response_format: { type: 'json_object' }, stream: false, max_tokens: MAX_OUTPUT_TOKENS }),
         });
         if (!upstream.ok) {
           const errors = { 400: ['PARAMETERS', 'DeepSeek 模型或请求参数无效，请检查服务端配置'], 422: ['PARAMETERS', 'DeepSeek 模型或请求参数无效，请检查服务端配置'], 401: ['AUTH', 'DeepSeek 密钥无效'], 402: ['BALANCE', 'DeepSeek 账户余额不足'], 429: ['UPSTREAM_RATE', 'DeepSeek 请求限流，稍后继续'] };

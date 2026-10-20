@@ -32,6 +32,9 @@
 | [RESEARCH.md](./RESEARCH.md) | 参考玩法、事实来源、待核实信息 | 增补或修订调研依据 |
 | `sources/` | S01—S04 网页文字留档，调研文档中有链接 | 保留原文，新增来源另建文件 |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 现有分层、数据流、状态与逻辑时序 | 真实架构变化后 |
+| [CLIENT_SERVER_PLAN_V2.md](./CLIENT_SERVER_PLAN_V2.md) | 联机版方案：Rust 服务端、4 人房 + AI 补位、延迟预算与完整部署 | 方案或阶段目标变化后 |
+| [CLIENT_SERVER_PLAN_REVIEW.md](./CLIENT_SERVER_PLAN_REVIEW.md) | 对 v1 方案的评审与修正记录（已并入 v2） | 方案重写后 |
+| [PERFORMANCE.md](./PERFORMANCE.md) | 性能预算、按层优化清单、bench 实测与回归门槛 | 预算、实测或优化手段变化后 |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | 已完成 / 未完成、代码入口、参数、测试证据和已知限制 | 功能集成或验证结论变化后 |
 | [WEAPONS.md](./WEAPONS.md) | 已实现的 17 型号、弹匣 / 备弹、射速 / 弹速、后坐力与投放权重设计 | 型号、弹药或平衡方案调整 |
 | [CHARACTER_DESIGN.md](./CHARACTER_DESIGN.md) | 五角色造型、材质、动作、调研取舍、资源预算与 C01—C07 精修任务 | 角色设计、动画或视觉验收变化后 |
