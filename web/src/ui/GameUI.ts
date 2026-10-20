@@ -378,6 +378,16 @@ export class GameUI {
     this.dialog('ONLINE / ROOM CODE', '联机对战', onlineLobbyHtml(room, playerId, status), 'online-panel');
   }
 
+  /**
+   * Status-only update for the lobby. Re-rendering the dialog while the player is
+   * typing a room code wipes the fields, which is fatal on a high-latency link where
+   * the "connected" update lands right between typing and clicking join.
+   */
+  updateOnlineStatus(text: string): void {
+    const element = document.querySelector<HTMLElement>('#online-status');
+    if (element) element.textContent = text;
+  }
+
   updateNetStatus(text: string | null): void {
     const element = document.querySelector<HTMLElement>('#net-status');
     if (!element) return;

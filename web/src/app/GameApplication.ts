@@ -304,8 +304,18 @@ export class GameApplication {
       this.onlineStatus = error instanceof Error ? error.message : '连接失败';
     }
     if (this.screen === 'online') {
-      this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+      this.refreshOnline();
     }
+  }
+
+  /**
+   * Re-render the lobby for room changes, but only touch the status line while there
+   * is no room yet — otherwise the connect/reconnect status would wipe whatever the
+   * player has typed into the name and room-code fields.
+   */
+  private refreshOnline(): void {
+    if (this.onlineRoom) this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+    else this.ui.updateOnlineStatus(this.onlineStatus);
   }
 
   private async ensureOnline(): Promise<NetClient> {
@@ -319,7 +329,7 @@ export class GameApplication {
         document.body.dataset.net = status;
         if (status === 'open') this.reconnectAttempts = 0;
         if (status === 'closed' && this.onlineSource && !this.reconnecting) this.scheduleReconnect();
-        if (this.screen === 'online') this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+        if (this.screen === 'online') this.refreshOnline();
       },
       onLatency: (rtt, jitter) => {
         this.onlineLatency = { rtt, jitter };
@@ -368,7 +378,7 @@ export class GameApplication {
     } catch (error) {
       this.onlineStatus = error instanceof Error ? error.message : '连接失败';
     }
-    if (this.screen === 'online') this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+    if (this.screen === 'online') this.refreshOnline();
   }
 
   private async joinOnlineRoom(name: string, code: string): Promise<void> {
@@ -378,7 +388,7 @@ export class GameApplication {
     } catch (error) {
       this.onlineStatus = error instanceof Error ? error.message : '连接失败';
     }
-    if (this.screen === 'online') this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+    if (this.screen === 'online') this.refreshOnline();
   }
 
   private handleOnlineRoom(room: RoomView): void {
