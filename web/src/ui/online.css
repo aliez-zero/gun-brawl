@@ -66,6 +66,24 @@
   opacity: 0.8;
 }
 
+/* Slot actions ("设为 AI") are plain <button>s outside .dialog-actions, so without an
+   explicit rule the browser paints its default light button with near-white text. */
+.online-slots li button {
+  background: rgba(216, 255, 107, 0.1);
+  border: 1px solid rgba(216, 255, 107, 0.45);
+  border-radius: 5px;
+  color: #d8ff6b;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  padding: 5px 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.online-slots li button:hover {
+  background: rgba(216, 255, 107, 0.22);
+}
+
 .net-status {
   font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
