@@ -91,8 +91,8 @@ jobs:
 
   deploy:
     needs: image
-    # Opt-in: set repository variable DEPLOY_ENABLED=true (plus DEPLOY_HOST/DOMAIN and the
-    # DEPLOY_SSH_KEY secret) once a server is ready. Otherwise `main` stays green.
+    # Opt-in: set repository variable DEPLOY_ENABLED=true plus DEPLOY_HOST and the
+    # DEPLOY_SSH_KEY secret once a server is ready. Otherwise `main` stays green.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -103,4 +103,4 @@ jobs:
             TAG=${{ github.sha }} docker compose pull &&
             TAG=${{ github.sha }} docker compose up -d &&
             sleep 5 &&
-            curl -fsS https://${{ secrets.DOMAIN }}/healthz"
+            curl -fsS --max-time 10 http://${{ secrets.DEPLOY_HOST }}/healthz"

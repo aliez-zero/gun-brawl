@@ -169,17 +169,27 @@ docker run --rm -v gun-brawl_data:/data keinos/sqlite3 \
 
 ## 9. 可选：GitHub Actions 自动部署
 
-仓库自带 `.github/workflows/ci.yml`：`main` 推送后跑测试 → 构建镜像推 GHCR → SSH 到服务器 `docker compose pull && up -d`。
+仓库自带 `.github/workflows/ci.yml`：`main` 推送后跑测试 → 构建镜像推 GHCR → SSH 到服务器 `docker compose pull && up -d`。默认关闭，配齐下面这些才生效（没配时 `main` 保持绿色）。
 
-需要的 Secrets：
+| 类型 | 名称 | 内容 |
+| --- | --- | --- |
+| Variable | `DEPLOY_ENABLED` | `true` 才会触发 deploy job |
+| Secret | `DEPLOY_HOST` | 服务器公网 IP 或域名 |
+| Secret | `DEPLOY_SSH_KEY` | `deploy` 用户的私钥（对应公钥放进 `~deploy/.ssh/authorized_keys`） |
 
-| Secret | 内容 |
-| --- | --- |
-| `DEPLOY_HOST` | 公网 IP 或域名 |
-| `DEPLOY_SSH_KEY` | `deploy` 用户的私钥 |
-| `DOMAIN` | 部署后 `curl /healthz` 用的域名 |
+服务器侧准备（只需一次）：
 
-前提：服务器上有 `deploy` 用户和 `/srv/gun-brawl`，且**能拉 GHCR**。大陆节点这个前提经常不成立，那就删掉 `deploy` job，改成本地推代码 + 服务器上手动 `git pull && docker compose build`。
+```bash
+sudo useradd -m -s /bin/bash deploy
+sudo usermod -aG docker deploy          # 能跑 docker compose，但没有 sudo
+sudo mkdir -p /home/deploy/.ssh && sudo chmod 700 /home/deploy/.ssh
+# 把公钥写进 /home/deploy/.ssh/authorized_keys，权限 600
+```
+
+healthcheck 打的是 `http://$DEPLOY_HOST/healthz`，所以没上 HTTPS 的机器也能用；切到 HTTPS 后 80 会 302 到 443，`curl -f` 把 3xx 当成功，仍然通过。
+
+前提是**服务器能拉 GHCR**。仓库公开后镜像是匿名的，能直接拉；仓库私有时需要 `docker login ghcr.io`。
+
 
 ## 10. 容量与带宽
 
