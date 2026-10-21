@@ -76,6 +76,7 @@ export class NetMatchSource implements MatchSource {
   private snapshotAt = 0;
   private snapshotInterval = SNAPSHOT_INTERVAL;
   private stepAccumulator = 0;
+  private lastAdvanceAt = 0;
   private alphaValue = 0;
   private seq = 0;
   private pendingEvents: BattleEvent[] = [];
@@ -309,7 +310,7 @@ export class NetMatchSource implements MatchSource {
     return 'countdown';
   }
 
-  advance(deltaMs: number, readHuman: (slot: 1 | 2) => ActorInput): BattleEvent[] {
+  advance(_deltaMs: number, readHuman: (slot: 1 | 2) => ActorInput): BattleEvent[] {
     const input = readHuman(1);
     const edges =
       (input.jumpPressed ? EDGE_JUMP : 0) |
@@ -322,11 +323,17 @@ export class NetMatchSource implements MatchSource {
       && this.localActor >= 0
       && this.stateValue.phase === 'playing';
 
-    // Fixed 1/60 s local clock driven by wall time. Stepping once per rendered frame made
-    // a 144 Hz display run the simulation 2.4× too fast, so every snapshot snapped the
-    // character back — the other half of the jitter. Inputs are sent per simulated step
-    // too, keeping the server's 4-slot input queue from overflowing.
-    this.stepAccumulator = Math.min(this.stepAccumulator + Math.max(0, deltaMs) / 1000, MAX_CATCH_UP);
+    // Fixed 1/60 s local clock driven by wall time. Two bugs hid here before: stepping once
+    // per rendered frame ran a 144 Hz display 2.4× too fast, and trusting Phaser's smoothed
+    // `delta` (pinned to 16.7 ms) made a slow frame rate simulate in slow motion. Both
+    // desynced the client from the 60 Hz server and showed up as jitter.
+    const now = performance.now();
+    const elapsed = this.lastAdvanceAt === 0 ? 0 : (now - this.lastAdvanceAt) / 1000;
+    this.lastAdvanceAt = now;
+    this.stepAccumulator = Math.min(
+      this.stepAccumulator + Math.min(Math.max(elapsed, 0), MAX_CATCH_UP),
+      MAX_CATCH_UP,
+    );
     let first = true;
     while (this.stepAccumulator >= FIXED_STEP) {
       this.stepAccumulator -= FIXED_STEP;

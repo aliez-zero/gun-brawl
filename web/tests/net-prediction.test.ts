@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NetMatchSource } from '../src/net/NetMatchSource';
 import { idleInput } from '../src/game/core/types';
 import type { NetClient } from '../src/net/NetClient';
@@ -23,9 +23,9 @@ const room: RoomView = {
   ],
 };
 
-function actorSnap(overrides: Partial<{ x: number; y: number }> = {}) {
+function actorSnap(x = 640, y = 300) {
   return {
-    id: 0, x: overrides.x ?? 640 * 16, y: overrides.y ?? 300 * 16, vx: 0, vy: 0,
+    id: 0, x: x * 16, y: y * 16, vx: 0, vy: 0,
     facing: 1, flags: 1, status: 0, stocks: 3, weapon: 0, ammo: 255, reserve: 0,
     fireCd: 0, reload: 0, protection: 0, respawn: 0,
   };
@@ -34,13 +34,14 @@ function actorSnap(overrides: Partial<{ x: number; y: number }> = {}) {
 function snapshot(x = 640, y = 300): Snapshot {
   return {
     tick: 1, serverMs: 1000, phase: PHASE_PLAYING, remainingMs: 180_000, acks: [0, 0, 0, 0],
-    actors: [actorSnap({ x: x * 16, y: y * 16 }), actorSnap({ x: 700 * 16, y: y * 16 })],
+    actors: [actorSnap(x, y), actorSnap(700, y)],
     projectiles: [], bombs: [], drops: [], events: [],
   };
 }
 
-function fakeClient(): NetClient {
-  return { playerId: 1, sendInput: vi.fn() } as unknown as NetClient;
+function fakeClient(): NetClient & { sends: number } {
+  const client = { playerId: 1, sends: 0, sendInput: () => { client.sends += 1; } };
+  return client as unknown as NetClient & { sends: number };
 }
 
 function fakePredictor(): Predictor & { steps: number; poseX: number } {
@@ -57,47 +58,62 @@ function fakePredictor(): Predictor & { steps: number; poseX: number } {
   return fake as unknown as Predictor & { steps: number; poseX: number };
 }
 
-const idle = () => idleInput();
+/** Drives advance() at a fixed frame rate against a controllable clock. */
+function runFrames(source: NetMatchSource, hz: number, frames: number): void {
+  const step = 1000 / hz;
+  for (let index = 0; index < frames; index++) {
+    clock += step;
+    source.advance(step, idleInput);
+  }
+}
+
+let clock = 0;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  clock = 0;
+});
+
+function setUp() {
+  vi.spyOn(performance, 'now').mockImplementation(() => clock);
+  const client = fakeClient();
+  const predictor = fakePredictor();
+  const source = new NetMatchSource(client, room, predictor);
+  source.applySnapshot(snapshot());
+  return { client, predictor, source };
+}
 
 describe('NetMatchSource fixed-step prediction', () => {
   it('simulates ~60 steps per second at 144 Hz instead of one step per frame', () => {
-    const client = fakeClient();
-    const predictor = fakePredictor();
-    const source = new NetMatchSource(client, room, predictor);
-    source.applySnapshot(snapshot());
-
-    // One second of a 144 Hz display: 144 frames of 6.94 ms each.
-    for (let frame = 0; frame < 144; frame++) source.advance(1000 / 144, idle);
-
+    const { client, predictor, source } = setUp();
+    runFrames(source, 144, 144);
     expect(predictor.steps).toBeGreaterThanOrEqual(55);
     expect(predictor.steps).toBeLessThanOrEqual(65);
-    // Inputs go out once per simulated step, not once per rendered frame.
-    expect((client.sendInput as unknown as { mock: { calls: unknown[] } }).mock.calls.length)
-      .toBeGreaterThanOrEqual(55);
+    expect(client.sends).toBeGreaterThanOrEqual(55);
+    expect(client.sends).toBeLessThanOrEqual(65);
+  });
+
+  it('keeps 60 steps per second even when the renderer drops to 37 fps', () => {
+    const { predictor, source } = setUp();
+    runFrames(source, 37, 37);
+    expect(predictor.steps).toBeGreaterThanOrEqual(55);
+    expect(predictor.steps).toBeLessThanOrEqual(65);
   });
 
   it('runs ~60 steps per second at 60 Hz too', () => {
-    const client = fakeClient();
-    const predictor = fakePredictor();
-    const source = new NetMatchSource(client, room, predictor);
-    source.applySnapshot(snapshot());
-
-    for (let frame = 0; frame < 60; frame++) source.advance(1000 / 60, idle);
+    const { predictor, source } = setUp();
+    runFrames(source, 60, 60);
     expect(predictor.steps).toBeGreaterThanOrEqual(58);
     expect(predictor.steps).toBeLessThanOrEqual(62);
   });
 
   it('does not yank the predicted actor back when a snapshot arrives', () => {
-    const client = fakeClient();
-    const predictor = fakePredictor();
-    const source = new NetMatchSource(client, room, predictor);
-    source.applySnapshot(snapshot());
-
-    for (let frame = 0; frame < 30; frame++) source.advance(1000 / 60, idle);
+    const { predictor, source } = setUp();
+    runFrames(source, 60, 30);
     const predicted = { ...source.state.actors[0]!.position };
     expect(predicted.x).toBeCloseTo(predictor.poseX, 5);
 
-    // The server believes the player is far behind; the renderer must keep the prediction.
+    // The server still believes the player is far behind; the renderer keeps the prediction.
     source.applySnapshot(snapshot(400, 300));
     expect(source.state.actors[0]!.position.x).toBeCloseTo(predicted.x, 5);
 
