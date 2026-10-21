@@ -52,6 +52,10 @@ import {
 } from './protocol';
 
 const SNAPSHOT_INTERVAL = 1000 / 30;
+/** Local simulation step, matching the server tick rate. */
+const FIXED_STEP = 1 / 60;
+/** Never simulate more than this much wall time in one frame (tab stall, breakpoint). */
+const MAX_CATCH_UP = 0.1;
 const POS_SCALE = 16;
 const VEL_SCALE = 8;
 
@@ -70,6 +74,8 @@ export class NetMatchSource implements MatchSource {
   private readonly stateValue: MatchState;
   private snapshot: Snapshot | null = null;
   private snapshotAt = 0;
+  private snapshotInterval = SNAPSHOT_INTERVAL;
+  private stepAccumulator = 0;
   private alphaValue = 0;
   private seq = 0;
   private pendingEvents: BattleEvent[] = [];
@@ -146,8 +152,15 @@ export class NetMatchSource implements MatchSource {
   }
 
   applySnapshot(snapshot: Snapshot): void {
+    const now = performance.now();
+    const delta = now - this.snapshotAt;
+    // Track the real arrival interval so remote interpolation plays back at the rate the
+    // snapshots actually arrive; a fixed 33 ms divisor made jittery links stutter.
+    if (this.snapshotAt !== 0 && delta > 8 && delta < 250) {
+      this.snapshotInterval = this.snapshotInterval * 0.8 + delta * 0.2;
+    }
     this.snapshot = snapshot;
-    this.snapshotAt = performance.now();
+    this.snapshotAt = now;
     const state = this.stateValue;
     state.phase = this.phaseOf(snapshot);
     state.remaining = snapshot.remainingMs / 1000;
@@ -157,11 +170,17 @@ export class NetMatchSource implements MatchSource {
       const actor = state.actors[index]!;
       const wire = snapshot.actors[index];
       if (!wire) continue;
-      actor.previous = { ...actor.position };
-      actor.position = position(wire.x, wire.y);
-      actor.facing = wire.facing < 0 ? -1 : 1;
-      actor.groundedOn = wire.flags & 1 ? 'net' : null;
-      actor.jumpsRemaining = (wire.flags >> 1) & 0b11;
+      // The locally predicted actor owns its own position: copying the authoritative one
+      // here (and re-predicting a frame later) made the sprite alternate between two
+      // coordinates every snapshot — the visible jitter.
+      const predictedLocally = this.predictor !== null && this.predictHandle !== null && index === this.localActor;
+      if (!predictedLocally) {
+        actor.previous = { ...actor.position };
+        actor.position = position(wire.x, wire.y);
+        actor.facing = wire.facing < 0 ? -1 : 1;
+        actor.groundedOn = wire.flags & 1 ? 'net' : null;
+        actor.jumpsRemaining = (wire.flags >> 1) & 0b11;
+      }
       actor.status = wire.status === 0 ? 'alive' : wire.status === 1 ? 'respawning' : 'eliminated';
       actor.stocks = wire.stocks;
       actor.weapon = {
@@ -290,34 +309,50 @@ export class NetMatchSource implements MatchSource {
     return 'countdown';
   }
 
-  advance(_deltaMs: number, readHuman: (slot: 1 | 2) => ActorInput): BattleEvent[] {
+  advance(deltaMs: number, readHuman: (slot: 1 | 2) => ActorInput): BattleEvent[] {
     const input = readHuman(1);
     const edges =
       (input.jumpPressed ? EDGE_JUMP : 0) |
       (input.dropPressed ? EDGE_DROP : 0) |
       (input.bombPressed ? EDGE_BOMB : 0) |
       (input.reloadPressed ? EDGE_RELOAD : 0);
-    this.seq += 1;
-    this.client.sendInput([
-      { seq: this.seq, tickHint: 0, moveX: input.moveX, held: input.shootHeld ? HELD_FIRE : 0, edges },
-    ]);
 
-    // Immediate local movement; snapshots reconcile it a round trip later.
-    if (
-      this.predictor
+    const canPredict = this.predictor !== null
       && this.predictHandle !== null
       && this.localActor >= 0
-      && this.stateValue.phase === 'playing'
-    ) {
-      this.predictor.step(this.predictHandle, {
+      && this.stateValue.phase === 'playing';
+
+    // Fixed 1/60 s local clock driven by wall time. Stepping once per rendered frame made
+    // a 144 Hz display run the simulation 2.4× too fast, so every snapshot snapped the
+    // character back — the other half of the jitter. Inputs are sent per simulated step
+    // too, keeping the server's 4-slot input queue from overflowing.
+    this.stepAccumulator = Math.min(this.stepAccumulator + Math.max(0, deltaMs) / 1000, MAX_CATCH_UP);
+    let first = true;
+    while (this.stepAccumulator >= FIXED_STEP) {
+      this.stepAccumulator -= FIXED_STEP;
+      this.seq += 1;
+      this.client.sendInput([{
+        seq: this.seq,
+        tickHint: 0,
         moveX: input.moveX,
-        jump: input.jumpPressed,
-        drop: input.dropPressed,
-        fire: input.shootHeld,
-        bomb: input.bombPressed,
-        reload: input.reloadPressed,
-      });
-      const predicted = this.predictor.pose(this.predictHandle);
+        held: input.shootHeld ? HELD_FIRE : 0,
+        edges: first ? edges : 0,
+      }]);
+      if (canPredict) {
+        this.predictor!.step(this.predictHandle!, {
+          moveX: input.moveX,
+          jump: first && input.jumpPressed,
+          drop: first && input.dropPressed,
+          fire: input.shootHeld,
+          bomb: first && input.bombPressed,
+          reload: first && input.reloadPressed,
+        });
+      }
+      first = false;
+    }
+
+    if (canPredict) {
+      const predicted = this.predictor!.pose(this.predictHandle!);
       const actor = this.stateValue.actors[this.localActor];
       if (actor) {
         const at = { x: predicted.x, y: predicted.y };
@@ -329,7 +364,9 @@ export class NetMatchSource implements MatchSource {
       }
     }
 
-    this.alphaValue = this.snapshot ? Math.min(1, (performance.now() - this.snapshotAt) / SNAPSHOT_INTERVAL) : 0;
+    this.alphaValue = this.snapshot
+      ? Math.min(1, (performance.now() - this.snapshotAt) / this.snapshotInterval)
+      : 0;
     const events = this.pendingEvents;
     this.pendingEvents = [];
     return events;
