@@ -9,6 +9,10 @@ services:
     volumes: ["data:/data"]
     expose: ["8080"]
     networks: [web]
+    # Container logs are unrotated by default; a long-running room server would fill the disk.
+    logging: &json-logs
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   gateway:
     image: ${IMAGE_PREFIX:-ghcr.io/owner/gun-brawl}-gateway:${TAG:-latest}
@@ -19,6 +23,7 @@ services:
     env_file: [.env]
     expose: ["8090"]
     networks: [web]
+    logging: *json-logs
 
   caddy:
     image: caddy:2-alpine
@@ -31,6 +36,7 @@ services:
       - ./logs:/var/log/caddy
     depends_on: [app, gateway]
     networks: [web]
+    logging: *json-logs
 
 volumes:
   data: {}

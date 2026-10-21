@@ -198,3 +198,70 @@ docker run --rm -v gun-brawl_data:/data keinos/sqlite3 \
 | DeepSeek 模式灰掉 | `.env` 的 `DEEPSEEK_API_KEY`；`docker compose logs gateway` |
 | 容器反复重启 | `docker compose ps` 看健康状态；容器内 `gunbrawl-server --health` 连的是 `127.0.0.1:8080` |
 | 对局卡顿 | `docker compose logs app` 看 tick；确认服务器不在被 CPU 挤占的突发型实例上 |
+
+## 12. 备案拦截怎么判断
+
+大陆节点上「域名打不开、但 `http://IP` 正常」几乎都是备案（接入）问题。腾讯云在入口处按域名拦截，与 Caddy 无关，用两条命令就能确认：
+
+```bash
+# 80 端口：被拦时会 302 到 dnspod.qcloud.com/static/webblock.html?d=<域名>
+curl -i -H "Host: your.domain" http://<公网IP>/healthz
+
+# 对照：随便一个不存在的域名能打到你自己的服务（证明机器没被封）
+curl -o /dev/null -w '%{http_code}\n' -H "Host: not-a-real-host.cn" http://<公网IP>/healthz
+```
+
+443 端口更彻底：带该域名的 SNI 发起 TLS，拦截时在握手阶段就被 RST（`curl: (35) Recv failure: Connection was reset`），而同一台机器上 `curl --resolve your.domain:443:127.0.0.1 https://your.domain/` 是通的。
+
+被拦时 ACME 两条验证都会失败，日志长这样：
+
+| 验证 | 现象 |
+| --- | --- |
+| `http-01` | `Error reading HTTP response body: reader size limit exceeded`（拿到的是拦截页） |
+| `tls-alpn-01` | `Connection reset by peer` |
+
+**DNS-01 也救不回来**：证书能签下来，但 443 的 SNI 仍然被 RST，用户还是连不上。唯一解是完成备案接入（腾讯云控制台 → 备案），通常 1–3 个工作日；期间先用 `http://IP` 访问。
+
+## 13. 切换到 HTTPS
+
+备案通过后一条命令：
+
+```bash
+cd /srv/gun-brawl
+./deploy/switch-https.sh your.domain
+```
+
+脚本会改 `.env` 的 `DOMAIN`、重启 Caddy、最多等 120 秒验证 `https://your.domain/healthz`，失败会自动回滚成 `DOMAIN=:80` 并把 Caddy 日志打出来。前端会根据 `location.protocol` 自动改用 `wss://`，不需要重新构建。
+
+切换后 `http://<IP>` 会 302 到 `https://<IP>`（证书对不上），对外分享请用域名。
+
+## 14. 备份与日志
+
+**数据库备份**（SQLite 在 `data` 卷里；运行时镜像没有 `sqlite3`，所以用一次性容器做 WAL 安全的 `.backup`）：
+
+```bash
+cd /srv/gun-brawl
+./deploy/backup-db.sh          # 输出到 ./backups/gunbrawl-YYYY-MM-DD.db，默认保留 14 天
+```
+
+放进 root 的 crontab，每天 04:00 跑一次：
+
+```cron
+0 4 * * * /srv/gun-brawl/deploy/backup-db.sh >> /srv/gun-brawl/backups/backup.log 2>&1
+```
+
+**日志轮转**：容器日志在 compose 里限了 `10m × 3` 文件；Caddy 访问日志在 `Caddyfile` 里用 `roll_size 10MiB` / `roll_keep 5`。改完需要 `docker compose up -d`（compose 文件变更会重建容器）和 `docker compose restart caddy`（Caddyfile 是 bind mount）。
+
+## 15. 大陆网络下的构建加速
+
+直连大陆机器构建时，`static.rust-lang.org` 会超时、`crates.io` 只有十几 KB/s，而 `server/rust-toolchain.toml` 钉的是 `stable`，rustup 必然去联网。仓库里的 Dockerfile 保持官方源（给 CI 用），在境内机器上构建时用一份本地副本加两行：
+
+```dockerfile
+FROM rust:1-bookworm AS chef
+ENV RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static \
+    RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+RUN printf '[source.crates-io]\nreplace-with = "ustc"\n[source.ustc]\nregistry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"\n' > "$CARGO_HOME/config.toml"
+```
+
+实测 USTC 镜像 4.7 MB/s，构建时间从「不可用」降到 10 分钟以内。
+
