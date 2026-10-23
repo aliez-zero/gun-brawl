@@ -12,7 +12,7 @@ const systemBrowsers = [
 const executablePath = systemBrowsers.find((candidate) => existsSync(candidate));
 const browser = await chromium.launch({
   executablePath, headless: true,
-  args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'],
+  args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--no-proxy-server'],
 });
 const errors = [];
 try {
