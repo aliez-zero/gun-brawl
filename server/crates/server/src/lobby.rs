@@ -20,7 +20,8 @@ pub struct RoomHandle {
 }
 
 pub struct Lobby {
-    rooms: Mutex<HashMap<String, RoomHandle>>,
+    /// Shared with each room task so a self-reclaiming room can deregister itself.
+    rooms: Arc<Mutex<HashMap<String, RoomHandle>>>,
     next_player: AtomicU32,
     code_counter: AtomicU32,
     content: Arc<Content>,
@@ -31,7 +32,7 @@ pub struct Lobby {
 impl Lobby {
     pub fn new(content: Arc<Content>, metrics: Arc<Metrics>, persist: Arc<Persist>) -> Self {
         Self {
-            rooms: Mutex::new(HashMap::new()),
+            rooms: Arc::new(Mutex::new(HashMap::new())),
             next_player: AtomicU32::new(1),
             code_counter: AtomicU32::new(0),
             content,
@@ -64,8 +65,17 @@ impl Lobby {
                 self.persist.sender(),
             );
             Metrics::incr(&self.metrics.rooms_created);
-            tokio::spawn(run_room(room, rx));
             rooms.insert(code.clone(), RoomHandle { tx });
+            let registry = Arc::clone(&self.rooms);
+            let closing = code.clone();
+            // The task owns its registration: however run_room ends (idle reclaim, or every
+            // sender dropped) the code comes out of the map, so count/exists stay truthful.
+            tokio::spawn(async move {
+                run_room(room, rx).await;
+                if let Ok(mut rooms) = registry.lock() {
+                    rooms.remove(&closing);
+                }
+            });
             info!(room = %code, map = %config.map, "room created");
             return Some(code);
         }

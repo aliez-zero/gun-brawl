@@ -32,6 +32,12 @@ use crate::persist::{MatchRecord, PlayerRecord};
 pub const MAX_SLOTS: usize = 4;
 pub const ROOM_CODE_ALPHABET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTVWXYZ";
 
+/// How long a dropped human keeps their slot for a reconnect.
+pub const RECONNECT_GRACE: Duration = Duration::from_secs(60);
+/// Rooms with no connected human (bots only, or never joined) are reclaimed after this,
+/// so an abandoned lobby stops burning a 60 Hz tick loop forever.
+pub const IDLE_ROOM_TIMEOUT: Duration = Duration::from_secs(300);
+
 #[derive(Debug, Clone)]
 pub struct RoomConfig {
     pub map: String,
@@ -170,6 +176,8 @@ pub struct Room {
     persist: Option<mpsc::Sender<MatchRecord>>,
     started_at: i64,
     seed: u32,
+    /// Last moment a human was connected; drives idle reclamation.
+    last_human_at: Instant,
 }
 
 impl Room {
@@ -208,11 +216,40 @@ impl Room {
             persist,
             started_at: 0,
             seed,
+            last_human_at: Instant::now(),
         }
     }
 
     pub fn code(&self) -> &str {
         &self.code
+    }
+
+    /// True once nobody has been connected for [`IDLE_ROOM_TIMEOUT`] and no slot is still
+    /// waiting out its reconnect grace.
+    pub fn should_close(&self) -> bool {
+        self.players.is_empty()
+            && self.missing.is_empty()
+            && self.last_human_at.elapsed() >= IDLE_ROOM_TIMEOUT
+    }
+
+    /// Free slots whose reconnect grace ran out, so a stale slot cannot be resumed or keep
+    /// a room alive forever.
+    fn expire_missing(&mut self) {
+        if self.missing.is_empty() {
+            return;
+        }
+        let now = Instant::now();
+        let mut expired: Vec<u32> = self
+            .missing
+            .iter()
+            .filter(|(_, since)| now.duration_since(**since) >= RECONNECT_GRACE)
+            .map(|(player, _)| *player)
+            .collect();
+        expired.sort_unstable();
+        for player in expired {
+            info!(room = %self.code, player, "reconnect grace expired, slot freed");
+            self.remove_player(player);
+        }
     }
 
     fn handle(&mut self, command: Command) {
@@ -418,16 +455,10 @@ impl Room {
     }
 
     fn step(&mut self) {
-        let expired: Vec<u32> = self
-            .missing
-            .iter()
-            .filter(|(_, at)| at.elapsed().as_secs() >= 60)
-            .map(|(player, _)| *player)
-            .collect();
-        for player in expired {
-            self.missing.remove(&player);
-            self.remove_player(player);
+        if !self.players.is_empty() {
+            self.last_human_at = Instant::now();
         }
+        self.expire_missing();
         let Some(mut simulation) = self.simulation.take() else {
             return;
         };
@@ -747,8 +778,76 @@ pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
                 Some(command) => room.handle(command),
                 None => break,
             },
-            _ = ticker.tick() => room.step(),
+            _ = ticker.tick() => {
+                room.step();
+                if room.should_close() {
+                    info!(room = %room.code(), "room idle, reclaiming");
+                    break;
+                }
+            }
         }
     }
     info!(room = %room.code(), "room closed");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_room() -> Room {
+        let content = Arc::new(Content::parse().expect("content data"));
+        let metrics = Arc::new(Metrics::default());
+        let config = RoomConfig {
+            map: "sky-citadel".to_string(),
+            stocks: 3,
+            duration: 180,
+            drop_mode: 0,
+        };
+        Room::new("TEST01".to_string(), config, content, metrics, None)
+    }
+
+    #[test]
+    fn a_fresh_room_stays_open() {
+        assert!(!test_room().should_close());
+    }
+
+    #[test]
+    fn an_abandoned_room_is_reclaimed() {
+        let mut room = test_room();
+        room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
+        assert!(room.should_close());
+    }
+
+    #[test]
+    fn a_room_with_a_connected_human_is_never_reclaimed() {
+        let mut room = test_room();
+        let (tx, _rx) = mpsc::unbounded_channel();
+        room.handle(Command::Join {
+            player: Player { id: 7, name: "p".to_string() },
+            sender: tx,
+        });
+        room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
+        room.step();
+        assert!(!room.should_close());
+    }
+
+    #[test]
+    fn expired_reconnect_grace_frees_the_slot_and_lets_the_room_go() {
+        let mut room = test_room();
+        let (tx, _rx) = mpsc::unbounded_channel();
+        room.handle(Command::Join {
+            player: Player { id: 7, name: "p".to_string() },
+            sender: tx,
+        });
+        room.handle(Command::Disconnect { player: 7 });
+        assert!(room.slots.iter().any(|slot| slot.player == 7));
+        assert!(!room.should_close(), "the grace period must outlive the disconnect");
+
+        room.missing.insert(7, Instant::now() - RECONNECT_GRACE - Duration::from_secs(1));
+        room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
+        room.step();
+
+        assert!(!room.slots.iter().any(|slot| slot.player == 7), "slot should be freed");
+        assert!(room.should_close());
+    }
 }
