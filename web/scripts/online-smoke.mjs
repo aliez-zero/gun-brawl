@@ -84,8 +84,10 @@ try {
   check(true, 'snapshots resume after reconnect');
 
   const metrics = await (await fetch(new URL('/metrics', url))).text();
-  check(/gunbrawl_rooms_active 1/.test(metrics), 'metrics expose the active room');
-  check(/gunbrawl_players_connected 2/.test(metrics), 'metrics expose two connected players');
+  const gauge = (name) => Number(metrics.match(new RegExp(`^${name} (\\d+)$`, 'm'))?.[1] ?? 0);
+  // Other rooms may be live on a shared server, so only the floor matters here.
+  check(gauge('gunbrawl_rooms_active') >= 1, 'metrics expose the active room');
+  check(gauge('gunbrawl_players_connected') >= 2, 'metrics expose two connected players');
   check(/gunbrawl_snapshots_sent_total \d+/.test(metrics), 'metrics count snapshots');
 
   await host.screenshot({ path: 'artifacts/online-host.png', fullPage: true });
