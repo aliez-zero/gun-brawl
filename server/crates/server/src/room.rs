@@ -459,6 +459,13 @@ impl Room {
             self.last_human_at = Instant::now();
         }
         self.expire_missing();
+        // A finished match keeps its final state for late joiners, but must not keep
+        // simulating: the result branch below broadcasts, persists and counts on every
+        // tick, so a room sitting on the result screen was writing 60 match records a
+        // second and inflating matches_finished_total without bound.
+        if self.phase == PHASE_RESULT {
+            return;
+        }
         let Some(mut simulation) = self.simulation.take() else {
             return;
         };
@@ -506,7 +513,7 @@ impl Room {
                 self.broadcast_bytes(payload);
             }
         }
-        if finished {
+        if finished && self.phase != PHASE_RESULT {
             if let Some(result) = simulation.state.result.clone() {
                 let wire = MatchResultWire {
                     winner: result.winner.map(u32::from),
@@ -793,6 +800,7 @@ pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::Ordering;
 
     fn test_room() -> Room {
         let content = Arc::new(Content::parse().expect("content data"));
@@ -849,5 +857,20 @@ mod tests {
 
         assert!(!room.slots.iter().any(|slot| slot.player == 7), "slot should be freed");
         assert!(room.should_close());
+    }
+
+    #[test]
+    fn a_room_on_the_result_screen_stops_ticking() {
+        let mut room = test_room();
+        room.phase = PHASE_RESULT;
+        let ticks_before = room.metrics.ticks.load(Ordering::Relaxed);
+        let matches_before = room.metrics.matches.load(Ordering::Relaxed);
+
+        for _ in 0..120 {
+            room.step();
+        }
+
+        assert_eq!(room.metrics.ticks.load(Ordering::Relaxed), ticks_before);
+        assert_eq!(room.metrics.matches.load(Ordering::Relaxed), matches_before);
     }
 }
