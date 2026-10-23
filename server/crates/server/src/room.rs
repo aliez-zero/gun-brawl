@@ -513,7 +513,9 @@ impl Room {
                 self.broadcast_bytes(payload);
             }
         }
-        if finished && self.phase != PHASE_RESULT {
+        // Runs exactly once: the tick that sees Finished settles the match and flips the
+        // phase, and the guard at the top of step() then stops all further ticking.
+        if finished {
             if let Some(result) = simulation.state.result.clone() {
                 let wire = MatchResultWire {
                     winner: result.winner.map(u32::from),
@@ -808,7 +810,7 @@ mod tests {
         let config = RoomConfig {
             map: "sky-citadel".to_string(),
             stocks: 3,
-            duration: 180,
+            duration: 1,
             drop_mode: 0,
         };
         Room::new("TEST01".to_string(), config, content, metrics, None)
@@ -872,5 +874,31 @@ mod tests {
 
         assert_eq!(room.metrics.ticks.load(Ordering::Relaxed), ticks_before);
         assert_eq!(room.metrics.matches.load(Ordering::Relaxed), matches_before);
+    }
+
+    #[test]
+    fn a_match_that_runs_out_of_time_is_settled_exactly_once() {
+        let mut room = test_room();
+        let (tx, _rx) = mpsc::unbounded_channel();
+        room.handle(Command::Join {
+            player: Player { id: 1, name: "a".to_string() },
+            sender: tx,
+        });
+        room.handle(Command::PickSlot { player: 1, slot: 1, kind: SLOT_BOT, difficulty: 1 });
+        room.handle(Command::Start { player: 1 });
+        assert_eq!(room.phase, PHASE_COUNTDOWN, "the match should have started");
+
+        // 3 s countdown + 1 s match + overtime; 50 s of ticks is far past any of them.
+        for _ in 0..3000 {
+            room.step();
+        }
+        let settled = room.metrics.matches.load(Ordering::Relaxed);
+        assert_eq!(settled, 1, "the finished match must be settled once");
+        assert_eq!(room.phase, PHASE_RESULT);
+
+        for _ in 0..300 {
+            room.step();
+        }
+        assert_eq!(room.metrics.matches.load(Ordering::Relaxed), settled);
     }
 }
