@@ -540,10 +540,16 @@ impl Room {
                         .collect(),
                 };
                 self.broadcast(&S2C::MatchEnd(wire));
-                Metrics::incr(&self.metrics.matches);
-                if let Some(sender) = &self.persist {
-                    let record = self.match_record(&result);
-                    let _ = sender.try_send(record);
+                // A match that plays itself out after everyone left (bots finishing an
+                // abandoned room) must not land in the public match history.
+                if self.players.is_empty() {
+                    info!(room = %self.code, "match finished with nobody watching, not recorded");
+                } else {
+                    Metrics::incr(&self.metrics.matches);
+                    if let Some(sender) = &self.persist {
+                        let record = self.match_record(&result);
+                        let _ = sender.try_send(record);
+                    }
                 }
                 self.phase = PHASE_RESULT;
                 self.broadcast_room();
@@ -1023,8 +1029,36 @@ mod tests {
     }
 
     #[test]
-    fn reconnecting_takes_control_back_from_the_bot() {
-        let mut room = playing_room();
+    fn a_match_that_ends_after_everyone_left_is_not_recorded() {
+        let mut room = test_room();
+        room.config.duration = 1;
+        let (tx, rx) = mpsc::unbounded_channel();
+        std::mem::forget(rx);
+        room.handle(Command::Join {
+            player: Player { id: 1, name: "gone".to_string() },
+            sender: tx,
+        });
+        room.handle(Command::PickSlot { player: 1, slot: 1, kind: SLOT_BOT, difficulty: 1 });
+        room.handle(Command::Start { player: 1 });
+
+        // The human drops right after kickoff; the takeover bot plays the match out.
+        // A draw sends the match into 30 s overtime, so allow 50 s of ticks — still short
+        // of the 60 s reconnect grace.
+        room.handle(Command::Disconnect { player: 1 });
+        for _ in 0..3000 {
+            room.step();
+        }
+
+        assert_eq!(room.phase, PHASE_RESULT, "the match should still have finished");
+        assert_eq!(
+            room.metrics.matches.load(Ordering::Relaxed),
+            0,
+            "an abandoned match must not enter the public history",
+        );
+    }
+
+    #[test]
+    fn reconnecting_takes_control_back_from_the_bot() {        let mut room = playing_room();
         room.handle(Command::Disconnect { player: 1 });
         assert!(room.bots[0].is_some());
 
