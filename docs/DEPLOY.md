@@ -5,6 +5,22 @@
 
 腾讯云（备案、安全组、大陆拉镜像、无域名临时访问）见 [DEPLOY_TENCENT.md](./DEPLOY_TENCENT.md)。
 
+## 0. 服务端接口
+
+| 路径 | 说明 |
+| --- | --- |
+| `/healthz` | `ok`，给探活用 |
+| `/metrics` | Prometheus 文本：房间数、连接数、tick、快照、完赛数 |
+| `/api/matches?limit=N` | 最近 N 局（默认 20，上限 100），含每人剩余生命/击出/出界 |
+| `/api/stats` | 累计对局数、参战记录数、最后一局结束时间 |
+| `/ws` | 游戏 WebSocket（postcard 二进制协议） |
+
+`/api/*` 在没有数据库时返回 **503**（服务端允许不挂数据库运行）。返回示例：
+
+```json
+{"matches":10,"players":22,"lastEndedAt":1792932534020}
+```
+
 ## 1. 前置条件
 
 | 项 | 建议 |
