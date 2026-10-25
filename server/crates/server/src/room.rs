@@ -298,6 +298,10 @@ impl Room {
             Command::Disconnect { player } => {
                 self.players.remove(&player);
                 self.missing.insert(player, Instant::now());
+                // Keep the field full for everyone else: the seat plays itself until the
+                // player reconnects (or the grace expires), instead of leaving a statue
+                // that still takes hits and can even keep the last held fire button down.
+                self.hand_off_to_bot(player);
                 info!(room = %self.code, player, "player disconnected, slot held for 60s");
             }
             Command::Resume { player, sender } => {
@@ -310,6 +314,7 @@ impl Room {
                 }
                 self.missing.remove(&player.id);
                 self.players.insert(player.id, sender.clone());
+                self.take_back_from_bot(player.id);
                 let view = self.room_view();
                 if let Ok(payload) = encode(&S2C::Room(view)) {
                     let _ = sender.send(Bytes::from(payload));
@@ -719,12 +724,26 @@ impl Room {
     }
 
     fn remove_player(&mut self, player: u32) {
+        // Resolve the actor before the slot is cleared, or the mapping is lost.
+        let actor_index = self.actor_index_of(player);
         if let Some(index) = self
             .slots
             .iter()
             .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
         {
             self.slots[index] = Slot::empty();
+        }
+        if let Some(actor_index) = actor_index {
+            // A player who never comes back must not keep a live actor in the arena: it
+            // would still block shots, count for the win check and pad the score table.
+            if let Some(simulation) = self.simulation.as_mut() {
+                if let Some(actor) = simulation.state.actors.get_mut(actor_index) {
+                    if actor.status == ActorStatus::Alive {
+                        actor.status = ActorStatus::Eliminated;
+                        info!(room = %self.code, player, "player gone mid-match, actor eliminated");
+                    }
+                }
+            }
         }
         self.players.remove(&player);
         self.missing.remove(&player);
@@ -741,6 +760,53 @@ impl Room {
             self.simulation = None;
         }
         self.broadcast_room();
+    }
+
+    /// Slot index of a human player, if they still hold a seat.
+    fn actor_index_of(&self, player: u32) -> Option<usize> {
+        let slot_index = self
+            .slots
+            .iter()
+            .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)?;
+        self.actor_slots.iter().position(|index| *index == slot_index)
+    }
+
+    fn hand_off_to_bot(&mut self, player: u32) {
+        let Some(actor_index) = self.actor_index_of(player) else {
+            return;
+        };
+        let Some(slot) = self.bots.get_mut(actor_index) else {
+            return;
+        };
+        if slot.is_some() {
+            return;
+        }
+        *slot = Some(BotController::new(
+            Difficulty::Normal,
+            self.seed
+                .wrapping_add(actor_index as u32)
+                .wrapping_add(self.tick),
+        ));
+        info!(room = %self.code, player, "bot took over the seat");
+    }
+
+    fn take_back_from_bot(&mut self, player: u32) {
+        let Some(actor_index) = self.actor_index_of(player) else {
+            return;
+        };
+        if let Some(slot) = self.bots.get_mut(actor_index) {
+            if slot.take().is_some() {
+                info!(room = %self.code, player, "player resumed control");
+            }
+        }
+        if let Some(slot_index) = self
+            .slots
+            .iter()
+            .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
+        {
+            // Drop frames queued before the disconnect; a stale "fire held" would fire again.
+            self.inputs[slot_index] = InputQueue::new();
+        }
     }
 }
 
@@ -810,7 +876,7 @@ mod tests {
         let config = RoomConfig {
             map: "sky-citadel".to_string(),
             stocks: 3,
-            duration: 1,
+            duration: 180,
             drop_mode: 0,
         };
         Room::new("TEST01".to_string(), config, content, metrics, None)
@@ -879,6 +945,7 @@ mod tests {
     #[test]
     fn a_match_that_runs_out_of_time_is_settled_exactly_once() {
         let mut room = test_room();
+        room.config.duration = 1;
         let (tx, _rx) = mpsc::unbounded_channel();
         room.handle(Command::Join {
             player: Player { id: 1, name: "a".to_string() },
@@ -900,5 +967,88 @@ mod tests {
             room.step();
         }
         assert_eq!(room.metrics.matches.load(Ordering::Relaxed), settled);
+    }
+
+    fn playing_room() -> Room {
+        let mut room = test_room();
+        let (tx, rx) = mpsc::unbounded_channel();
+        std::mem::forget(rx); // keep the seat connected for the whole test
+        room.handle(Command::Join {
+            player: Player { id: 1, name: "human".to_string() },
+            sender: tx,
+        });
+        room.handle(Command::PickSlot { player: 1, slot: 1, kind: SLOT_BOT, difficulty: 1 });
+        room.handle(Command::Start { player: 1 });
+        for _ in 0..200 {
+            room.step(); // past the three second countdown
+        }
+        room
+    }
+
+    fn actor(room: &Room, index: usize) -> (ActorStatus, gunbrawl_core::types::Vec2) {
+        let actor = &room.simulation.as_ref().expect("match running").state.actors[index];
+        (actor.status, actor.position)
+    }
+
+    #[test]
+    fn a_disconnected_player_keeps_playing_under_a_bot() {
+        let mut room = playing_room();
+        let (status, start) = actor(&room, 0);
+        assert_eq!(status, ActorStatus::Alive);
+
+        room.handle(Command::Disconnect { player: 1 });
+        assert!(room.bots[0].is_some(), "a bot should take the seat");
+
+        for _ in 0..120 {
+            room.step();
+        }
+        let (status, moved) = actor(&room, 0);
+        assert_eq!(status, ActorStatus::Alive);
+        assert!(
+            (moved.x - start.x).abs() > 1.0 || (moved.y - start.y).abs() > 1.0,
+            "the seat should still be moving: {start:?} -> {moved:?}",
+        );
+    }
+
+    #[test]
+    fn reconnecting_takes_control_back_from_the_bot() {
+        let mut room = playing_room();
+        room.handle(Command::Disconnect { player: 1 });
+        assert!(room.bots[0].is_some());
+
+        let (tx, rx) = mpsc::unbounded_channel();
+        std::mem::forget(rx);
+        room.handle(Command::Resume {
+            player: Player { id: 1, name: "human".to_string() },
+            sender: tx,
+        });
+        assert!(room.bots[0].is_none(), "the human owns the seat again");
+    }
+
+    #[test]
+    fn a_player_who_never_returns_is_eliminated_mid_match() {
+        // Two humans, so the room keeps running after the first one gives up.
+        let mut room = test_room();
+        for (id, name) in [(1u32, "one"), (2, "two")] {
+            let (tx, rx) = mpsc::unbounded_channel();
+            std::mem::forget(rx);
+            room.handle(Command::Join {
+                player: Player { id, name: name.to_string() },
+                sender: tx,
+            });
+        }
+        room.handle(Command::Start { player: 1 });
+        for _ in 0..200 {
+            room.step();
+        }
+
+        room.handle(Command::Disconnect { player: 2 });
+        room.missing
+            .insert(2, Instant::now() - RECONNECT_GRACE - Duration::from_secs(1));
+        room.step();
+
+        let (status, _) = actor(&room, 1);
+        assert_eq!(status, ActorStatus::Eliminated, "no ghost actors in the arena");
+        assert!(room.slots.iter().all(|slot| slot.player != 2), "the seat is released");
     }
 }
