@@ -5,14 +5,14 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use bytes::Bytes;
 use gunbrawl_content::Content;
@@ -21,15 +21,19 @@ use tokio::sync::mpsc;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing::{info, warn};
 
-use crate::lobby::Lobby;
+use crate::admin::AdminState;
+use crate::lobby::{Lobby, RoomDirectory};
 use crate::metrics::Metrics;
 use crate::persist::Persist;
-use crate::room::{Command as RoomCommand, Player, RoomConfig};
+use crate::room::{Command as RoomCommand, Player, RoomConfig, RoomRules};
+use crate::settings::GameSettings;
 
+pub mod admin;
 pub mod lobby;
 pub mod metrics;
 pub mod persist;
 pub mod room;
+pub mod settings;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -40,6 +44,10 @@ pub struct AppState {
     persist: Arc<Persist>,
     /// Anonymous device token -> identity, kept for 60 s so a drop can reconnect.
     sessions: Arc<Mutex<HashMap<String, Identity>>>,
+    /// Admin-editable rules applied to rooms as they are created.
+    settings: Arc<RwLock<GameSettings>>,
+    admin: Arc<AdminState>,
+    directory: Arc<RoomDirectory>,
 }
 
 struct Identity {
@@ -54,17 +62,30 @@ impl AppState {
         let content = Arc::new(Content::parse().expect("content data must be valid"));
         let metrics = Arc::new(Metrics::default());
         let persist = Arc::new(Persist::default());
+        let directory = Arc::new(RoomDirectory::default());
+        let credentials_path = std::env::var("GUNBRAWL_ADMIN_FILE")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| {
+                // Default next to the database so it lands on the persistent volume.
+                let database = std::env::var("GUNBRAWL_DB")
+                    .unwrap_or_else(|_| "gunbrawl.db".to_owned());
+                std::path::PathBuf::from(database).with_file_name("admin-credentials.txt")
+            });
         Self {
             web_dir: web_dir.into(),
             lobby: Arc::new(Lobby::new(
                 content.clone(),
                 metrics.clone(),
                 persist.clone(),
+                directory.clone(),
             )),
             content,
             metrics,
             persist,
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            settings: Arc::new(RwLock::new(GameSettings::default())),
+            admin: Arc::new(AdminState::new(credentials_path)),
+            directory,
         }
     }
 
@@ -76,17 +97,51 @@ impl AppState {
     pub fn persist(&self) -> Arc<Persist> {
         self.persist.clone()
     }
+
+    pub fn settings(&self) -> GameSettings {
+        self.settings
+            .read()
+            .map(|settings| settings.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn admin_state(&self) -> Arc<AdminState> {
+        self.admin.clone()
+    }
+
+    pub fn content(&self) -> Arc<Content> {
+        self.content.clone()
+    }
 }
 
 /// Open the match database (or keep running without it) and start the writer.
 pub async fn init_persistence(state: &AppState) -> bool {
     let path = std::env::var("GUNBRAWL_DB").unwrap_or_else(|_| "gunbrawl.db".to_owned());
-    crate::persist::init(state.persist.clone(), &path).await
+    if !crate::persist::init(state.persist.clone(), &path).await {
+        return false;
+    }
+    // Settings live in the same database; load them once and keep them in memory so room
+    // creation never waits on SQLite.
+    let loaded = settings::load(state.persist.pool().as_ref()).await;
+    if let Ok(mut current) = state.settings.write() {
+        *current = loaded;
+    }
+    admin::ensure_admin(state.persist.pool().as_ref(), &state.admin).await;
+    true
 }
 
 pub fn router(state: AppState) -> Router {
     let index = format!("{}/index.html", state.web_dir.trim_end_matches('/'));
     let files = ServeDir::new(state.web_dir.clone()).not_found_service(ServeFile::new(index));
+
+    let admin = Router::new()
+        .route("/", get(admin::dashboard))
+        .route("/login", get(admin::login_page).post(admin::login_submit))
+        .route("/logout", post(admin::logout))
+        .route("/config", post(admin::save_config))
+        .route("/rooms", get(admin::rooms_page))
+        .route("/rooms/close", post(admin::close_room))
+        .route("/weapons", get(admin::weapons_page));
 
     Router::new()
         .route("/healthz", get(healthz))
@@ -94,6 +149,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/matches", get(matches_handler))
         .route("/api/stats", get(stats_handler))
         .route("/ws", get(ws_handler))
+        .nest("/admin", admin)
         .fallback_service(files)
         .with_state(state)
 }
@@ -319,13 +375,21 @@ fn handle_message(
             if !name.is_empty() && name.chars().count() <= 16 {
                 session.name = name;
             }
-            let config = RoomConfig {
+            let mut config = RoomConfig {
                 map,
                 stocks: stocks.clamp(2, 9),
                 duration: duration.clamp(30, 600),
                 drop_mode: drop_mode.min(2),
             };
-            let Some(code) = state.lobby.create(config) else {
+            // Admin rules win over the lobby form: that is what "后台配置" means here.
+            let settings = state.settings();
+            settings.apply(&mut config);
+            let rules = RoomRules {
+                weapon_scale: settings.knockback_scale,
+                bot_fill: settings.bot_fill,
+                bot_difficulty: settings.bot_difficulty,
+            };
+            let Some(code) = state.lobby.create(config, rules) else {
                 send(
                     out_tx,
                     &S2C::Kick {

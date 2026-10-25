@@ -7,21 +7,51 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
 use gunbrawl_content::Content;
+use gunbrawl_proto::RoomView;
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 use crate::metrics::Metrics;
 use crate::persist::Persist;
-use crate::room::{run_room, Command, Player, Room, RoomConfig, ROOM_CODE_ALPHABET};
+use crate::room::{run_room, Command, Player, Room, RoomConfig, RoomRules, ROOM_CODE_ALPHABET};
 
 #[derive(Clone)]
 pub struct RoomHandle {
     pub tx: mpsc::Sender<Command>,
 }
 
+/// Live room views for the admin console. Rooms publish on every state change, so the
+/// console never has to reach into a running simulation.
+#[derive(Default)]
+pub struct RoomDirectory {
+    rooms: Mutex<HashMap<String, RoomView>>,
+}
+
+impl RoomDirectory {
+    pub fn upsert(&self, view: RoomView) {
+        if let Ok(mut rooms) = self.rooms.lock() {
+            rooms.insert(view.code.clone(), view);
+        }
+    }
+
+    pub fn remove(&self, code: &str) {
+        if let Ok(mut rooms) = self.rooms.lock() {
+            rooms.remove(code);
+        }
+    }
+
+    pub fn list(&self) -> Vec<RoomView> {
+        self.rooms
+            .lock()
+            .map(|rooms| rooms.values().cloned().collect())
+            .unwrap_or_default()
+    }
+}
+
 pub struct Lobby {
     /// Shared with each room task so a self-reclaiming room can deregister itself.
     rooms: Arc<Mutex<HashMap<String, RoomHandle>>>,
+    directory: Arc<RoomDirectory>,
     next_player: AtomicU32,
     code_counter: AtomicU32,
     content: Arc<Content>,
@@ -30,9 +60,15 @@ pub struct Lobby {
 }
 
 impl Lobby {
-    pub fn new(content: Arc<Content>, metrics: Arc<Metrics>, persist: Arc<Persist>) -> Self {
+    pub fn new(
+        content: Arc<Content>,
+        metrics: Arc<Metrics>,
+        persist: Arc<Persist>,
+        directory: Arc<RoomDirectory>,
+    ) -> Self {
         Self {
             rooms: Arc::new(Mutex::new(HashMap::new())),
+            directory,
             next_player: AtomicU32::new(1),
             code_counter: AtomicU32::new(0),
             content,
@@ -49,7 +85,7 @@ impl Lobby {
         self.next_player.fetch_add(1, Ordering::Relaxed)
     }
 
-    pub fn create(&self, config: RoomConfig) -> Option<String> {
+    pub fn create(&self, config: RoomConfig, rules: RoomRules) -> Option<String> {
         let mut rooms = self.rooms.lock().ok()?;
         for _ in 0..16 {
             let code = self.generate_code();
@@ -63,15 +99,19 @@ impl Lobby {
                 self.content.clone(),
                 self.metrics.clone(),
                 self.persist.sender(),
+                self.directory.clone(),
+                rules,
             );
             Metrics::incr(&self.metrics.rooms_created);
             rooms.insert(code.clone(), RoomHandle { tx });
             let registry = Arc::clone(&self.rooms);
+            let directory = Arc::clone(&self.directory);
             let closing = code.clone();
-            // The task owns its registration: however run_room ends (idle reclaim, or every
-            // sender dropped) the code comes out of the map, so count/exists stay truthful.
+            // The task owns its registration: however run_room ends (idle reclaim, admin
+            // close, or every sender dropped) the code comes out of both maps.
             tokio::spawn(async move {
                 run_room(room, rx).await;
+                directory.remove(&closing);
                 if let Ok(mut rooms) = registry.lock() {
                     rooms.remove(&closing);
                 }
@@ -81,6 +121,11 @@ impl Lobby {
         }
         warn!("could not allocate a room code");
         None
+    }
+
+    /// Ask a room to shut down (admin action); its task deregisters itself.
+    pub fn close(&self, code: &str) {
+        let _ = self.send(code, Command::Close);
     }
 
     pub fn join(&self, code: &str, player: Player, sender: mpsc::UnboundedSender<Bytes>) -> bool {

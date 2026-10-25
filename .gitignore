@@ -11,3 +11,4 @@ target/
 *.db-wal
 *.db-shm
 .DS_Store
+admin-credentials.txt

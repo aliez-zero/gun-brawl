@@ -144,7 +144,7 @@ pub async fn stats(pool: &SqlitePool) -> Result<PersistStats, sqlx::Error> {
     })
 }
 
-const SCHEMA: [&str; 3] = [
+const SCHEMA: [&str; 5] = [
     "CREATE TABLE IF NOT EXISTS matches (
         id TEXT PRIMARY KEY,
         code TEXT NOT NULL,
@@ -166,6 +166,15 @@ const SCHEMA: [&str; 3] = [
         PRIMARY KEY (match_id, slot)
     )",
     "CREATE INDEX IF NOT EXISTS idx_matches_code ON matches(code)",
+    "CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )",
+    "CREATE TABLE IF NOT EXISTS admins (
+        username TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+    )",
 ];
 
 fn now_ms() -> i64 {

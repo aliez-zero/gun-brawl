@@ -26,6 +26,7 @@ use gunbrawl_proto::{
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
+use crate::lobby::RoomDirectory;
 use crate::metrics::Metrics;
 use crate::persist::{MatchRecord, PlayerRecord};
 
@@ -88,6 +89,8 @@ pub enum Command {
         player: u32,
         frames: Vec<InputFrame>,
     },
+    /// Admin action: stop the room and let its task deregister.
+    Close,
 }
 
 #[derive(Clone)]
@@ -178,6 +181,30 @@ pub struct Room {
     seed: u32,
     /// Last moment a human was connected; drives idle reclamation.
     last_human_at: Instant,
+    /// Live view published for the admin console.
+    directory: Arc<RoomDirectory>,
+    /// Admin-configured rules captured when the room was created.
+    rules: RoomRules,
+    /// Set by `Command::Close`; the task leaves the loop on the next tick.
+    shutdown: bool,
+}
+
+/// Admin rules baked into a room at creation time.
+#[derive(Debug, Clone, Copy)]
+pub struct RoomRules {
+    pub weapon_scale: f32,
+    pub bot_fill: bool,
+    pub bot_difficulty: u8,
+}
+
+impl Default for RoomRules {
+    fn default() -> Self {
+        Self {
+            weapon_scale: 1.0,
+            bot_fill: false,
+            bot_difficulty: 1,
+        }
+    }
 }
 
 impl Room {
@@ -187,6 +214,8 @@ impl Room {
         content: Arc<Content>,
         metrics: Arc<Metrics>,
         persist: Option<mpsc::Sender<MatchRecord>>,
+        directory: Arc<RoomDirectory>,
+        rules: RoomRules,
     ) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -217,11 +246,33 @@ impl Room {
             started_at: 0,
             seed,
             last_human_at: Instant::now(),
+            directory,
+            rules,
+            shutdown: false,
         }
     }
 
     pub fn code(&self) -> &str {
         &self.code
+    }
+
+    pub fn shutdown(&self) -> bool {
+        self.shutdown
+    }
+
+    /// Fill every empty slot with a bot at the admin-configured difficulty.
+    fn fill_empty_slots_with_bots(&mut self) {
+        for index in 0..MAX_SLOTS {
+            if self.slots[index].kind == SLOT_EMPTY {
+                self.slots[index] = Slot {
+                    kind: SLOT_BOT,
+                    player: 0,
+                    name: format!("AI {}", index + 1),
+                    ready: true,
+                    difficulty: self.rules.bot_difficulty,
+                };
+            }
+        }
     }
 
     /// True once nobody has been connected for [`IDLE_ROOM_TIMEOUT`] and no slot is still
@@ -386,6 +437,9 @@ impl Room {
                     self.inputs[slot_index].push(frame);
                 }
             }
+            Command::Close => {
+                self.shutdown = true;
+            }
         }
     }
 
@@ -394,6 +448,9 @@ impl Room {
             warn!(room = %self.code, map = %self.config.map, "unknown map");
             return;
         };
+        if self.rules.bot_fill {
+            self.fill_empty_slots_with_bots();
+        }
         let mut actors: Vec<ActorConfig> = Vec::with_capacity(MAX_SLOTS);
         self.actor_slots.clear();
         self.bots.clear();
@@ -435,10 +492,17 @@ impl Room {
             1 => DropMode::Standard,
             _ => DropMode::None,
         };
+        // Admin knockback multiplier: the content bundle is shared, so scale a copy.
+        let mut weapons = self.content.weapons.clone();
+        if (self.rules.weapon_scale - 1.0).abs() > f32::EPSILON {
+            for weapon in &mut weapons {
+                weapon.knockback *= f64::from(self.rules.weapon_scale);
+            }
+        }
         let config = MatchConfig {
             mode: GameMode::Custom,
             map,
-            weapons: self.content.weapons.clone(),
+            weapons,
             actors,
             starting_weapon: pistol,
             pistol,
@@ -714,7 +778,9 @@ impl Room {
     }
 
     fn broadcast_room(&self) {
-        self.broadcast(&S2C::Room(self.room_view()));
+        let view = self.room_view();
+        self.directory.upsert(view.clone());
+        self.broadcast(&S2C::Room(view));
     }
 
     fn broadcast(&self, message: &S2C) {
@@ -857,7 +923,13 @@ pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
     loop {
         tokio::select! {
             command = rx.recv() => match command {
-                Some(command) => room.handle(command),
+                Some(command) => {
+                    room.handle(command);
+                    if room.shutdown() {
+                        info!(room = %room.code(), "room closed by an administrator");
+                        break;
+                    }
+                }
                 None => break,
             },
             _ = ticker.tick() => {
@@ -897,7 +969,15 @@ mod tests {
             duration: 180,
             drop_mode: 0,
         };
-        Room::new("TEST01".to_string(), config, content, metrics, None)
+        Room::new(
+            "TEST01".to_string(),
+            config,
+            content,
+            metrics,
+            None,
+            Arc::new(RoomDirectory::default()),
+            RoomRules::default(),
+        )
     }
 
     #[test]
