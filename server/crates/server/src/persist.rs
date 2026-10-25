@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
@@ -38,12 +38,110 @@ pub struct MatchRecord {
 #[derive(Default)]
 pub struct Persist {
     sender: Mutex<Option<mpsc::Sender<MatchRecord>>>,
+    /// Read handle for the HTTP API; the writer task owns the write side.
+    pool: Mutex<Option<SqlitePool>>,
 }
 
 impl Persist {
     pub fn sender(&self) -> Option<mpsc::Sender<MatchRecord>> {
         self.sender.lock().ok().and_then(|sender| sender.clone())
     }
+
+    pub fn pool(&self) -> Option<SqlitePool> {
+        self.pool.lock().ok().and_then(|pool| pool.clone())
+    }
+}
+
+/// One row of `/api/matches`, already shaped for the client.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchSummary {
+    pub id: String,
+    pub code: String,
+    pub map: String,
+    pub mode: String,
+    pub started_at: i64,
+    pub ended_at: i64,
+    pub winner: Option<u32>,
+    pub players: Vec<MatchPlayerSummary>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatchPlayerSummary {
+    pub slot: u8,
+    pub name: String,
+    pub bot: bool,
+    pub stocks: i32,
+    pub kos: u32,
+    pub falls: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistStats {
+    pub matches: i64,
+    pub players: i64,
+    pub last_ended_at: Option<i64>,
+}
+
+/// Latest matches with their score table, newest first.
+pub async fn recent_matches(pool: &SqlitePool, limit: i64) -> Result<Vec<MatchSummary>, sqlx::Error> {
+    let rows = sqlx::query(
+        "SELECT m.id, m.code, m.map, m.mode, m.started_at, m.ended_at, m.winner,
+                p.slot, p.name, p.bot, p.stocks, p.kos, p.falls
+         FROM matches m
+         JOIN match_players p ON p.match_id = m.id
+         WHERE m.id IN (SELECT id FROM matches ORDER BY ended_at DESC LIMIT ?)
+         ORDER BY m.ended_at DESC, p.slot ASC",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    let mut matches: Vec<MatchSummary> = Vec::new();
+    for row in rows {
+        let id: String = row.try_get("id")?;
+        if matches.last().map(|last| last.id != id).unwrap_or(true) {
+            matches.push(MatchSummary {
+                id: id.clone(),
+                code: row.try_get("code")?,
+                map: row.try_get("map")?,
+                mode: row.try_get("mode")?,
+                started_at: row.try_get("started_at")?,
+                ended_at: row.try_get("ended_at")?,
+                winner: row.try_get::<Option<i64>, _>("winner")?.map(|v| v as u32),
+                players: Vec::new(),
+            });
+        }
+        if let Some(matched) = matches.last_mut() {
+            let slot: i64 = row.try_get("slot")?;
+            matched.players.push(MatchPlayerSummary {
+                slot: slot as u8,
+                name: row.try_get("name")?,
+                bot: row.try_get::<i64, _>("bot")? != 0,
+                stocks: row.try_get("stocks")?,
+                kos: row.try_get::<i64, _>("kos")? as u32,
+                falls: row.try_get::<i64, _>("falls")? as u32,
+            });
+        }
+    }
+    Ok(matches)
+}
+
+/// Totals for a small "how much has this server seen" panel.
+pub async fn stats(pool: &SqlitePool) -> Result<PersistStats, sqlx::Error> {
+    let matches: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM matches").fetch_one(pool).await?;
+    let players: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM match_players").fetch_one(pool).await?;
+    let last: (Option<i64>,) = sqlx::query_as("SELECT MAX(ended_at) FROM matches")
+        .fetch_one(pool)
+        .await?;
+    Ok(PersistStats {
+        matches: matches.0,
+        players: players.0,
+        last_ended_at: last.0,
+    })
 }
 
 const SCHEMA: [&str; 3] = [
@@ -110,9 +208,12 @@ pub async fn init(persist: std::sync::Arc<Persist>, path: &str) -> bool {
         }
     }
     let (sender, receiver) = mpsc::channel::<MatchRecord>(64);
-    tokio::spawn(writer(receiver, pool));
+    tokio::spawn(writer(receiver, pool.clone()));
     if let Ok(mut slot) = persist.sender.lock() {
         *slot = Some(sender);
+    }
+    if let Ok(mut slot) = persist.pool.lock() {
+        *slot = Some(pool);
     }
     info!(path, "match persistence ready");
     true

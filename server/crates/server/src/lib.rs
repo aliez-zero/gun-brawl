@@ -9,10 +9,11 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
+use axum::extract::{Query, State};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::Router;
+use axum::{Json, Router};
 use bytes::Bytes;
 use gunbrawl_content::Content;
 use gunbrawl_proto::{decode, encode, C2S, PROTO_VERSION, S2C};
@@ -70,6 +71,11 @@ impl AppState {
     pub fn content_hash(&self) -> u64 {
         self.content.hash
     }
+
+    /// Shared handle used by the HTTP API and by tests that seed the database.
+    pub fn persist(&self) -> Arc<Persist> {
+        self.persist.clone()
+    }
 }
 
 /// Open the match database (or keep running without it) and start the writer.
@@ -85,6 +91,8 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .route("/metrics", get(metrics_handler))
+        .route("/api/matches", get(matches_handler))
+        .route("/api/stats", get(stats_handler))
         .route("/ws", get(ws_handler))
         .fallback_service(files)
         .with_state(state)
@@ -96,6 +104,39 @@ async fn healthz() -> &'static str {
 
 async fn metrics_handler(State(state): State<AppState>) -> String {
     state.metrics.render(state.lobby.count())
+}
+
+/// Recent matches with their score table. 503 when the server runs without a database.
+async fn matches_handler(
+    State(state): State<AppState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Vec<persist::MatchSummary>>, (StatusCode, String)> {
+    let pool = state
+        .persist
+        .pool()
+        .ok_or((StatusCode::SERVICE_UNAVAILABLE, "persistence disabled".to_string()))?;
+    let limit = params
+        .get("limit")
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or(20)
+        .clamp(1, 100);
+    persist::recent_matches(&pool, limit)
+        .await
+        .map(Json)
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))
+}
+
+async fn stats_handler(
+    State(state): State<AppState>,
+) -> Result<Json<persist::PersistStats>, (StatusCode, String)> {
+    let pool = state
+        .persist
+        .pool()
+        .ok_or((StatusCode::SERVICE_UNAVAILABLE, "persistence disabled".to_string()))?;
+    persist::stats(&pool)
+        .await
+        .map(Json)
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {

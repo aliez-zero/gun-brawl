@@ -617,6 +617,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gunbrawl-loadtest"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "gunbrawl-content",
+ "gunbrawl-proto",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "gunbrawl-predict"
 version = "0.1.0"
 dependencies = [

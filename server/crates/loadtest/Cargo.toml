@@ -1,0 +1,16 @@
+[package]
+name = "gunbrawl-loadtest"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "gunbrawl-loadtest"
+path = "src/main.rs"
+
+[dependencies]
+gunbrawl-content = { path = "../content" }
+gunbrawl-proto = { path = "../proto" }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "signal"] }
+tokio-tungstenite = "0.29"
+futures-util = "0.3"
