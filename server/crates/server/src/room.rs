@@ -847,6 +847,7 @@ pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
     let period = Duration::from_micros(1_000_000 / u64::from(TICK_RATE));
     let mut ticker = tokio::time::interval(period);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut idle_report = Instant::now();
     loop {
         tokio::select! {
             command = rx.recv() => match command {
@@ -855,6 +856,17 @@ pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
             },
             _ = ticker.tick() => {
                 room.step();
+                if idle_report.elapsed() >= Duration::from_secs(60) {
+                    idle_report = Instant::now();
+                    if room.players.is_empty() {
+                        info!(
+                            room = %room.code(),
+                            missing = room.missing.len(),
+                            idle_s = room.last_human_at.elapsed().as_secs(),
+                            "room empty, waiting for the idle timeout",
+                        );
+                    }
+                }
                 if room.should_close() {
                     info!(room = %room.code(), "room idle, reclaiming");
                     break;
