@@ -21,6 +21,42 @@
 {"matches":10,"players":22,"lastEndedAt":1792932534020}
 ```
 
+## 0.1 管理后台
+
+管理后台在 **`/admin`**（服务端渲染，不走前端构建），必须先登录。
+
+| 页面 | 能做什么 |
+| --- | --- |
+| `/admin` | 游戏配置：生命数、时长、强制地图、掉落模式、补位 AI 难度、**全局击退倍率**；保存后对新房间立即生效 |
+| `/admin/rooms` | 列出运行中的房间（房间码、地图、阶段、规则、槽位），可一键关闭 |
+| `/admin/weapons` | 武器数据表（射速、击退、射程、弹丸、弹匣），并显示当前倍率下的生效击退 |
+
+**初始账号**：首次带数据库启动时自动创建，写进容器内 `/data/admin-credentials.txt`（权限 600）：
+
+```
+username: admin
+password: <16 位随机>
+```
+
+想指定密码而不是随机生成，在**第一次启动前**设置环境变量：
+
+```bash
+GUNBRAWL_ADMIN_USER=admin
+GUNBRAWL_ADMIN_PASSWORD=至少8位
+```
+
+密码用 Argon2 哈希存库；会话是 `HttpOnly + SameSite=Strict` 的 Cookie，12 小时过期；连续 8 次登录失败会锁 5 分钟。
+
+**忘记密码**：删掉管理员记录后重启，会按上面的规则重新生成（文件同时被覆盖）：
+
+```bash
+docker run --rm -v gun-brawl_data:/data keinos/sqlite3 sh -c "sqlite3 /data/gunbrawl.db 'delete from admins;'"
+docker compose restart app
+docker compose cp app:/data/admin-credentials.txt ./admin-credentials.txt
+```
+
+`admin-credentials.txt` 已在 `.gitignore` 里，别提交。
+
 ## 1. 前置条件
 
 | 项 | 建议 |
