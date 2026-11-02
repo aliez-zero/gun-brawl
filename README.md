@@ -2,6 +2,8 @@
 
 TypeScript + Phaser + Vite 的桌面浏览器平台乱斗游戏。当前完成架构基础与第一阶段可玩原型，后续按 [PRD](./docs/PRD.md) 逐步增加内容。
 
+**线上环境**：<https://chizaodeijin.icu/>（HTTPS，腾讯云 4C4G）· 管理后台 <https://chizaodeijin.icu/admin>（凭证见服务器 `/srv/gun-brawl/admin-credentials.txt`）
+
 ## AI 接手与并行开发
 
 先读 [协作入口](./AGENTS.md)、[开发现状与交接](./docs/DEVELOPMENT.md) 和 [并行任务计划](./docs/PARALLEL_PLAN.md)。通过 [模块任务包](./docs/modules/README.md) 选择独立模块，里面包含子任务清单、依赖、文件范围、验收条件和可直接复制给其他 AI 的开发指令。负责人和状态统一维护在总看板；地图与外观本轮交付见 [接手记录](./docs/updates/2026-10-17-appearance-maps.md)。

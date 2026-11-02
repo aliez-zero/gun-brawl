@@ -209,6 +209,19 @@ healthcheck 打的是 `http://$DEPLOY_HOST/healthz`，所以没上 HTTPS 的机�
 | 容器反复重启 | `docker compose ps` 看健康状态；容器内 `gunbrawl-server --health` 连的是 `127.0.0.1:8080` |
 | 对局卡顿 | `docker compose logs app` 看 tick；确认服务器不在被 CPU 挤占的突发型实例上 |
 
+## 11.1 当前线上环境（2026-11-02 备案通过后）
+
+| 项 | 值 |
+| --- | --- |
+| 站点 | <https://chizaodeijin.icu/>（`www.` 同证书） |
+| 管理后台 | <https://chizaodeijin.icu/admin>，凭证 `/srv/gun-brawl/admin-credentials.txt` |
+| 证书 | Let's Encrypt，2026-11-02 签发，2027-01-31 到期，Caddy 自动续期 |
+| HTTP | `http://chizaodeijin.icu/` → 308 跳到 HTTPS；`http://<IP>/` 也会跳，但 IP 不在证书里 |
+| HSTS | `max-age=31536000`（**不带** `includeSubDomains`，避免锁死其他子域） |
+| 切换命令 | `./deploy/switch-https.sh chizaodeijin.icu www.chizaodeijin.icu` |
+
+`www.` 是第二个站点别名：Caddy 会为它单独签一张证书并把请求交给同一个站点，所以 `https://www.chizaodeijin.icu/` 也能开。
+
 ## 12. 备案拦截怎么判断
 
 大陆节点上「域名打不开、但 `http://IP` 正常」几乎都是备案（接入）问题。腾讯云在入口处按域名拦截，与 Caddy 无关，用两条命令就能确认：
