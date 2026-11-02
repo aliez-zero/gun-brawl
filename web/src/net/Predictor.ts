@@ -37,6 +37,7 @@ interface Exports {
   gb_step(handle: number, moveX: number, held: number, edges: number): void;
   gb_pose(handle: number, out: number): void;
   gb_set_pose(handle: number, x: number, y: number, vx: number, vy: number, facing: number, grounded: number, jumps: number): void;
+  gb_set_velocity(handle: number, vx: number, vy: number): void;
   gb_free_solo(handle: number): void;
 }
 
@@ -117,6 +118,11 @@ export class Predictor {
       pose.grounded,
       pose.jumps,
     );
+  }
+
+  /** Adopt the server's velocity without teleporting the predicted position. */
+  setVelocity(handle: number, vx: number, vy: number): void {
+    this.exports.gb_set_velocity(handle, vx, vy);
   }
 
   destroy(handle: number): void {

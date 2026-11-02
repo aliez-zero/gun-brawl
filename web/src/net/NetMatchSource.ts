@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Snapshot-driven match source: renders the authoritative state and forwards
  * local input. Prediction lands in P4; for now the local actor moves when the
  * server confirms, and remote actors interpolate between snapshots.
@@ -206,12 +206,16 @@ export class NetMatchSource implements MatchSource {
       actor.respawnRemaining = wire.respawn / 10;
     }
 
-    // Reconcile the local prediction; small errors are ignored, big ones snap.
+    // Reconcile the local prediction. Small position errors are left alone, but a velocity
+    // mismatch is always adopted: knockback is applied by the server only, so without this
+    // the predicted actor keeps gliding through a hit until the error crosses 24 px and
+    // then visibly snaps — the "janky when fighting" part of online.
     if (this.predictor && this.predictHandle !== null && this.localActorValue >= 0) {
       const wire = snapshot.actors[this.localActorValue];
       if (wire) {
         const predicted = this.predictor.pose(this.predictHandle);
         const authoritative = position(wire.x, wire.y);
+        const serverVelocity = { x: wire.vx / VEL_SCALE, y: wire.vy / VEL_SCALE };
         if (
           wire.status !== 0
           || Math.abs(predicted.x - authoritative.x) > 24
@@ -220,13 +224,18 @@ export class NetMatchSource implements MatchSource {
           this.predictor.reconcile(this.predictHandle, {
             x: authoritative.x,
             y: authoritative.y,
-            vx: wire.vx / VEL_SCALE,
-            vy: wire.vy / VEL_SCALE,
+            vx: serverVelocity.x,
+            vy: serverVelocity.y,
             facing: wire.facing,
             grounded: wire.flags & 1,
             jumps: (wire.flags >> 1) & 0b11,
             dropRemaining: 0,
           });
+        } else if (
+          Math.abs(predicted.vx - serverVelocity.x) > 40
+          || Math.abs(predicted.vy - serverVelocity.y) > 40
+        ) {
+          this.predictor.setVelocity(this.predictHandle, serverVelocity.x, serverVelocity.y);
         }
       }
     }

@@ -137,6 +137,26 @@ impl InputQueue {
     }
 
     fn consume(&mut self) -> InputFrame {
+        // A client whose clock runs slightly ahead of the server tick slowly fills this
+        // queue, and popping the oldest frame every tick means the player's input is
+        // applied a full queue depth (up to 67 ms) late for the rest of the match. Collapse
+        // a backlog into the newest frame instead, keeping edges so a jump or bomb press
+        // that arrived in a skipped frame still happens.
+        if self.frames.len() > 2 {
+            let mut held = 0u8;
+            let mut edges = 0u8;
+            let mut newest: Option<InputFrame> = None;
+            while let Some(frame) = self.frames.pop_front() {
+                held |= frame.held;
+                edges |= frame.edges;
+                newest = Some(frame);
+            }
+            if let Some(mut frame) = newest {
+                frame.held = held;
+                frame.edges = edges;
+                self.frames.push_front(frame);
+            }
+        }
         let frame = match self.frames.pop_front() {
             Some(frame) => frame,
             None => match self.last {
@@ -983,6 +1003,40 @@ mod tests {
     #[test]
     fn a_fresh_room_stays_open() {
         assert!(!test_room().should_close());
+    }
+
+    fn frame(seq: u32, move_x: i8, edges: u8) -> InputFrame {
+        InputFrame { seq, tick_hint: 0, move_x, held: 0, edges }
+    }
+
+    #[test]
+    fn an_input_backlog_collapses_to_the_newest_frame() {
+        let mut queue = InputQueue::new();
+        queue.push(frame(1, 1, gunbrawl_proto::EDGE_JUMP));
+        queue.push(frame(2, 1, 0));
+        queue.push(frame(3, -1, gunbrawl_proto::EDGE_BOMB));
+
+        let applied = queue.consume();
+
+        // Newest state wins, but presses from the skipped frames are not dropped.
+        assert_eq!(applied.seq, 3);
+        assert_eq!(applied.move_x, -1);
+        assert_eq!(applied.edges, gunbrawl_proto::EDGE_JUMP | gunbrawl_proto::EDGE_BOMB);
+        assert!(queue.frames.len() <= 1, "the backlog should be gone");
+    }
+
+    #[test]
+    fn a_short_queue_is_applied_in_order() {
+        let mut queue = InputQueue::new();
+        queue.push(frame(1, 1, 0));
+        queue.push(frame(2, -1, gunbrawl_proto::EDGE_JUMP));
+
+        assert_eq!(queue.consume().seq, 1);
+        assert_eq!(queue.consume().seq, 2);
+        // Nothing queued: repeat the last frame so held buttons keep applying.
+        let repeated = queue.consume();
+        assert_eq!(repeated.seq, 2);
+        assert_eq!(repeated.edges, 0, "edges must not fire twice");
     }
 
     #[test]

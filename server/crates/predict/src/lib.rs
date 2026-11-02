@@ -173,6 +173,23 @@ pub extern "C" fn gb_set_pose(
     actor.jumps_remaining = jumps.min(2) as u8;
 }
 
+/// Adopt the authoritative velocity without moving the actor.
+///
+/// Knockback is server-side only, so a client that never reconciles small position
+/// errors keeps gliding through a hit until the error passes the snap threshold and
+/// then jumps. Copying the velocity each snapshot lets the local actor ride the knockback
+/// from the next step on, and the position converges smoothly instead of snapping.
+#[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn gb_set_velocity(solo: *mut Solo, vx: f64, vy: f64) {
+    if solo.is_null() {
+        return;
+    }
+    let actor = unsafe { &mut (*solo).actor };
+    actor.move_velocity = vx;
+    actor.vertical_velocity = vy;
+}
+
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn gb_free_solo(solo: *mut Solo) {

@@ -23,18 +23,18 @@ const room: RoomView = {
   ],
 };
 
-function actorSnap(x = 640, y = 300) {
+function actorSnap(x = 640, y = 300, vx = 0) {
   return {
-    id: 0, x: x * 16, y: y * 16, vx: 0, vy: 0,
+    id: 0, x: x * 16, y: y * 16, vx, vy: 0,
     facing: 1, flags: 1, status: 0, stocks: 3, weapon: 0, ammo: 255, reserve: 0,
     fireCd: 0, reload: 0, protection: 0, respawn: 0,
   };
 }
 
-function snapshot(x = 640, y = 300): Snapshot {
+function snapshot(x = 640, y = 300, vx = 0): Snapshot {
   return {
     tick: 1, serverMs: 1000, phase: PHASE_PLAYING, remainingMs: 180_000, acks: [0, 0, 0, 0],
-    actors: [actorSnap(x, y), actorSnap(700, y)],
+    actors: [actorSnap(x, y, vx), actorSnap(700, y)],
     projectiles: [], bombs: [], drops: [], events: [],
   };
 }
@@ -44,18 +44,20 @@ function fakeClient(): NetClient & { sends: number } {
   return client as unknown as NetClient & { sends: number };
 }
 
-function fakePredictor(): Predictor & { steps: number; poseX: number } {
+function fakePredictor(): Predictor & { steps: number; poseX: number; velocities: number[] } {
   const fake = {
     steps: 0,
     poseX: 640,
+    velocities: [] as number[],
     mapIndex: () => 0,
     create: () => 1,
     step: () => { fake.steps += 1; fake.poseX += 0.1; },
     pose: () => ({ x: fake.poseX, y: 300, vx: 0, vy: 0, facing: 1, grounded: 1, jumps: 2, dropRemaining: 0 }),
     reconcile: () => {},
+    setVelocity: (_handle: number, vx: number) => { fake.velocities.push(vx); },
     destroy: () => {},
   };
-  return fake as unknown as Predictor & { steps: number; poseX: number };
+  return fake as unknown as Predictor & { steps: number; poseX: number; velocities: number[] };
 }
 
 /** Drives advance() at a fixed frame rate against a controllable clock. */
@@ -105,6 +107,19 @@ describe('NetMatchSource fixed-step prediction', () => {
     runFrames(source, 60, 60);
     expect(predictor.steps).toBeGreaterThanOrEqual(58);
     expect(predictor.steps).toBeLessThanOrEqual(62);
+  });
+
+  it('adopts server knockback without teleporting the actor', () => {
+    const { predictor, source } = setUp();
+    runFrames(source, 60, 30);
+    const before = { ...source.state.actors[0]!.position };
+
+    // Same position (so no snap), but the server says the actor is now flying at 400 px/s:
+    // that is a hit, and the prediction has to pick the velocity up.
+    source.applySnapshot(snapshot(640, 300, 400 * 8));
+
+    expect(predictor.velocities).toEqual([400]);
+    expect(source.state.actors[0]!.position.x).toBeCloseTo(before.x, 5);
   });
 
   it('keeps an interpolation pair for the predicted actor', () => {
