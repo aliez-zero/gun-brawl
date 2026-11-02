@@ -32,7 +32,12 @@ export class WeaponLayer {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  draw(state: Readonly<MatchState> | null, alpha: number, mounts?: ReadonlyMap<string, WeaponMount>): void {
+  draw(
+    state: Readonly<MatchState> | null,
+    alpha: number,
+    mounts?: ReadonlyMap<string, WeaponMount>,
+    localPose?: { index: number; alpha: number },
+  ): void {
     if (!state) {
       for (const sprite of this.sprites.values()) sprite.setVisible(false);
       for (const hand of this.hands.values()) hand.setVisible(false);
@@ -42,7 +47,8 @@ export class WeaponLayer {
       return;
     }
     const visible = new Set<string>();
-    for (const actor of state.actors) {
+    for (let index = 0; index < state.actors.length; index++) {
+      const actor = state.actors[index]!;
       if (actor.status !== 'alive') continue;
       visible.add(actor.config.id);
       const definition = actor.weapon.definition;
@@ -63,8 +69,9 @@ export class WeaponLayer {
         this.sprites.set(actor.config.id, sprite);
       }
       const interpolate = state.phase === 'playing';
-      const x = interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, alpha) : actor.position.x;
-      const y = interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, alpha) : actor.position.y;
+      const actorAlpha = localPose && localPose.index === index ? localPose.alpha : alpha;
+      const x = interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, actorAlpha) : actor.position.x;
+      const y = interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, actorAlpha) : actor.position.y;
       const pose = weaponPose(actor);
       const mount = mounts?.get(actor.config.id);
       // Phaser mirrors the texture around the frame centre, not the grip origin.

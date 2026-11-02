@@ -116,7 +116,12 @@ export class ArenaRenderer {
     this.effects = this.effects.slice(-40);
   }
 
-  draw(state: Readonly<MatchState> | null, alpha: number, seconds: number): void {
+  draw(
+    state: Readonly<MatchState> | null,
+    alpha: number,
+    seconds: number,
+    localPose?: { index: number; alpha: number },
+  ): void {
     const g = this.effectsView;
     g.clear(); this.shadows.clear(); this.weaponMounts.clear();
     if (!state) {
@@ -126,7 +131,8 @@ export class ArenaRenderer {
     }
     const frozen = state.phase !== 'playing';
     if (!frozen) this.clock += Math.min(seconds, 0.1);
-    for (const actor of state.actors) {
+    for (let index = 0; index < state.actors.length; index++) {
+      const actor = state.actors[index]!;
       const id = actor.config.id;
       if (actor.status !== 'alive') {
         this.views.get(id)?.rig?.setVisible(false);
@@ -134,8 +140,11 @@ export class ArenaRenderer {
         this.wasAirborne.delete(id); this.landedAt.delete(id);
         continue;
       }
-      const x = frozen ? actor.position.x : Phaser.Math.Linear(actor.previous.x, actor.position.x, alpha);
-      const y = frozen ? actor.position.y : Phaser.Math.Linear(actor.previous.y, actor.position.y, alpha);
+      // The locally predicted actor advances on its own 60 Hz clock, so it needs its own
+      // interpolation fraction; everything else follows the snapshot alpha.
+      const actorAlpha = localPose && localPose.index === index ? localPose.alpha : alpha;
+      const x = frozen ? actor.position.x : Phaser.Math.Linear(actor.previous.x, actor.position.x, actorAlpha);
+      const y = frozen ? actor.position.y : Phaser.Math.Linear(actor.previous.y, actor.position.y, actorAlpha);
       if (!frozen) {
         if (actor.groundedOn === null) this.wasAirborne.add(id);
         else if (this.wasAirborne.delete(id)) this.landedAt.set(id, this.clock);

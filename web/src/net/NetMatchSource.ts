@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Snapshot-driven match source: renders the authoritative state and forwards
  * local input. Prediction lands in P4; for now the local actor moves when the
  * server confirms, and remote actors interpolate between snapshots.
@@ -26,7 +26,7 @@ import type {
 } from '../game/core/types';
 import type { MatchSource } from './MatchSource';
 import type { NetClient } from './NetClient';
-import type { Predictor } from './Predictor';
+import type { PredictedPose, Predictor } from './Predictor';
 import {
   EDGE_BOMB,
   EDGE_DROP,
@@ -77,12 +77,15 @@ export class NetMatchSource implements MatchSource {
   private snapshotInterval = SNAPSHOT_INTERVAL;
   private stepAccumulator = 0;
   private lastAdvanceAt = 0;
+  /** Pose after the most recent prediction step, used as the interpolation origin. */
+  private lastStepPose: { x: number; y: number } | null = null;
+  private localAlphaValue = 0;
   private alphaValue = 0;
   private seq = 0;
   private pendingEvents: BattleEvent[] = [];
   private readonly predictor: Predictor | null;
   private predictHandle: number | null = null;
-  readonly localActor: number;
+  readonly localActorValue: number;
 
   constructor(client: NetClient, room: RoomView, predictor: Predictor | null = null) {
     this.client = client;
@@ -93,9 +96,9 @@ export class NetMatchSource implements MatchSource {
     const active = room.slots
       .map((slot, slotIndex) => ({ slot, slotIndex }))
       .filter(({ slot }) => slot.kind !== SLOT_EMPTY);
-    this.localActor = active.findIndex(({ slot }) => slot.player === client.playerId);
-    if (predictor && this.localActor >= 0) {
-      const spawn = this.map.spawns[this.localActor] ?? this.map.spawns[0]!;
+    this.localActorValue = active.findIndex(({ slot }) => slot.player === client.playerId);
+    if (predictor && this.localActorValue >= 0) {
+      const spawn = this.map.spawns[this.localActorValue] ?? this.map.spawns[0]!;
       this.predictHandle = predictor.create(predictor.mapIndex(this.map.id), spawn.x, spawn.y);
     }
 
@@ -142,6 +145,14 @@ export class NetMatchSource implements MatchSource {
     return this.alphaValue;
   }
 
+  get localActor(): number | undefined {
+    return this.predictor && this.predictHandle !== null ? this.localActorValue : undefined;
+  }
+
+  get localAlpha(): number | undefined {
+    return this.predictor && this.predictHandle !== null ? this.localAlphaValue : undefined;
+  }
+
   get latency(): { rtt: number; jitter: number } {
     return this.latencyValue;
   }
@@ -174,7 +185,7 @@ export class NetMatchSource implements MatchSource {
       // The locally predicted actor owns its own position: copying the authoritative one
       // here (and re-predicting a frame later) made the sprite alternate between two
       // coordinates every snapshot — the visible jitter.
-      const predictedLocally = this.predictor !== null && this.predictHandle !== null && index === this.localActor;
+      const predictedLocally = this.predictor !== null && this.predictHandle !== null && index === this.localActorValue;
       if (!predictedLocally) {
         actor.previous = { ...actor.position };
         actor.position = position(wire.x, wire.y);
@@ -196,8 +207,8 @@ export class NetMatchSource implements MatchSource {
     }
 
     // Reconcile the local prediction; small errors are ignored, big ones snap.
-    if (this.predictor && this.predictHandle !== null && this.localActor >= 0) {
-      const wire = snapshot.actors[this.localActor];
+    if (this.predictor && this.predictHandle !== null && this.localActorValue >= 0) {
+      const wire = snapshot.actors[this.localActorValue];
       if (wire) {
         const predicted = this.predictor.pose(this.predictHandle);
         const authoritative = position(wire.x, wire.y);
@@ -320,7 +331,7 @@ export class NetMatchSource implements MatchSource {
 
     const canPredict = this.predictor !== null
       && this.predictHandle !== null
-      && this.localActor >= 0
+      && this.localActorValue >= 0
       && this.stateValue.phase === 'playing';
 
     // Fixed 1/60 s local clock driven by wall time. Two bugs hid here before: stepping once
@@ -335,6 +346,8 @@ export class NetMatchSource implements MatchSource {
       MAX_CATCH_UP,
     );
     let first = true;
+    let previousStep: { x: number; y: number } | null = null;
+    let lastPose: PredictedPose | null = null;
     while (this.stepAccumulator >= FIXED_STEP) {
       this.stepAccumulator -= FIXED_STEP;
       this.seq += 1;
@@ -354,21 +367,29 @@ export class NetMatchSource implements MatchSource {
           bomb: first && input.bombPressed,
           reload: first && input.reloadPressed,
         });
+        previousStep = this.lastStepPose;
+        const pose = this.predictor!.pose(this.predictHandle!);
+        this.lastStepPose = { x: pose.x, y: pose.y };
+        lastPose = pose;
       }
       first = false;
     }
 
     if (canPredict) {
-      const predicted = this.predictor!.pose(this.predictHandle!);
-      const actor = this.stateValue.actors[this.localActor];
-      if (actor) {
-        const at = { x: predicted.x, y: predicted.y };
-        actor.position = at;
-        actor.previous = at;
-        actor.facing = predicted.facing < 0 ? -1 : 1;
-        actor.groundedOn = predicted.grounded ? 'net' : null;
-        actor.jumpsRemaining = predicted.jumps;
+      // Keep the pair distinct so the renderer can interpolate between the two most recent
+      // prediction steps; collapsing them (the old code) froze interpolation and turned
+      // 60 Hz motion into visible steps on a faster display.
+      if (lastPose) {
+        const actor = this.stateValue.actors[this.localActorValue];
+        if (actor) {
+          actor.previous = previousStep ?? { x: lastPose.x, y: lastPose.y };
+          actor.position = { x: lastPose.x, y: lastPose.y };
+          actor.facing = lastPose.facing < 0 ? -1 : 1;
+          actor.groundedOn = lastPose.grounded ? 'net' : null;
+          actor.jumpsRemaining = lastPose.jumps;
+        }
       }
+      this.localAlphaValue = Math.max(0, Math.min(1, this.stepAccumulator / FIXED_STEP));
     }
 
     this.alphaValue = this.snapshot

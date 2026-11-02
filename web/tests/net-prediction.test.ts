@@ -107,6 +107,18 @@ describe('NetMatchSource fixed-step prediction', () => {
     expect(predictor.steps).toBeLessThanOrEqual(62);
   });
 
+  it('keeps an interpolation pair for the predicted actor', () => {
+    const { source } = setUp();
+    runFrames(source, 60, 10);
+    const actor = source.state.actors[0]!;
+    // Collapsed previous/position was why a 60 Hz prediction looked steppy on a 100/144 Hz
+    // display: the renderer had nothing to interpolate towards.
+    expect(actor.previous.x).not.toBeCloseTo(actor.position.x, 6);
+    expect(source.localActor).toBe(0);
+    expect(source.localAlpha).toBeGreaterThanOrEqual(0);
+    expect(source.localAlpha).toBeLessThan(1);
+  });
+
   it('does not yank the predicted actor back when a snapshot arrives', () => {
     const { predictor, source } = setUp();
     runFrames(source, 60, 30);

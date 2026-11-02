@@ -12,6 +12,14 @@ import type { ActorInput, BattleEvent, HumanSlot, MatchConfig, MatchState } from
 export interface MatchSource {
   readonly state: Readonly<MatchState>;
   readonly alpha: number;
+  /**
+   * Index into `state.actors` of the actor driven locally, when the source predicts it.
+   * The renderer interpolates that actor with {@link localAlpha} instead of the shared
+   * snapshot alpha, otherwise a 60 Hz prediction would step visibly on a 100/144 Hz
+   * display while everything else interpolates smoothly.
+   */
+  readonly localActor?: number;
+  readonly localAlpha?: number;
   advance(deltaMs: number, readHuman: (slot: HumanSlot) => ActorInput): BattleEvent[];
   pause(): void;
   resume(): void;
