@@ -9,7 +9,9 @@
 	reverse_proxy app:8080
 
 	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# No includeSubDomains: other subdomains on this domain may still be plain HTTP,
+		# and a cached HSTS rule would lock browsers out of them.
+		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
