@@ -20,6 +20,8 @@ export interface MatchSource {
    */
   readonly localActor?: number;
   readonly localAlpha?: number;
+  /** Screen-space residue to add while a correction settles (see NetMatchSource). */
+  readonly localOffset?: { x: number; y: number };
   advance(deltaMs: number, readHuman: (slot: HumanSlot) => ActorInput): BattleEvent[];
   pause(): void;
   resume(): void;

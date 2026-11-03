@@ -36,7 +36,7 @@ export class WeaponLayer {
     state: Readonly<MatchState> | null,
     alpha: number,
     mounts?: ReadonlyMap<string, WeaponMount>,
-    localPose?: { index: number; alpha: number },
+    localPose?: { index: number; alpha: number; offset?: { x: number; y: number } },
   ): void {
     if (!state) {
       for (const sprite of this.sprites.values()) sprite.setVisible(false);
@@ -70,8 +70,11 @@ export class WeaponLayer {
       }
       const interpolate = state.phase === 'playing';
       const actorAlpha = localPose && localPose.index === index ? localPose.alpha : alpha;
-      const x = interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, actorAlpha) : actor.position.x;
-      const y = interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, actorAlpha) : actor.position.y;
+      const offset = localPose && localPose.index === index ? localPose.offset : undefined;
+      const x = (interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, actorAlpha) : actor.position.x)
+        + (offset?.x ?? 0);
+      const y = (interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, actorAlpha) : actor.position.y)
+        + (offset?.y ?? 0);
       const pose = weaponPose(actor);
       const mount = mounts?.get(actor.config.id);
       // Phaser mirrors the texture around the frame centre, not the grip origin.

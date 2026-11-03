@@ -81,6 +81,12 @@ export class NetMatchSource implements MatchSource {
   private lastAdvanceAt = 0;
   /** Presses waiting for the next fixed step; see the note in `advance`. */
   private pendingEdges = 0;
+  /**
+   * Visual residue of a reconciliation: the sprite keeps its old screen position and slides
+   * to the corrected one instead of teleporting. Purely cosmetic — the simulation state is
+   * already the authoritative one.
+   */
+  private localOffsetValue = { x: 0, y: 0 };
   /** Pose after the most recent prediction step, used as the interpolation origin. */
   private lastStepPose: { x: number; y: number } | null = null;
   private localAlphaValue = 0;
@@ -157,6 +163,11 @@ export class NetMatchSource implements MatchSource {
     return this.predictor && this.predictHandle !== null ? this.localAlphaValue : undefined;
   }
 
+  /** Cosmetic residue of the last reconciliation, added to the rendered position. */
+  get localOffset(): { x: number; y: number } | undefined {
+    return this.predictor && this.predictHandle !== null ? this.localOffsetValue : undefined;
+  }
+
   get latency(): { rtt: number; jitter: number } {
     return this.latencyValue;
   }
@@ -231,6 +242,10 @@ export class NetMatchSource implements MatchSource {
         netStats.lastErrorPx = error;
         netStats.errorMaxPx = Math.max(netStats.errorMaxPx, error);
         if (wire.status !== 0 || error > 24) {
+          // Keep the sprite where it was and fold the correction into the visual offset so
+          // the player sees a short slide instead of a snap.
+          this.localOffsetValue.x += predicted.x - authoritative.x;
+          this.localOffsetValue.y += predicted.y - authoritative.y;
           this.predictor.reconcile(this.predictHandle, {
             x: authoritative.x,
             y: authoritative.y,
@@ -422,6 +437,18 @@ export class NetMatchSource implements MatchSource {
         }
       }
       this.localAlphaValue = Math.max(0, Math.min(1, this.stepAccumulator / FIXED_STEP));
+    }
+
+    // Exponential decay of the reconciliation residue: ~80 ms to settle, so a correction
+    // reads as the character being carried by the knockback rather than snapping back.
+    if (this.localOffsetValue.x !== 0 || this.localOffsetValue.y !== 0) {
+      const decay = Math.exp(-Math.max(0, elapsed) / 0.08);
+      this.localOffsetValue.x *= decay;
+      this.localOffsetValue.y *= decay;
+      if (Math.abs(this.localOffsetValue.x) < 0.4 && Math.abs(this.localOffsetValue.y) < 0.4) {
+        this.localOffsetValue.x = 0;
+        this.localOffsetValue.y = 0;
+      }
     }
 
     this.alphaValue = this.snapshot
