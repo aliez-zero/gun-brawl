@@ -935,10 +935,18 @@ fn event_snap(event: &BattleEvent) -> EventSnap {
     }
 }
 
+/// Room loop.
+///
+/// The tick clock is a wall-time accumulator, not a plain `interval`. With
+/// `MissedTickBehavior::Skip` every wake-up spent on a command (input frames arrive 60×/s
+/// per player) could push the timer past its deadline and the tick was simply dropped, so
+/// a busy room ran at ~56 Hz instead of 60. The client predicts at a true 60 Hz, so that
+/// 7 % gap turned into constant reconciliation. Here missed ticks are caught up, capped so
+/// a long stall cannot fast-forward the match.
 pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
+    const MAX_CATCH_UP_TICKS: u32 = 5;
     let period = Duration::from_micros(1_000_000 / u64::from(TICK_RATE));
-    let mut ticker = tokio::time::interval(period);
-    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    let mut next_tick = tokio::time::Instant::now();
     let mut idle_report = Instant::now();
     loop {
         tokio::select! {
@@ -952,9 +960,20 @@ pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
                 }
                 None => break,
             },
-            _ = ticker.tick() => {
-                room.step();
-                if idle_report.elapsed() >= Duration::from_secs(60) {
+            _ = tokio::time::sleep_until(next_tick) => {
+                let now = tokio::time::Instant::now();
+                let mut stepped = 0;
+                while next_tick <= now && stepped < MAX_CATCH_UP_TICKS {
+                    room.step();
+                    next_tick += period;
+                    stepped += 1;
+                }
+                if stepped == MAX_CATCH_UP_TICKS {
+                    // Fell far behind (scheduler stall): drop the backlog instead of
+                    // replaying seconds of simulation in one burst.
+                    next_tick = tokio::time::Instant::now();
+                }
+                if stepped > 0 && idle_report.elapsed() >= Duration::from_secs(60) {
                     idle_report = Instant::now();
                     if room.players.is_empty() {
                         info!(
