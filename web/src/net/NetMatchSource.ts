@@ -75,6 +75,7 @@ export class NetMatchSource implements MatchSource {
   private readonly stateValue: MatchState;
   private snapshot: Snapshot | null = null;
   private snapshotAt = 0;
+  private lastSnapshotTick = 0;
   private snapshotInterval = SNAPSHOT_INTERVAL;
   private stepAccumulator = 0;
   private lastAdvanceAt = 0;
@@ -177,6 +178,10 @@ export class NetMatchSource implements MatchSource {
       netStats.gapMaxMs = Math.max(netStats.gapMaxMs, delta);
     }
     netStats.snapshots += 1;
+    if (this.lastSnapshotTick !== 0 && snapshot.tick > this.lastSnapshotTick) {
+      netStats.serverTicks += snapshot.tick - this.lastSnapshotTick;
+    }
+    this.lastSnapshotTick = snapshot.tick;
     this.snapshot = snapshot;
     this.snapshotAt = now;
     const state = this.stateValue;
@@ -224,6 +229,7 @@ export class NetMatchSource implements MatchSource {
         const serverVelocity = { x: wire.vx / VEL_SCALE, y: wire.vy / VEL_SCALE };
         const error = Math.hypot(predicted.x - authoritative.x, predicted.y - authoritative.y);
         netStats.lastErrorPx = error;
+        netStats.errorMaxPx = Math.max(netStats.errorMaxPx, error);
         if (wire.status !== 0 || error > 24) {
           this.predictor.reconcile(this.predictHandle, {
             x: authoritative.x,

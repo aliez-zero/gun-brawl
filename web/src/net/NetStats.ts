@@ -17,6 +17,10 @@ export const netStats = {
   velocityAdoptions: 0,
   /** Snapshots applied. */
   snapshots: 0,
+  /** Server ticks advanced, summed from snapshot tick numbers (this room only). */
+  serverTicks: 0,
+  /** Largest |predicted - authoritative| distance seen, in px. */
+  errorMaxPx: 0,
   /** Arrival gap statistics in ms. */
   gapSumMs: 0,
   gapMaxMs: 0,
@@ -31,6 +35,8 @@ export const netStats = {
     this.reconciles = 0;
     this.velocityAdoptions = 0;
     this.snapshots = 0;
+    this.serverTicks = 0;
+    this.errorMaxPx = 0;
     this.gapSumMs = 0;
     this.gapMaxMs = 0;
     this.lastErrorPx = 0;
@@ -45,6 +51,8 @@ export const netStats = {
       reconciles: this.reconciles,
       velocityAdoptions: this.velocityAdoptions,
       snapshots: this.snapshots,
+      serverTicks: this.serverTicks,
+      errorMaxPx: +this.errorMaxPx.toFixed(1),
       gapAvgMs: this.snapshots > 1 ? +(this.gapSumMs / (this.snapshots - 1)).toFixed(1) : 0,
       gapMaxMs: +this.gapMaxMs.toFixed(1),
       lastErrorPx: +this.lastErrorPx.toFixed(1),
