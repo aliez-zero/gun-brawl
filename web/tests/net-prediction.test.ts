@@ -3,7 +3,7 @@ import { NetMatchSource } from '../src/net/NetMatchSource';
 import { idleInput } from '../src/game/core/types';
 import type { NetClient } from '../src/net/NetClient';
 import type { Predictor } from '../src/net/Predictor';
-import { PHASE_PLAYING, SLOT_BOT, SLOT_EMPTY, SLOT_HUMAN } from '../src/net/protocol';
+import { PHASE_PLAYING, SLOT_BOT, SLOT_EMPTY, SLOT_HUMAN, EDGE_JUMP } from '../src/net/protocol';
 import type { RoomView, Snapshot } from '../src/net/protocol';
 
 const room: RoomView = {
@@ -39,25 +39,48 @@ function snapshot(x = 640, y = 300, vx = 0): Snapshot {
   };
 }
 
-function fakeClient(): NetClient & { sends: number } {
-  const client = { playerId: 1, sends: 0, sendInput: () => { client.sends += 1; } };
-  return client as unknown as NetClient & { sends: number };
+function fakeClient(): NetClient & { sends: number; frames: { edges: number; seq: number }[] } {
+  const client = {
+    playerId: 1,
+    sends: 0,
+    frames: [] as { edges: number; seq: number }[],
+    sendInput: (frames: { edges: number; seq: number }[]) => {
+      client.sends += 1;
+      client.frames.push(...frames);
+    },
+  };
+  return client as unknown as NetClient & { sends: number; frames: { edges: number; seq: number }[] };
 }
 
-function fakePredictor(): Predictor & { steps: number; poseX: number; velocities: number[] } {
+function fakePredictor(): Predictor & {
+  steps: number;
+  poseX: number;
+  velocities: number[];
+  jumps: boolean[];
+} {
   const fake = {
     steps: 0,
     poseX: 640,
     velocities: [] as number[],
+    jumps: [] as boolean[],
     mapIndex: () => 0,
     create: () => 1,
-    step: () => { fake.steps += 1; fake.poseX += 0.1; },
+    step: (_handle: number, input: { jump: boolean }) => {
+      fake.steps += 1;
+      fake.jumps.push(input.jump);
+      fake.poseX += 0.1;
+    },
     pose: () => ({ x: fake.poseX, y: 300, vx: 0, vy: 0, facing: 1, grounded: 1, jumps: 2, dropRemaining: 0 }),
     reconcile: () => {},
     setVelocity: (_handle: number, vx: number) => { fake.velocities.push(vx); },
     destroy: () => {},
   };
-  return fake as unknown as Predictor & { steps: number; poseX: number; velocities: number[] };
+  return fake as unknown as Predictor & {
+    steps: number;
+    poseX: number;
+    velocities: number[];
+    jumps: boolean[];
+  };
 }
 
 /** Drives advance() at a fixed frame rate against a controllable clock. */
@@ -120,6 +143,38 @@ describe('NetMatchSource fixed-step prediction', () => {
 
     expect(predictor.velocities).toEqual([400]);
     expect(source.state.actors[0]!.position.x).toBeCloseTo(before.x, 5);
+  });
+
+  it('delivers a jump that lands on a frame which advances no step', () => {
+    const { client, predictor, source } = setUp();
+    // 100 Hz: 10 ms per frame, so most frames cannot advance the 16.7 ms fixed step.
+    clock += 10;
+    source.advance(10, () => ({ ...idleInput(), jumpPressed: true }));
+    expect(predictor.steps).toBe(0);
+
+    // Keep rendering without any new press; the buffered edge must survive to the next step.
+    clock += 10;
+    source.advance(10, idleInput);
+    clock += 10;
+    source.advance(10, idleInput);
+
+    expect(predictor.steps).toBeGreaterThanOrEqual(1);
+    expect(predictor.jumps[0]).toBe(true);
+    const firstEdgeFrame = client.frames.find((frame) => frame.edges !== 0);
+    expect(firstEdgeFrame?.edges).toBe(EDGE_JUMP);
+  });
+
+  it('sends exactly one edge per press', () => {
+    const { client, source } = setUp();
+    clock += 20;
+    source.advance(20, () => ({ ...idleInput(), jumpPressed: true }));
+    for (let index = 0; index < 10; index++) {
+      clock += 20;
+      source.advance(20, idleInput);
+    }
+    const withEdges = client.frames.filter((frame) => frame.edges !== 0);
+    expect(withEdges).toHaveLength(1);
+    expect(withEdges[0]!.edges).toBe(EDGE_JUMP);
   });
 
   it('keeps an interpolation pair for the predicted actor', () => {

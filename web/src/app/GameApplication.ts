@@ -15,6 +15,7 @@ import type { MusicSettings } from '../content/music';
 import { ArenaScene } from '../scenes/ArenaScene';
 import { NetClient } from '../net/NetClient';
 import { NetMatchSource } from '../net/NetMatchSource';
+import { netStats } from '../net/NetStats';
 import { Predictor } from '../net/Predictor';
 import type { RoomView } from '../net/protocol';
 import { PHASE_COUNTDOWN, PHASE_PLAYING } from '../net/protocol';
@@ -147,8 +148,14 @@ export class GameApplication {
     window.addEventListener('keydown', this.onAudioGesture, { capture: true, signal });
     window.addEventListener('focus', this.onAudioFocus, { signal });
     // Test hook for the online smoke: forces a socket drop without a server restart.
-    (window as unknown as { __gunbrawlDebug?: { dropConnection: () => void } }).__gunbrawlDebug = {
+    (window as unknown as {
+      __gunbrawlDebug?: {
+        dropConnection: () => void;
+        netStats: () => Record<string, number>;
+      };
+    }).__gunbrawlDebug = {
       dropConnection: () => this.online?.dropConnection(),
+      netStats: () => netStats.snapshot(),
     };
   }
 

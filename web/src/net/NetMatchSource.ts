@@ -26,6 +26,7 @@ import type {
 } from '../game/core/types';
 import type { MatchSource } from './MatchSource';
 import type { NetClient } from './NetClient';
+import { netStats } from './NetStats';
 import type { PredictedPose, Predictor } from './Predictor';
 import {
   EDGE_BOMB,
@@ -77,6 +78,8 @@ export class NetMatchSource implements MatchSource {
   private snapshotInterval = SNAPSHOT_INTERVAL;
   private stepAccumulator = 0;
   private lastAdvanceAt = 0;
+  /** Presses waiting for the next fixed step; see the note in `advance`. */
+  private pendingEdges = 0;
   /** Pose after the most recent prediction step, used as the interpolation origin. */
   private lastStepPose: { x: number; y: number } | null = null;
   private localAlphaValue = 0;
@@ -170,7 +173,10 @@ export class NetMatchSource implements MatchSource {
     // snapshots actually arrive; a fixed 33 ms divisor made jittery links stutter.
     if (this.snapshotAt !== 0 && delta > 8 && delta < 250) {
       this.snapshotInterval = this.snapshotInterval * 0.8 + delta * 0.2;
+      netStats.gapSumMs += delta;
+      netStats.gapMaxMs = Math.max(netStats.gapMaxMs, delta);
     }
+    netStats.snapshots += 1;
     this.snapshot = snapshot;
     this.snapshotAt = now;
     const state = this.stateValue;
@@ -216,11 +222,9 @@ export class NetMatchSource implements MatchSource {
         const predicted = this.predictor.pose(this.predictHandle);
         const authoritative = position(wire.x, wire.y);
         const serverVelocity = { x: wire.vx / VEL_SCALE, y: wire.vy / VEL_SCALE };
-        if (
-          wire.status !== 0
-          || Math.abs(predicted.x - authoritative.x) > 24
-          || Math.abs(predicted.y - authoritative.y) > 24
-        ) {
+        const error = Math.hypot(predicted.x - authoritative.x, predicted.y - authoritative.y);
+        netStats.lastErrorPx = error;
+        if (wire.status !== 0 || error > 24) {
           this.predictor.reconcile(this.predictHandle, {
             x: authoritative.x,
             y: authoritative.y,
@@ -231,11 +235,13 @@ export class NetMatchSource implements MatchSource {
             jumps: (wire.flags >> 1) & 0b11,
             dropRemaining: 0,
           });
+          netStats.reconciles += 1;
         } else if (
           Math.abs(predicted.vx - serverVelocity.x) > 40
           || Math.abs(predicted.vy - serverVelocity.y) > 40
         ) {
           this.predictor.setVelocity(this.predictHandle, serverVelocity.x, serverVelocity.y);
+          netStats.velocityAdoptions += 1;
         }
       }
     }
@@ -337,6 +343,13 @@ export class NetMatchSource implements MatchSource {
       (input.dropPressed ? EDGE_DROP : 0) |
       (input.bombPressed ? EDGE_BOMB : 0) |
       (input.reloadPressed ? EDGE_RELOAD : 0);
+    // A press lasts one rendered frame, but a frame does not always advance the fixed step
+    // clock (100/144 Hz displays run 0 steps on ~40 % of frames). Dropping the pulse there
+    // is what made jumps — especially the second jump of a double jump — feel swallowed.
+    this.pendingEdges |= edges;
+    if (this.pendingEdges !== edges) {
+      netStats.bufferedEdges += 1;
+    }
 
     const canPredict = this.predictor !== null
       && this.predictHandle !== null
@@ -354,34 +367,38 @@ export class NetMatchSource implements MatchSource {
       this.stepAccumulator + Math.min(Math.max(elapsed, 0), MAX_CATCH_UP),
       MAX_CATCH_UP,
     );
-    let first = true;
     let previousStep: { x: number; y: number } | null = null;
     let lastPose: PredictedPose | null = null;
     while (this.stepAccumulator >= FIXED_STEP) {
       this.stepAccumulator -= FIXED_STEP;
       this.seq += 1;
+      // Every edge that arrived since the previous step rides on this one, so nothing is
+      // lost when a frame advances two steps or none.
+      const frameEdges = this.pendingEdges;
+      this.pendingEdges = 0;
       this.client.sendInput([{
         seq: this.seq,
         tickHint: 0,
         moveX: input.moveX,
         held: input.shootHeld ? HELD_FIRE : 0,
-        edges: first ? edges : 0,
+        edges: frameEdges,
       }]);
+      netStats.inputFrames += 1;
       if (canPredict) {
         this.predictor!.step(this.predictHandle!, {
           moveX: input.moveX,
-          jump: first && input.jumpPressed,
-          drop: first && input.dropPressed,
+          jump: (frameEdges & EDGE_JUMP) !== 0,
+          drop: (frameEdges & EDGE_DROP) !== 0,
           fire: input.shootHeld,
-          bomb: first && input.bombPressed,
-          reload: first && input.reloadPressed,
+          bomb: (frameEdges & EDGE_BOMB) !== 0,
+          reload: (frameEdges & EDGE_RELOAD) !== 0,
         });
+        netStats.steps += 1;
         previousStep = this.lastStepPose;
         const pose = this.predictor!.pose(this.predictHandle!);
         this.lastStepPose = { x: pose.x, y: pose.y };
         lastPose = pose;
       }
-      first = false;
     }
 
     if (canPredict) {

@@ -10,6 +10,7 @@ import { ArenaRenderer } from '../presentation/ArenaRenderer';
 import { FieldLayer } from '../presentation/FieldLayer';
 import { WeaponLayer } from '../presentation/WeaponLayer';
 import { NetMatchSource } from '../net/NetMatchSource';
+import { netStats } from '../net/NetStats';
 import type { SoundEffects } from '../presentation/SoundEffects';
 
 export interface ArenaCallbacks {
@@ -120,6 +121,7 @@ export class ArenaScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (this.online) {
       const source = this.online;
+      netStats.frames += 1;
       this.keyboard.enabled = source.state.phase === 'playing';
       const events = source.advance(delta, (slot) => this.keyboard.sample(slot));
       this.arenaView.handle(events);
