@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
 use gunbrawl_content::Content;
-use gunbrawl_proto::{decode, encode, C2S, S2C, PROTO_VERSION};
+use gunbrawl_proto::{decode, encode, C2S, PROTO_VERSION, S2C};
 use tokio::time::interval;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -38,7 +38,13 @@ impl Stats {
         self.gap_max_us.fetch_max(us, Ordering::Relaxed);
     }
 
-    fn report(&self, rooms: usize, players: usize, elapsed: Duration, ticks_per_second: Option<f64>) {
+    fn report(
+        &self,
+        rooms: usize,
+        players: usize,
+        elapsed: Duration,
+        ticks_per_second: Option<f64>,
+    ) {
         let seconds = elapsed.as_secs_f64();
         let connections = self.connections.load(Ordering::Relaxed);
         let failures = self.failures.load(Ordering::Relaxed);
@@ -240,7 +246,10 @@ async fn spawn_room(
             Ok(mut guest) => {
                 stats.connections.fetch_add(1, Ordering::Relaxed);
                 if guest
-                    .send(&C2S::JoinRoom { code: code.clone(), name })
+                    .send(&C2S::JoinRoom {
+                        code: code.clone(),
+                        name,
+                    })
                     .await
                     .is_ok()
                 {
@@ -322,9 +331,7 @@ async fn main() {
 
     let ticks_before = fetch_ticks(&metrics_url).await.unwrap_or(0);
     let started = Instant::now();
-    println!(
-        "starting: {rooms} rooms x {players} players for {seconds:.0}s against {url}",
-    );
+    println!("starting: {rooms} rooms x {players} players for {seconds:.0}s against {url}",);
 
     let mut handles = Vec::new();
     for index in 0..rooms {

@@ -86,7 +86,10 @@ pub struct PersistStats {
 }
 
 /// Latest matches with their score table, newest first.
-pub async fn recent_matches(pool: &SqlitePool, limit: i64) -> Result<Vec<MatchSummary>, sqlx::Error> {
+pub async fn recent_matches(
+    pool: &SqlitePool,
+    limit: i64,
+) -> Result<Vec<MatchSummary>, sqlx::Error> {
     let rows = sqlx::query(
         "SELECT m.id, m.code, m.map, m.mode, m.started_at, m.ended_at, m.winner,
                 p.slot, p.name, p.bot, p.stocks, p.kos, p.falls
@@ -131,9 +134,12 @@ pub async fn recent_matches(pool: &SqlitePool, limit: i64) -> Result<Vec<MatchSu
 
 /// Totals for a small "how much has this server seen" panel.
 pub async fn stats(pool: &SqlitePool) -> Result<PersistStats, sqlx::Error> {
-    let matches: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM matches").fetch_one(pool).await?;
-    let players: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM match_players").fetch_one(pool).await?;
+    let matches: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM matches")
+        .fetch_one(pool)
+        .await?;
+    let players: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM match_players")
+        .fetch_one(pool)
+        .await?;
     let last: (Option<i64>,) = sqlx::query_as("SELECT MAX(ended_at) FROM matches")
         .fetch_one(pool)
         .await?;

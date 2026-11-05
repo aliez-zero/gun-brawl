@@ -177,14 +177,13 @@ pub async fn ensure_admin(pool: Option<&SqlitePool>, state: &AdminState) {
         warn!("could not hash the admin password; console login disabled");
         return;
     };
-    if let Err(error) = sqlx::query(
-        "INSERT INTO admins (username, password_hash, created_at) VALUES (?, ?, ?)",
-    )
-    .bind(&username)
-    .bind(&hash)
-    .bind(now_ms())
-    .execute(pool)
-    .await
+    if let Err(error) =
+        sqlx::query("INSERT INTO admins (username, password_hash, created_at) VALUES (?, ?, ?)")
+            .bind(&username)
+            .bind(&hash)
+            .bind(now_ms())
+            .execute(pool)
+            .await
     {
         warn!(%error, "could not create the admin account");
         return;
@@ -213,7 +212,9 @@ pub async fn ensure_admin(pool: Option<&SqlitePool>, state: &AdminState) {
             }
             info!(path = %state.credentials_path.display(), "admin account created, credentials written");
         }
-        Err(error) => warn!(%error, path = %state.credentials_path.display(), "could not write admin credentials"),
+        Err(error) => {
+            warn!(%error, path = %state.credentials_path.display(), "could not write admin credentials")
+        }
     }
 }
 
@@ -340,10 +341,7 @@ fn login_failed(message: &str, status: StatusCode) -> Response {
     (status, Html(shell("登录", None, &body))).into_response()
 }
 
-pub async fn login_submit(
-    State(state): State<AppState>,
-    Form(form): Form<LoginForm>,
-) -> Response {
+pub async fn login_submit(State(state): State<AppState>, Form(form): Form<LoginForm>) -> Response {
     {
         let mut attempts = match state.admin.attempts.lock() {
             Ok(attempts) => attempts,
@@ -356,12 +354,18 @@ pub async fn login_submit(
             }
         }
         if attempts.failures >= MAX_FAILURES {
-            return login_failed("尝试次数过多，请五分钟后再试", StatusCode::TOO_MANY_REQUESTS);
+            return login_failed(
+                "尝试次数过多，请五分钟后再试",
+                StatusCode::TOO_MANY_REQUESTS,
+            );
         }
     }
 
     let Some(pool) = state.persist.pool() else {
-        return login_failed("服务端没有可用数据库，后台不可用", StatusCode::SERVICE_UNAVAILABLE);
+        return login_failed(
+            "服务端没有可用数据库，后台不可用",
+            StatusCode::SERVICE_UNAVAILABLE,
+        );
     };
     let row: Option<(String,)> =
         sqlx::query_as("SELECT password_hash FROM admins WHERE username = ?")
@@ -404,7 +408,10 @@ pub async fn login_submit(
     );
     (
         StatusCode::SEE_OTHER,
-        [(header::SET_COOKIE, cookie), (header::LOCATION, "/admin".to_string())],
+        [
+            (header::SET_COOKIE, cookie),
+            (header::LOCATION, "/admin".to_string()),
+        ],
     )
         .into_response()
 }
@@ -431,8 +438,9 @@ pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Respon
 /// `Response` is a large type, but every admin handler needs to return one on rejection.
 #[allow(clippy::result_large_err)]
 fn require_user(state: &AppState, headers: &HeaderMap) -> Result<String, Response> {
-    session_user(&state.admin, headers)
-        .ok_or_else(|| (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/login")]).into_response())
+    session_user(&state.admin, headers).ok_or_else(|| {
+        (StatusCode::SEE_OTHER, [(header::LOCATION, "/admin/login")]).into_response()
+    })
 }
 
 pub async fn dashboard(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -452,7 +460,11 @@ pub async fn dashboard(State(state): State<AppState>, headers: HeaderMap) -> Res
         .maps
         .iter()
         .map(|map| {
-            let selected = if settings.map_override == map.id { " selected" } else { "" };
+            let selected = if settings.map_override == map.id {
+                " selected"
+            } else {
+                ""
+            };
             format!(
                 r#"<option value="{}"{}>{}</option>"#,
                 esc(&map.id),
@@ -470,7 +482,11 @@ pub async fn dashboard(State(state): State<AppState>, headers: HeaderMap) -> Res
     ]
     .iter()
     .map(|(value, label)| {
-        let selected = if settings.drop_mode_override == *value { " selected" } else { "" };
+        let selected = if settings.drop_mode_override == *value {
+            " selected"
+        } else {
+            ""
+        };
         format!(r#"<option value="{value}"{selected}>{label}</option>"#)
     })
     .collect::<String>();
@@ -478,7 +494,11 @@ pub async fn dashboard(State(state): State<AppState>, headers: HeaderMap) -> Res
     let difficulty_options = [("0", "简单"), ("1", "普通"), ("2", "困难")]
         .iter()
         .map(|(value, label)| {
-            let selected = if settings.bot_difficulty.to_string() == *value { " selected" } else { "" };
+            let selected = if settings.bot_difficulty.to_string() == *value {
+                " selected"
+            } else {
+                ""
+            };
             format!(r#"<option value="{value}"{selected}>{label}</option>"#)
         })
         .collect::<String>();
@@ -541,7 +561,11 @@ pub async fn dashboard(State(state): State<AppState>, headers: HeaderMap) -> Res
         duration = settings.duration_override,
         knockback = format!("{:.2}", settings.knockback_scale),
         maps = maps,
-        map_none = if settings.map_override.is_empty() { " selected" } else { "" },
+        map_none = if settings.map_override.is_empty() {
+            " selected"
+        } else {
+            ""
+        },
         drop_options = drop_options,
         difficulty_options = difficulty_options,
         bot_fill = if settings.bot_fill { " checked" } else { "" },
@@ -550,7 +574,12 @@ pub async fn dashboard(State(state): State<AppState>, headers: HeaderMap) -> Res
     );
 
     let notice = "";
-    Html(shell("游戏配置", Some(&user), &body.replace("{notice}", notice))).into_response()
+    Html(shell(
+        "游戏配置",
+        Some(&user),
+        &body.replace("{notice}", notice),
+    ))
+    .into_response()
 }
 
 #[derive(Deserialize)]
@@ -649,7 +678,11 @@ pub async fn rooms_page(State(state): State<AppState>, headers: HeaderMap) -> Re
                     phase = phase,
                     stocks = room.stocks,
                     duration = room.duration,
-                    slots = if slots.is_empty() { "—".to_string() } else { slots },
+                    slots = if slots.is_empty() {
+                        "—".to_string()
+                    } else {
+                        slots
+                    },
                 )
             })
             .collect::<String>()
@@ -746,5 +779,3 @@ pub async fn weapons_page(State(state): State<AppState>, headers: HeaderMap) -> 
     );
     Html(shell("武器", Some(&user), &body)).into_response()
 }
-
-

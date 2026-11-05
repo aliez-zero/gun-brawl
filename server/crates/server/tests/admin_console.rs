@@ -9,7 +9,12 @@ use tower::ServiceExt;
 const PASSWORD: &str = "test-password-123";
 
 async fn body_text(response: axum::response::Response) -> String {
-    let bytes = response.into_body().collect().await.expect("body").to_bytes();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
     String::from_utf8(bytes.to_vec()).expect("utf8")
 }
 
@@ -44,7 +49,10 @@ async fn seeded_state() -> AppState {
     let state = AppState::new("web/dist");
     assert!(persist::init(state.persist(), ":memory:").await);
     admin::ensure_admin(state.persist().pool().as_ref(), &state.admin_state()).await;
-    assert!(credentials.exists(), "bootstrap credentials should be written");
+    assert!(
+        credentials.exists(),
+        "bootstrap credentials should be written"
+    );
     state
 }
 
@@ -61,13 +69,19 @@ async fn the_console_is_closed_without_a_session() {
             .expect("response");
         assert_eq!(response.status(), StatusCode::SEE_OTHER, "{path}");
         assert_eq!(
-            response.headers().get(header::LOCATION).and_then(|v| v.to_str().ok()),
+            response
+                .headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
             Some("/admin/login"),
             "{path}",
         );
     }
 
-    let login_page = app.oneshot(get("/admin/login", None)).await.expect("login page");
+    let login_page = app
+        .oneshot(get("/admin/login", None))
+        .await
+        .expect("login page");
     assert_eq!(login_page.status(), StatusCode::OK);
     assert!(body_text(login_page).await.contains("管理员登录"));
 }
@@ -190,7 +204,10 @@ async fn the_weapon_reference_lists_the_content_pack() {
         .expect("weapons page");
     assert_eq!(page.status(), StatusCode::OK);
     let body = body_text(page).await;
-    assert!(body.contains(&format!("共 {} 把", state.content().weapons.len())), "count line");
+    assert!(
+        body.contains(&format!("共 {} 把", state.content().weapons.len())),
+        "count line"
+    );
     let first = &state.content().weapons[0];
     assert!(body.contains(&first.name), "should list {}", first.name);
 }

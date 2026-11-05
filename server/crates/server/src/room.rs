@@ -860,7 +860,9 @@ impl Room {
             .slots
             .iter()
             .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)?;
-        self.actor_slots.iter().position(|index| *index == slot_index)
+        self.actor_slots
+            .iter()
+            .position(|index| *index == slot_index)
     }
 
     fn hand_off_to_bot(&mut self, player: u32) {
@@ -1025,7 +1027,13 @@ mod tests {
     }
 
     fn frame(seq: u32, move_x: i8, edges: u8) -> InputFrame {
-        InputFrame { seq, tick_hint: 0, move_x, held: 0, edges }
+        InputFrame {
+            seq,
+            tick_hint: 0,
+            move_x,
+            held: 0,
+            edges,
+        }
     }
 
     #[test]
@@ -1040,7 +1048,10 @@ mod tests {
         // Newest state wins, but presses from the skipped frames are not dropped.
         assert_eq!(applied.seq, 3);
         assert_eq!(applied.move_x, -1);
-        assert_eq!(applied.edges, gunbrawl_proto::EDGE_JUMP | gunbrawl_proto::EDGE_BOMB);
+        assert_eq!(
+            applied.edges,
+            gunbrawl_proto::EDGE_JUMP | gunbrawl_proto::EDGE_BOMB
+        );
         assert!(queue.frames.len() <= 1, "the backlog should be gone");
     }
 
@@ -1070,7 +1081,10 @@ mod tests {
         let mut room = test_room();
         let (tx, _rx) = mpsc::unbounded_channel();
         room.handle(Command::Join {
-            player: Player { id: 7, name: "p".to_string() },
+            player: Player {
+                id: 7,
+                name: "p".to_string(),
+            },
             sender: tx,
         });
         room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
@@ -1083,18 +1097,28 @@ mod tests {
         let mut room = test_room();
         let (tx, _rx) = mpsc::unbounded_channel();
         room.handle(Command::Join {
-            player: Player { id: 7, name: "p".to_string() },
+            player: Player {
+                id: 7,
+                name: "p".to_string(),
+            },
             sender: tx,
         });
         room.handle(Command::Disconnect { player: 7 });
         assert!(room.slots.iter().any(|slot| slot.player == 7));
-        assert!(!room.should_close(), "the grace period must outlive the disconnect");
+        assert!(
+            !room.should_close(),
+            "the grace period must outlive the disconnect"
+        );
 
-        room.missing.insert(7, Instant::now() - RECONNECT_GRACE - Duration::from_secs(1));
+        room.missing
+            .insert(7, Instant::now() - RECONNECT_GRACE - Duration::from_secs(1));
         room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
         room.step();
 
-        assert!(!room.slots.iter().any(|slot| slot.player == 7), "slot should be freed");
+        assert!(
+            !room.slots.iter().any(|slot| slot.player == 7),
+            "slot should be freed"
+        );
         assert!(room.should_close());
     }
 
@@ -1119,10 +1143,18 @@ mod tests {
         room.config.duration = 1;
         let (tx, _rx) = mpsc::unbounded_channel();
         room.handle(Command::Join {
-            player: Player { id: 1, name: "a".to_string() },
+            player: Player {
+                id: 1,
+                name: "a".to_string(),
+            },
             sender: tx,
         });
-        room.handle(Command::PickSlot { player: 1, slot: 1, kind: SLOT_BOT, difficulty: 1 });
+        room.handle(Command::PickSlot {
+            player: 1,
+            slot: 1,
+            kind: SLOT_BOT,
+            difficulty: 1,
+        });
         room.handle(Command::Start { player: 1 });
         assert_eq!(room.phase, PHASE_COUNTDOWN, "the match should have started");
 
@@ -1145,10 +1177,18 @@ mod tests {
         let (tx, rx) = mpsc::unbounded_channel();
         std::mem::forget(rx); // keep the seat connected for the whole test
         room.handle(Command::Join {
-            player: Player { id: 1, name: "human".to_string() },
+            player: Player {
+                id: 1,
+                name: "human".to_string(),
+            },
             sender: tx,
         });
-        room.handle(Command::PickSlot { player: 1, slot: 1, kind: SLOT_BOT, difficulty: 1 });
+        room.handle(Command::PickSlot {
+            player: 1,
+            slot: 1,
+            kind: SLOT_BOT,
+            difficulty: 1,
+        });
         room.handle(Command::Start { player: 1 });
         for _ in 0..200 {
             room.step(); // past the three second countdown
@@ -1157,7 +1197,12 @@ mod tests {
     }
 
     fn actor(room: &Room, index: usize) -> (ActorStatus, gunbrawl_core::types::Vec2) {
-        let actor = &room.simulation.as_ref().expect("match running").state.actors[index];
+        let actor = &room
+            .simulation
+            .as_ref()
+            .expect("match running")
+            .state
+            .actors[index];
         (actor.status, actor.position)
     }
 
@@ -1188,10 +1233,18 @@ mod tests {
         let (tx, rx) = mpsc::unbounded_channel();
         std::mem::forget(rx);
         room.handle(Command::Join {
-            player: Player { id: 1, name: "gone".to_string() },
+            player: Player {
+                id: 1,
+                name: "gone".to_string(),
+            },
             sender: tx,
         });
-        room.handle(Command::PickSlot { player: 1, slot: 1, kind: SLOT_BOT, difficulty: 1 });
+        room.handle(Command::PickSlot {
+            player: 1,
+            slot: 1,
+            kind: SLOT_BOT,
+            difficulty: 1,
+        });
         room.handle(Command::Start { player: 1 });
 
         // The human drops right after kickoff; the takeover bot plays the match out.
@@ -1202,7 +1255,10 @@ mod tests {
             room.step();
         }
 
-        assert_eq!(room.phase, PHASE_RESULT, "the match should still have finished");
+        assert_eq!(
+            room.phase, PHASE_RESULT,
+            "the match should still have finished"
+        );
         assert_eq!(
             room.metrics.matches.load(Ordering::Relaxed),
             0,
@@ -1211,14 +1267,18 @@ mod tests {
     }
 
     #[test]
-    fn reconnecting_takes_control_back_from_the_bot() {        let mut room = playing_room();
+    fn reconnecting_takes_control_back_from_the_bot() {
+        let mut room = playing_room();
         room.handle(Command::Disconnect { player: 1 });
         assert!(room.bots[0].is_some());
 
         let (tx, rx) = mpsc::unbounded_channel();
         std::mem::forget(rx);
         room.handle(Command::Resume {
-            player: Player { id: 1, name: "human".to_string() },
+            player: Player {
+                id: 1,
+                name: "human".to_string(),
+            },
             sender: tx,
         });
         assert!(room.bots[0].is_none(), "the human owns the seat again");
@@ -1232,7 +1292,10 @@ mod tests {
             let (tx, rx) = mpsc::unbounded_channel();
             std::mem::forget(rx);
             room.handle(Command::Join {
-                player: Player { id, name: name.to_string() },
+                player: Player {
+                    id,
+                    name: name.to_string(),
+                },
                 sender: tx,
             });
         }
@@ -1247,7 +1310,14 @@ mod tests {
         room.step();
 
         let (status, _) = actor(&room, 1);
-        assert_eq!(status, ActorStatus::Eliminated, "no ghost actors in the arena");
-        assert!(room.slots.iter().all(|slot| slot.player != 2), "the seat is released");
+        assert_eq!(
+            status,
+            ActorStatus::Eliminated,
+            "no ghost actors in the arena"
+        );
+        assert!(
+            room.slots.iter().all(|slot| slot.player != 2),
+            "the seat is released"
+        );
     }
 }

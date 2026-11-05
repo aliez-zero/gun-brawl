@@ -10,7 +10,12 @@ use http_body_util::BodyExt;
 use tower::ServiceExt;
 
 async fn body_text(response: axum::response::Response) -> String {
-    let bytes = response.into_body().collect().await.expect("body").to_bytes();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("body")
+        .to_bytes();
     String::from_utf8(bytes.to_vec()).expect("utf8")
 }
 

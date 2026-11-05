@@ -67,8 +67,8 @@ impl AppState {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|_| {
                 // Default next to the database so it lands on the persistent volume.
-                let database = std::env::var("GUNBRAWL_DB")
-                    .unwrap_or_else(|_| "gunbrawl.db".to_owned());
+                let database =
+                    std::env::var("GUNBRAWL_DB").unwrap_or_else(|_| "gunbrawl.db".to_owned());
                 std::path::PathBuf::from(database).with_file_name("admin-credentials.txt")
             });
         Self {
@@ -167,10 +167,10 @@ async fn matches_handler(
     State(state): State<AppState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<persist::MatchSummary>>, (StatusCode, String)> {
-    let pool = state
-        .persist
-        .pool()
-        .ok_or((StatusCode::SERVICE_UNAVAILABLE, "persistence disabled".to_string()))?;
+    let pool = state.persist.pool().ok_or((
+        StatusCode::SERVICE_UNAVAILABLE,
+        "persistence disabled".to_string(),
+    ))?;
     let limit = params
         .get("limit")
         .and_then(|value| value.parse::<i64>().ok())
@@ -185,10 +185,10 @@ async fn matches_handler(
 async fn stats_handler(
     State(state): State<AppState>,
 ) -> Result<Json<persist::PersistStats>, (StatusCode, String)> {
-    let pool = state
-        .persist
-        .pool()
-        .ok_or((StatusCode::SERVICE_UNAVAILABLE, "persistence disabled".to_string()))?;
+    let pool = state.persist.pool().ok_or((
+        StatusCode::SERVICE_UNAVAILABLE,
+        "persistence disabled".to_string(),
+    ))?;
     persist::stats(&pool)
         .await
         .map(Json)
