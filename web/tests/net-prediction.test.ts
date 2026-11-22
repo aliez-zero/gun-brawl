@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NetMatchSource } from '../src/net/NetMatchSource';
 import { idleInput } from '../src/game/core/types';
 import type { NetClient } from '../src/net/NetClient';
-import type { Predictor } from '../src/net/Predictor';
+import type { PredictedPose, Predictor } from '../src/net/Predictor';
 import { PHASE_PLAYING, SLOT_BOT, SLOT_EMPTY, SLOT_HUMAN, EDGE_JUMP } from '../src/net/protocol';
 import type { RoomView, Snapshot } from '../src/net/protocol';
 
@@ -25,16 +25,17 @@ const room: RoomView = {
 
 function actorSnap(x = 640, y = 300, vx = 0) {
   return {
-    id: 0, x: x * 16, y: y * 16, vx, vy: 0,
+    id: 0, x: x * 16, y: y * 16, vx, vy: 0, impulseX: 0, impulseY: 0,
     facing: 1, flags: 1, status: 0, stocks: 3, weapon: 0, ammo: 255, reserve: 0,
     fireCd: 0, reload: 0, protection: 0, respawn: 0,
+    groundedPlatform: 0, dropPlatform: 255, dropTimer: 0, coyoteTimer: 0, jumpTimer: 0,
   };
 }
 
 function snapshot(x = 640, y = 300, vx = 0): Snapshot {
   return {
     tick: 1, serverMs: 1000, phase: PHASE_PLAYING, remainingMs: 180_000, acks: [0, 0, 0, 0],
-    actors: [actorSnap(x, y, vx), actorSnap(700, y)],
+    actors: [actorSnap(x, y, vx), { ...actorSnap(700, y), id: 1 }],
     projectiles: [], bombs: [], drops: [], events: [],
   };
 }
@@ -55,30 +56,36 @@ function fakeClient(): NetClient & { sends: number; frames: { edges: number; seq
 function fakePredictor(): Predictor & {
   steps: number;
   poseX: number;
-  velocities: number[];
   jumps: boolean[];
 } {
+  let pose: PredictedPose = {
+    x: 640, y: 300, vx: 0, vy: 0, impulseX: 0, impulseY: 0,
+    facing: 1, grounded: 1, jumps: 2, dropRemaining: 0,
+  };
   const fake = {
     steps: 0,
-    poseX: 640,
-    velocities: [] as number[],
+    get poseX() { return pose.x; },
     jumps: [] as boolean[],
     mapIndex: () => 0,
     create: () => 1,
     step: (_handle: number, input: { jump: boolean }) => {
       fake.steps += 1;
       fake.jumps.push(input.jump);
-      fake.poseX += 0.1;
+      pose.x += 0.1;
+      if (input.jump) {
+        pose.y -= 11.5;
+        pose.vy = -690;
+      }
     },
-    pose: () => ({ x: fake.poseX, y: 300, vx: 0, vy: 0, facing: 1, grounded: 1, jumps: 2, dropRemaining: 0 }),
-    reconcile: () => {},
-    setVelocity: (_handle: number, vx: number) => { fake.velocities.push(vx); },
+    pose: () => ({ ...pose }),
+    reconcile: (_handle: number, value: Parameters<Predictor['reconcile']>[1]) => {
+      pose = { ...value, dropRemaining: 0 };
+    },
     destroy: () => {},
   };
   return fake as unknown as Predictor & {
     steps: number;
     poseX: number;
-    velocities: number[];
     jumps: boolean[];
   };
 }
@@ -108,6 +115,12 @@ function setUp() {
   return { client, predictor, source };
 }
 
+function renderedX(source: NetMatchSource): number {
+  const actor = source.state.actors[source.localActor!]!;
+  const alpha = source.localAlpha!;
+  return actor.previous.x + (actor.position.x - actor.previous.x) * alpha + source.localOffset!.x;
+}
+
 describe('NetMatchSource fixed-step prediction', () => {
   it('simulates ~60 steps per second at 144 Hz instead of one step per frame', () => {
     const { client, predictor, source } = setUp();
@@ -133,16 +146,19 @@ describe('NetMatchSource fixed-step prediction', () => {
   });
 
   it('adopts server knockback without teleporting the actor', () => {
-    const { predictor, source } = setUp();
+    const { client, predictor, source } = setUp();
     runFrames(source, 60, 30);
-    const before = { ...source.state.actors[0]!.position };
+    const before = renderedX(source);
+    const next = snapshot(600, 300);
+    next.tick = 3;
+    next.acks[0] = client.frames.at(-1)!.seq;
+    next.actors[0]!.impulseX = 400 * 8;
+    source.applySnapshot(next);
 
-    // Same position (so no snap), but the server says the actor is now flying at 400 px/s:
-    // that is a hit, and the prediction has to pick the velocity up.
-    source.applySnapshot(snapshot(640, 300, 400 * 8));
-
-    expect(predictor.velocities).toEqual([400]);
-    expect(source.state.actors[0]!.position.x).toBeCloseTo(before.x, 5);
+    expect(predictor.pose(1).impulseX).toBe(400);
+    expect(predictor.pose(1).vx).toBe(0);
+    expect(source.state.actors[0]!.position.x).toBe(600);
+    expect(renderedX(source)).toBeCloseTo(before, 5);
   });
 
   it('delivers a jump that lands on a frame which advances no step', () => {
@@ -189,17 +205,74 @@ describe('NetMatchSource fixed-step prediction', () => {
     expect(source.localAlpha).toBeLessThan(1);
   });
 
-  it('does not yank the predicted actor back when a snapshot arrives', () => {
-    const { predictor, source } = setUp();
-    runFrames(source, 60, 30);
-    const predicted = { ...source.state.actors[0]!.position };
-    expect(predicted.x).toBeCloseTo(predictor.poseX, 5);
+  it('replays an unacknowledged jump using the room slot rather than the actor index', () => {
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const client = fakeClient();
+    const predictor = fakePredictor();
+    const source = new NetMatchSource(client, {
+      ...room, slots: [room.slots[1]!, room.slots[2]!, room.slots[0]!, room.slots[3]!],
+    }, predictor);
+    source.applySnapshot(snapshot());
+    runFrames(source, 100, 1);
+    clock += 17;
+    source.advance(17, () => ({ ...idleInput(), jumpPressed: true }));
+    const jumpSeq = client.frames[0]!.seq;
+    expect(predictor.pose(1).vy).toBe(-690);
 
-    // The server still believes the player is far behind; the renderer keeps the prediction.
-    source.applySnapshot(snapshot(400, 300));
-    expect(source.state.actors[0]!.position.x).toBeCloseTo(predicted.x, 5);
+    const stillGrounded = snapshot();
+    stillGrounded.tick = 3;
+    stillGrounded.acks[1] = jumpSeq; // an unrelated slot
+    source.applySnapshot(stillGrounded);
+    expect(predictor.pose(1).vy).toBe(-690);
+    expect(source.state.actors[1]!.position.y).toBe(288.5);
 
-    // Remote actors still follow the authoritative snapshot.
-    expect(source.state.actors[1]!.position.x).toBeCloseTo(700, 5);
+    const confirmed = snapshot(640, 288.5);
+    confirmed.tick = 5;
+    confirmed.acks[2] = jumpSeq;
+    confirmed.actors[1]!.vy = -690 * 8;
+    source.applySnapshot(confirmed);
+    expect(predictor.jumps.filter(Boolean)).toHaveLength(2); // initial and one replay
+    expect(source.state.actors[1]!.position.y).toBe(288.5);
+  });
+});
+
+describe('NetMatchSource remote playback', () => {
+  it('keeps remote actors, projectiles and bombs moving across a late snapshot', () => {
+    vi.spyOn(performance, 'now').mockImplementation(() => clock);
+    const source = new NetMatchSource(fakeClient(), room);
+    const step = 1000 / 60;
+    const send = (tick: number) => {
+      const next = snapshot();
+      next.tick = tick;
+      next.actors[1] = { ...actorSnap(700 + tick * 5, 300, 300 * 8), id: 1 };
+      next.projectiles = [{ id: 3, owner: 1, weapon: 0, x: (720 + tick * 10) * 16, y: 4800, vx: 600 * 8, vy: 0 }];
+      next.bombs = [{ id: 5, owner: 1, x: (740 + tick * 5) * 16, y: 4800 }];
+      source.applySnapshot(next);
+    };
+    const positions = () => [source.state.actors[1]!, source.state.projectiles[0]!, source.state.bombs[0]!]
+      .map(({ previous, position }) => previous.x + (position.x - previous.x) * source.alpha);
+
+    clock = 1000;
+    send(0);
+    source.advance(step, idleInput);
+    for (let tick = 1; tick <= 14; tick++) {
+      clock += step;
+      if (tick <= 12 && tick % 2 === 0) send(tick);
+      source.advance(step, idleInput);
+    }
+    const beforeLateFrame = positions(); // already one snapshot interval since tick 12 arrived
+    clock += step;
+    source.advance(step, idleInput);
+    expect(positions().every((position, index) => position > beforeLateFrame[index]!)).toBe(true);
+    expect(source.state.actors[1]!.moveVelocity).toBe(300);
+
+    for (let tick = 0; tick < 12; tick++) {
+      clock += step;
+      source.advance(step, idleInput);
+    }
+    const staleFrame = positions();
+    clock += step;
+    source.advance(step, idleInput);
+    expect(positions()).toEqual(staleFrame); // extrapolation is bounded if packets stop
   });
 });

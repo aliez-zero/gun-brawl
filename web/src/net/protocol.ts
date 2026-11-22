@@ -1,12 +1,12 @@
 /**
- * Wire protocol v2, mirroring `server/crates/proto`.
+ * Wire protocol v3, mirroring `server/crates/proto`.
  *
  * Enum variant indices must match the Rust definitions exactly; the Rust side
  * is the source of truth and its tests pin the layout.
  */
 import { Reader, Writer } from './postcard';
 
-export const PROTO_VERSION = 2;
+export const PROTO_VERSION = 3;
 
 export const SLOT_EMPTY = 0;
 export const SLOT_HUMAN = 1;
@@ -69,6 +69,8 @@ export interface ActorSnap {
   y: number;
   vx: number;
   vy: number;
+  impulseX: number;
+  impulseY: number;
   facing: number;
   flags: number;
   status: number;
@@ -80,6 +82,11 @@ export interface ActorSnap {
   reload: number;
   protection: number;
   respawn: number;
+  groundedPlatform: number;
+  dropPlatform: number;
+  dropTimer: number;
+  coyoteTimer: number;
+  jumpTimer: number;
 }
 
 export interface ProjectileSnap {
@@ -231,6 +238,8 @@ function readActor(reader: Reader): ActorSnap {
     y: reader.zigzag(),
     vx: reader.zigzag(),
     vy: reader.zigzag(),
+    impulseX: reader.zigzag(),
+    impulseY: reader.zigzag(),
     facing: reader.i8(),
     flags: reader.u8(),
     status: reader.u8(),
@@ -242,6 +251,11 @@ function readActor(reader: Reader): ActorSnap {
     reload: reader.u8(),
     protection: reader.u8(),
     respawn: reader.u8(),
+    groundedPlatform: reader.u8(),
+    dropPlatform: reader.u8(),
+    dropTimer: reader.u8(),
+    coyoteTimer: reader.u8(),
+    jumpTimer: reader.u8(),
   };
 }
 

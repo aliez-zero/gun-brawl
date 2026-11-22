@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Bumped whenever the message layout or its meaning changes. The server
 /// rejects `Hello` with any other value.
-pub const PROTO_VERSION: u16 = 2;
+pub const PROTO_VERSION: u16 = 3;
 
 /// One sampled input frame.
 ///
@@ -206,7 +206,7 @@ pub fn dequantize_vel(value: i16) -> f32 {
     value as f32 / VEL_SCALE
 }
 
-/// One actor, 17 fields, roughly 22-26 bytes on the wire.
+/// Authoritative actor state for rendering and movement replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActorSnap {
     pub id: u8,
@@ -214,6 +214,8 @@ pub struct ActorSnap {
     pub y: i32,
     pub vx: i16,
     pub vy: i16,
+    pub impulse_x: i16,
+    pub impulse_y: i16,
     pub facing: i8,
     /// bit0 grounded, bit1-2 jumps remaining.
     pub flags: u8,
@@ -230,6 +232,13 @@ pub struct ActorSnap {
     pub protection: u8,
     /// Deciseconds until respawn.
     pub respawn: u8,
+    /// Platform IDs, with 255 representing no platform.
+    pub grounded_platform: u8,
+    pub drop_platform: u8,
+    /// Movement timers encode elapsed fixed steps plus one. Zero means inactive.
+    pub drop_timer: u8,
+    pub coyote_timer: u8,
+    pub jump_timer: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -374,6 +383,8 @@ mod tests {
             y: -320,
             vx: 240,
             vy: -160,
+            impulse_x: 480,
+            impulse_y: -320,
             facing: 1,
             flags: 0b1011,
             status: 0,
@@ -385,6 +396,11 @@ mod tests {
             reload: 0,
             protection: 0,
             respawn: 0,
+            grounded_platform: 4,
+            drop_platform: u8::MAX,
+            drop_timer: 0,
+            coyote_timer: 2,
+            jump_timer: 0,
         };
         Snapshot {
             tick: 12_345,

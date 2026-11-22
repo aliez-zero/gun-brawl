@@ -11,6 +11,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use bytes::Bytes;
 use gunbrawl_bot::BotController;
 use gunbrawl_content::Content;
+use gunbrawl_core::constants::MOVEMENT;
 use gunbrawl_core::types::{
     ActorConfig, ActorInput, ActorStatus, BattleEvent, Control, Difficulty, DropMode, DropState,
     GameMode, InputTable, MatchConfig, MatchPhase,
@@ -186,6 +187,8 @@ pub struct Room {
     missing: HashMap<u32, Instant>,
     /// Last encoded snapshot, replayed to a reconnecting client.
     last_snapshot: Option<Bytes>,
+    /// Events from all simulation ticks since the previous snapshot.
+    pending_events: Vec<EventSnap>,
     phase: u8,
     simulation: Option<Simulation>,
     /// Actor index -> slot index for the running match.
@@ -249,6 +252,7 @@ impl Room {
             players: HashMap::new(),
             missing: HashMap::new(),
             last_snapshot: None,
+            pending_events: Vec::new(),
             phase: PHASE_LOBBY,
             simulation: None,
             actor_slots: Vec::new(),
@@ -536,6 +540,8 @@ impl Room {
         self.started_at = MatchRecord::now();
         self.phase = PHASE_COUNTDOWN;
         self.tick = 0;
+        self.last_snapshot = None;
+        self.pending_events.clear();
         for queue in &mut self.inputs {
             *queue = InputQueue::new();
         }
@@ -584,7 +590,8 @@ impl Room {
 
         simulation.step(dt, &table);
         Metrics::incr(&self.metrics.ticks);
-        let events = simulation.drain_events();
+        self.pending_events
+            .extend(simulation.drain_events().iter().filter_map(event_snap));
 
         self.phase = match simulation.state.phase {
             MatchPhase::Countdown => PHASE_COUNTDOWN,
@@ -594,9 +601,10 @@ impl Room {
 
         let finished = simulation.state.phase == MatchPhase::Finished;
         if self.tick.is_multiple_of(TICK_RATE / SNAPSHOT_RATE) || finished {
-            let snapshot = self.build_snapshot(&simulation, &events);
+            let snapshot = self.build_snapshot(&simulation);
             if let Ok(payload) = encode(&S2C::Snapshot(Box::new(snapshot))) {
                 let payload = Bytes::from(payload);
+                self.pending_events.clear();
                 Metrics::incr(&self.metrics.snapshots);
                 self.last_snapshot = Some(payload.clone());
                 self.broadcast_bytes(payload);
@@ -643,7 +651,7 @@ impl Room {
         self.simulation = Some(simulation);
     }
 
-    fn build_snapshot(&self, simulation: &Simulation, events: &[BattleEvent]) -> Snapshot {
+    fn build_snapshot(&self, simulation: &Simulation) -> Snapshot {
         let state = &simulation.state;
         let acks = std::array::from_fn(|slot| self.inputs[slot].last_seq);
         let actors = state
@@ -658,6 +666,8 @@ impl Room {
                     y: quantize_pos(actor.position.y as f32),
                     vx: quantize_vel(actor.move_velocity as f32),
                     vy: quantize_vel(actor.vertical_velocity as f32),
+                    impulse_x: quantize_vel(actor.impulse.x as f32),
+                    impulse_y: quantize_vel(actor.impulse.y as f32),
                     facing: actor.facing,
                     flags,
                     status: match actor.status {
@@ -677,6 +687,11 @@ impl Room {
                     reload: (actor.reload_remaining * 100.0).clamp(0.0, 255.0) as u8,
                     protection: (actor.protection_remaining * 10.0).clamp(0.0, 255.0) as u8,
                     respawn: (actor.respawn_remaining * 10.0).clamp(0.0, 255.0) as u8,
+                    grounded_platform: actor.grounded_on.unwrap_or(u8::MAX),
+                    drop_platform: actor.drop_platform.unwrap_or(u8::MAX),
+                    drop_timer: movement_timer(actor.drop_remaining, MOVEMENT.drop_time),
+                    coyote_timer: movement_timer(actor.coyote_remaining, MOVEMENT.coyote_time),
+                    jump_timer: movement_timer(actor.jump_buffer, MOVEMENT.input_buffer),
                 }
             })
             .collect();
@@ -715,7 +730,6 @@ impl Room {
                 warning: drop.warning,
             })
             .collect();
-        let events = events.iter().map(event_snap).collect();
         Snapshot {
             tick: self.tick,
             server_ms: (state.elapsed * 1000.0) as u64,
@@ -726,7 +740,7 @@ impl Room {
             projectiles,
             bombs,
             drops,
-            events,
+            events: self.pending_events.clone(),
         }
     }
 
@@ -904,7 +918,14 @@ impl Room {
     }
 }
 
-fn event_snap(event: &BattleEvent) -> EventSnap {
+fn movement_timer(remaining: f64, duration: f64) -> u8 {
+    if remaining <= 0.0 {
+        return 0;
+    }
+    ((duration - remaining) * f64::from(TICK_RATE)).round() as u8 + 1
+}
+
+fn event_snap(event: &BattleEvent) -> Option<EventSnap> {
     let (kind, actor, position) = match event {
         BattleEvent::Shot {
             actor, position, ..
@@ -924,17 +945,14 @@ fn event_snap(event: &BattleEvent) -> EventSnap {
         BattleEvent::DropIncoming { position, .. } => (EVENT_DROP_INCOMING, 0, *position),
         BattleEvent::DropLanded { position, .. } => (EVENT_DROP_LANDED, 0, *position),
         BattleEvent::DropExpired { position, .. } => (EVENT_DROP_EXPIRED, 0, *position),
-        BattleEvent::Phase(_) | BattleEvent::Overtime | BattleEvent::Finished(_) => {
-            (0, 0, gunbrawl_core::types::Vec2::ZERO)
-        }
-        _ => (0, 0, gunbrawl_core::types::Vec2::ZERO),
+        _ => return None,
     };
-    EventSnap {
+    Some(EventSnap {
         kind,
         actor,
         x: quantize_pos(position.x as f32),
         y: quantize_pos(position.y as f32),
-    }
+    })
 }
 
 /// Room loop.
@@ -1194,6 +1212,50 @@ mod tests {
             room.step(); // past the three second countdown
         }
         room
+    }
+
+    #[test]
+    fn events_between_snapshots_are_sent_once() {
+        let mut room = playing_room();
+        room.step(); // send the snapshot immediately before the shot
+        let shot_tick = room.tick;
+        assert!(!shot_tick.is_multiple_of(TICK_RATE / SNAPSHOT_RATE));
+        room.handle(Command::Input {
+            player: 1,
+            frames: vec![InputFrame {
+                held: gunbrawl_proto::HELD_FIRE,
+                ..frame(1, 0, 0)
+            }],
+        });
+        room.step();
+        room.handle(Command::Input {
+            player: 1,
+            frames: vec![frame(2, 0, 0)],
+        });
+        room.step();
+
+        let read_snapshot = |room: &Room| {
+            let payload = room.last_snapshot.as_ref().expect("snapshot sent");
+            let S2C::Snapshot(snapshot) = gunbrawl_proto::decode(payload).expect("valid snapshot")
+            else {
+                panic!("expected a snapshot")
+            };
+            snapshot
+        };
+        let count_shots = |snapshot: &Snapshot| {
+            snapshot
+                .events
+                .iter()
+                .filter(|event| event.kind == EVENT_SHOT && event.actor == 0)
+                .count()
+        };
+        let snapshot = read_snapshot(&room);
+        assert_eq!(snapshot.tick, shot_tick + 1);
+        assert_eq!(count_shots(&snapshot), 1);
+
+        room.step();
+        room.step();
+        assert_eq!(count_shots(&read_snapshot(&room)), 0);
     }
 
     fn actor(room: &Room, index: usize) -> (ActorStatus, gunbrawl_core::types::Vec2) {

@@ -11,6 +11,8 @@ fn sample_snapshot() -> Snapshot {
         y: -320,
         vx: 240,
         vy: -160,
+        impulse_x: 480,
+        impulse_y: -320,
         facing: 1,
         flags: 0b1011,
         status: 0,
@@ -22,6 +24,11 @@ fn sample_snapshot() -> Snapshot {
         reload: 0,
         protection: 0,
         respawn: 0,
+        grounded_platform: 4,
+        drop_platform: u8::MAX,
+        drop_timer: 0,
+        coyote_timer: 2,
+        jump_timer: 0,
     };
     Snapshot {
         tick: 12_345,

@@ -11,20 +11,20 @@ export const netStats = {
   inputFrames: 0,
   /** Frames where an edge had to wait for the next step (proves the old code dropped it). */
   bufferedEdges: 0,
-  /** Full pose reconciliations (visible snaps). */
+  /** Corrections over 24 pixels after replaying unacknowledged inputs. */
   reconciles: 0,
-  /** Velocity-only adoptions (knockback smoothing). */
+  /** Changes in predicted knockback velocity over 40 pixels per second. */
   velocityAdoptions: 0,
   /** Snapshots applied. */
   snapshots: 0,
   /** Server ticks advanced, summed from snapshot tick numbers (this room only). */
   serverTicks: 0,
-  /** Largest |predicted - authoritative| distance seen, in px. */
+  /** Largest change in predicted position after replay, in pixels. */
   errorMaxPx: 0,
   /** Arrival gap statistics in ms. */
   gapSumMs: 0,
   gapMaxMs: 0,
-  /** Last |predicted - authoritative| distance in px, before any correction. */
+  /** Last change in predicted position after replay, in pixels. */
   lastErrorPx: 0,
 
   reset(): void {

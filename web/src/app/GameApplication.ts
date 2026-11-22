@@ -335,7 +335,10 @@ export class GameApplication {
         this.onlineStatus = detail ?? ({ connecting: '正在连接…', open: '已连接', closed: '连接已断开', error: '连接失败' }[status] ?? '');
         document.body.dataset.net = status;
         if (status === 'open') this.reconnectAttempts = 0;
-        if (status === 'closed' && this.onlineSource && !this.reconnecting) this.scheduleReconnect();
+        if (status === 'closed' && this.onlineSource) {
+          this.onlineSource.resetConnection();
+          if (!this.reconnecting) this.scheduleReconnect();
+        }
         if (this.screen === 'online') this.refreshOnline();
       },
       onLatency: (rtt, jitter) => {

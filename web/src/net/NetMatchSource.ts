@@ -1,7 +1,5 @@
 /**
- * Snapshot-driven match source: renders the authoritative state and forwards
- * local input. Prediction lands in P4; for now the local actor moves when the
- * server confirms, and remote actors interpolate between snapshots.
+ * Predicts local movement and renders other entities from buffered server snapshots.
  */
 import { presetAppearance } from '../content/appearances';
 import { getArena } from '../content/maps';
@@ -48,15 +46,21 @@ import {
   PHASE_RESULT,
   SLOT_BOT,
   SLOT_EMPTY,
+  type ActorSnap,
+  type InputFrame,
   type RoomView,
   type Snapshot,
 } from './protocol';
 
-const SNAPSHOT_INTERVAL = 1000 / 30;
 /** Local simulation step, matching the server tick rate. */
 const FIXED_STEP = 1 / 60;
 /** Never simulate more than this much wall time in one frame (tab stall, breakpoint). */
 const MAX_CATCH_UP = 0.1;
+const MAX_PENDING_INPUTS = 60;
+const LARGE_CORRECTION_PX = 24;
+const REMOTE_DELAY_TICKS = 4;
+const EXTRAPOLATION_TICKS = 2;
+const SNAPSHOT_BUFFER_SIZE = 12;
 const POS_SCALE = 16;
 const VEL_SCALE = 8;
 
@@ -66,6 +70,17 @@ function position(x: number, y: number): Vec2 {
   return { x: x / POS_SCALE, y: y / POS_SCALE };
 }
 
+function predictInput(frame: InputFrame) {
+  return {
+    moveX: frame.moveX,
+    jump: (frame.edges & EDGE_JUMP) !== 0,
+    drop: (frame.edges & EDGE_DROP) !== 0,
+    fire: (frame.held & HELD_FIRE) !== 0,
+    bomb: (frame.edges & EDGE_BOMB) !== 0,
+    reload: (frame.edges & EDGE_RELOAD) !== 0,
+  };
+}
+
 export class NetMatchSource implements MatchSource {
   readonly client: NetClient;
   readonly room: RoomView;
@@ -73,10 +88,13 @@ export class NetMatchSource implements MatchSource {
   private readonly weapons: WeaponDefinition[];
   private readonly config: MatchConfig;
   private readonly stateValue: MatchState;
-  private snapshot: Snapshot | null = null;
+  private readonly snapshots: Snapshot[] = [];
+  private renderTick: number | null = null;
+  private presentedFrom: Snapshot | null = null;
+  private presentedTo: Snapshot | null = null;
+  private presentedVisible: Snapshot | null = null;
   private snapshotAt = 0;
-  private lastSnapshotTick = 0;
-  private snapshotInterval = SNAPSHOT_INTERVAL;
+  private lastSnapshotTick: number | null = null;
   private stepAccumulator = 0;
   private lastAdvanceAt = 0;
   /** Presses waiting for the next fixed step; see the note in `advance`. */
@@ -92,10 +110,15 @@ export class NetMatchSource implements MatchSource {
   private localAlphaValue = 0;
   private alphaValue = 0;
   private seq = 0;
+  private readonly pendingInputs: InputFrame[] = [];
+  private awaitingPredictionSnapshot = true;
+  private lastLocalStatus = -1;
+  private lastLocalStocks = -1;
   private pendingEvents: BattleEvent[] = [];
   private readonly predictor: Predictor | null;
   private predictHandle: number | null = null;
   readonly localActorValue: number;
+  private readonly localSlot: number;
 
   constructor(client: NetClient, room: RoomView, predictor: Predictor | null = null) {
     this.client = client;
@@ -107,6 +130,7 @@ export class NetMatchSource implements MatchSource {
       .map((slot, slotIndex) => ({ slot, slotIndex }))
       .filter(({ slot }) => slot.kind !== SLOT_EMPTY);
     this.localActorValue = active.findIndex(({ slot }) => slot.player === client.playerId);
+    this.localSlot = active[this.localActorValue]?.slotIndex ?? -1;
     if (predictor && this.localActorValue >= 0) {
       const spawn = this.map.spawns[this.localActorValue] ?? this.map.spawns[0]!;
       this.predictHandle = predictor.create(predictor.mapIndex(this.map.id), spawn.x, spawn.y);
@@ -179,104 +203,130 @@ export class NetMatchSource implements MatchSource {
   }
 
   applySnapshot(snapshot: Snapshot): void {
+    let latest = this.snapshots.at(-1);
+    if (latest?.phase === PHASE_RESULT && snapshot.phase !== PHASE_RESULT && snapshot.tick < latest.tick) {
+      this.resetConnection();
+      this.seq = 0;
+      this.lastSnapshotTick = null;
+      latest = undefined;
+    }
+    if (latest && snapshot.tick <= latest.tick) return;
     const now = performance.now();
-    const delta = now - this.snapshotAt;
-    // Track the real arrival interval so remote interpolation plays back at the rate the
-    // snapshots actually arrive; a fixed 33 ms divisor made jittery links stutter.
-    if (this.snapshotAt !== 0 && delta > 8 && delta < 250) {
-      this.snapshotInterval = this.snapshotInterval * 0.8 + delta * 0.2;
+    if (latest) {
+      const delta = now - this.snapshotAt;
       netStats.gapSumMs += delta;
       netStats.gapMaxMs = Math.max(netStats.gapMaxMs, delta);
     }
+    const previousTick = this.lastSnapshotTick;
     netStats.snapshots += 1;
-    if (this.lastSnapshotTick !== 0 && snapshot.tick > this.lastSnapshotTick) {
-      netStats.serverTicks += snapshot.tick - this.lastSnapshotTick;
+    if (previousTick !== null && snapshot.tick > previousTick) {
+      netStats.serverTicks += snapshot.tick - previousTick;
     }
     this.lastSnapshotTick = snapshot.tick;
-    this.snapshot = snapshot;
     this.snapshotAt = now;
+    this.snapshots.push(snapshot);
+    if (this.snapshots.length > SNAPSHOT_BUFFER_SIZE) this.snapshots.shift();
+
     const state = this.stateValue;
+    const wasPlaying = state.phase === 'playing';
     state.phase = this.phaseOf(snapshot);
     state.remaining = snapshot.remainingMs / 1000;
     state.elapsed = snapshot.serverMs / 1000;
+    const localActor = this.localActor;
+    if (localActor !== undefined) {
+      const actor = state.actors[localActor];
+      const wire = snapshot.actors[localActor];
+      if (actor && wire) this.updateActorInfo(actor, wire);
+    }
+    this.reconcileLocal(snapshot);
+    if (!wasPlaying || state.phase !== 'playing') this.renderTick = null;
+    if (this.renderTick === null) this.presentSnapshots(0);
 
+    // The server replays the last snapshot after reconnect. Its visual state is useful,
+    // but battle events in an already received packet must not play a second time.
+    if (previousTick !== snapshot.tick) this.queueEvents(snapshot);
+  }
+
+  private updateActorInfo(actor: ActorState, wire: ActorSnap): void {
+    actor.status = wire.status === 0 ? 'alive' : wire.status === 1 ? 'respawning' : 'eliminated';
+    actor.stocks = wire.stocks;
+    actor.weapon = {
+      definition: this.weapons[wire.weapon] ?? BASIC_PISTOL,
+      ammoRemaining: wire.ammo === 255 ? null : wire.ammo,
+      reserveRemaining: wire.reserve,
+    };
+    actor.fireCooldown = wire.fireCd / 100;
+    actor.reloadRemaining = wire.reload / 100;
+    actor.protectionRemaining = wire.protection / 10;
+    actor.respawnRemaining = wire.respawn / 10;
+  }
+
+  private presentSnapshots(elapsed: number): void {
+    const oldest = this.snapshots[0];
+    const newest = this.snapshots.at(-1);
+    if (!oldest || !newest) return;
+    if (this.stateValue.phase !== 'playing' || oldest === newest) {
+      this.presentPair(newest, newest, 0);
+      return;
+    }
+
+    const target = Math.max(oldest.tick, newest.tick - REMOTE_DELAY_TICKS);
+    // Recover promptly after a tab stall. Otherwise steer a continuous playhead
+    // toward the target without resetting it on every packet arrival.
+    if (this.renderTick === null || this.renderTick < oldest.tick || target - this.renderTick > 8) {
+      this.renderTick = target;
+    } else {
+      const drift = target - this.renderTick + 0.5;
+      const rate = 1 + Math.max(-0.1, Math.min(0.1, drift * 0.025));
+      this.renderTick = Math.min(newest.tick + EXTRAPOLATION_TICKS, this.renderTick + elapsed / FIXED_STEP * rate);
+    }
+    const right = this.snapshots.findIndex((frame) => frame.tick > this.renderTick!);
+    const to = right < 0 ? newest : this.snapshots[right]!;
+    const from = right < 0 ? this.snapshots.at(-2) ?? newest : this.snapshots[right - 1] ?? to;
+    const alpha = from === to ? 0 : (this.renderTick - from.tick) / (to.tick - from.tick);
+    this.presentPair(from, to, alpha);
+  }
+
+  private presentPair(from: Snapshot, to: Snapshot, alpha: number): void {
+    this.alphaValue = alpha;
+    const visible = alpha >= 1 ? to : from;
+    if (this.presentedFrom === from && this.presentedTo === to && this.presentedVisible === visible) return;
+    this.presentedFrom = from;
+    this.presentedTo = to;
+    this.presentedVisible = visible;
+    const state = this.stateValue;
+    const localActor = this.localActor;
     for (let index = 0; index < state.actors.length; index++) {
       const actor = state.actors[index]!;
-      const wire = snapshot.actors[index];
-      if (!wire) continue;
-      // The locally predicted actor owns its own position: copying the authoritative one
-      // here (and re-predicting a frame later) made the sprite alternate between two
-      // coordinates every snapshot — the visible jitter.
-      const predictedLocally = this.predictor !== null && this.predictHandle !== null && index === this.localActorValue;
-      if (!predictedLocally) {
-        actor.previous = { ...actor.position };
-        actor.position = position(wire.x, wire.y);
-        actor.facing = wire.facing < 0 ? -1 : 1;
-        actor.groundedOn = wire.flags & 1 ? 'net' : null;
-        actor.jumpsRemaining = (wire.flags >> 1) & 0b11;
-      }
-      actor.status = wire.status === 0 ? 'alive' : wire.status === 1 ? 'respawning' : 'eliminated';
-      actor.stocks = wire.stocks;
-      actor.weapon = {
-        definition: this.weapons[wire.weapon] ?? BASIC_PISTOL,
-        ammoRemaining: wire.ammo === 255 ? null : wire.ammo,
-        reserveRemaining: wire.reserve,
-      };
-      actor.fireCooldown = wire.fireCd / 100;
-      actor.reloadRemaining = wire.reload / 100;
-      actor.protectionRemaining = wire.protection / 10;
-      actor.respawnRemaining = wire.respawn / 10;
+      const wire = visible.actors[index];
+      if (!wire || index === localActor) continue;
+      const first = from.actors[index];
+      const second = to.actors[index];
+      const continuous = first && second && first.status === second.status && first.stocks === second.stocks;
+      actor.previous = continuous ? position(first.x, first.y) : position(wire.x, wire.y);
+      actor.position = continuous ? position(second.x, second.y) : actor.previous;
+      actor.facing = wire.facing < 0 ? -1 : 1;
+      actor.groundedOn = wire.flags & 1 ? 'net' : null;
+      actor.jumpsRemaining = (wire.flags >> 1) & 0b11;
+      actor.moveVelocity = wire.vx / VEL_SCALE;
+      actor.verticalVelocity = wire.vy / VEL_SCALE;
+      this.updateActorInfo(actor, wire);
     }
 
-    // Reconcile the local prediction. Small position errors are left alone, but a velocity
-    // mismatch is always adopted: knockback is applied by the server only, so without this
-    // the predicted actor keeps gliding through a hit until the error crosses 24 px and
-    // then visibly snaps — the "janky when fighting" part of online.
-    if (this.predictor && this.predictHandle !== null && this.localActorValue >= 0) {
-      const wire = snapshot.actors[this.localActorValue];
-      if (wire) {
-        const predicted = this.predictor.pose(this.predictHandle);
-        const authoritative = position(wire.x, wire.y);
-        const serverVelocity = { x: wire.vx / VEL_SCALE, y: wire.vy / VEL_SCALE };
-        const error = Math.hypot(predicted.x - authoritative.x, predicted.y - authoritative.y);
-        netStats.lastErrorPx = error;
-        netStats.errorMaxPx = Math.max(netStats.errorMaxPx, error);
-        if (wire.status !== 0 || error > 24) {
-          // Keep the sprite where it was and fold the correction into the visual offset so
-          // the player sees a short slide instead of a snap.
-          this.localOffsetValue.x += predicted.x - authoritative.x;
-          this.localOffsetValue.y += predicted.y - authoritative.y;
-          this.predictor.reconcile(this.predictHandle, {
-            x: authoritative.x,
-            y: authoritative.y,
-            vx: serverVelocity.x,
-            vy: serverVelocity.y,
-            facing: wire.facing,
-            grounded: wire.flags & 1,
-            jumps: (wire.flags >> 1) & 0b11,
-            dropRemaining: 0,
-          });
-          netStats.reconciles += 1;
-        } else if (
-          Math.abs(predicted.vx - serverVelocity.x) > 40
-          || Math.abs(predicted.vy - serverVelocity.y) > 40
-        ) {
-          this.predictor.setVelocity(this.predictHandle, serverVelocity.x, serverVelocity.y);
-          netStats.velocityAdoptions += 1;
-        }
-      }
-    }
-
-    state.projectiles = snapshot.projectiles.map((wire) => {
-      const at = position(wire.x, wire.y);
+    state.projectiles = visible.projectiles.map((wire) => {
+      const first = from.projectiles.find((item) => item.id === wire.id && item.owner === wire.owner && item.weapon === wire.weapon);
+      const second = to.projectiles.find((item) => item.id === wire.id && item.owner === wire.owner && item.weapon === wire.weapon);
+      const previous = first && second ? position(first.x, first.y) : position(wire.x, wire.y);
+      const at = first && second ? position(second.x, second.y) : previous;
       const velocity = { x: wire.vx / VEL_SCALE, y: wire.vy / VEL_SCALE };
+      const prior = state.projectiles.find((item) => item.id === wire.id);
       const projectile: Projectile = {
         id: wire.id,
         owner: `p${wire.owner}`,
         weaponId: (this.weapons[wire.weapon]?.id ?? 'pistol') as WeaponId,
         position: at,
-        previous: { x: at.x - velocity.x / 120, y: at.y - velocity.y / 120 },
-        origin: at,
+        previous,
+        origin: prior?.origin ?? previous,
         direction: velocity.x < 0 ? -1 : 1,
         velocity,
         impulse: { x: 0, y: 0 },
@@ -285,20 +335,23 @@ export class NetMatchSource implements MatchSource {
       return projectile;
     });
 
-    state.bombs = snapshot.bombs.map((wire): Bomb => {
-      const at = position(wire.x, wire.y);
+    state.bombs = visible.bombs.map((wire): Bomb => {
+      const first = from.bombs.find((item) => item.id === wire.id && item.owner === wire.owner);
+      const second = to.bombs.find((item) => item.id === wire.id && item.owner === wire.owner);
+      const previous = first && second ? position(first.x, first.y) : position(wire.x, wire.y);
+      const at = first && second ? position(second.x, second.y) : previous;
       return {
         id: wire.id,
         owner: `p${wire.owner}`,
         position: at,
-        previous: at,
+        previous,
         velocity: { x: 0, y: 0 },
         fuseRemaining: 1,
         radius: 10,
       };
     });
 
-    state.drops = snapshot.drops.map((wire): WeaponDrop => {
+    state.drops = visible.drops.map((wire): WeaponDrop => {
       const at = position(wire.x, wire.y);
       const definition = this.weapons[wire.weapon];
       return {
@@ -310,7 +363,9 @@ export class NetMatchSource implements MatchSource {
         warning: wire.warning,
       };
     });
+  }
 
+  private queueEvents(snapshot: Snapshot): void {
     for (const event of snapshot.events) {
       const at = position(event.x, event.y);
       const actorId = `p${event.actor}`;
@@ -357,6 +412,101 @@ export class NetMatchSource implements MatchSource {
     return 'countdown';
   }
 
+  private reconcileLocal(snapshot: Snapshot): void {
+    const predictor = this.predictor;
+    const handle = this.predictHandle;
+    const actor = this.stateValue.actors[this.localActorValue];
+    const wire = snapshot.actors[this.localActorValue];
+    if (!predictor || handle === null || !actor || !wire) return;
+
+    const reset = this.awaitingPredictionSnapshot || snapshot.phase !== PHASE_PLAYING
+      || wire.status !== 0 || this.lastLocalStatus !== wire.status || this.lastLocalStocks !== wire.stocks;
+    this.awaitingPredictionSnapshot = false;
+    this.lastLocalStatus = wire.status;
+    this.lastLocalStocks = wire.stocks;
+    const ack = snapshot.acks[this.localSlot] ?? 0;
+    if (reset) this.pendingInputs.length = 0;
+    else {
+      const next = this.pendingInputs.findIndex((frame) => frame.seq > ack);
+      this.pendingInputs.splice(0, next === -1 ? this.pendingInputs.length : next);
+    }
+
+    const before = predictor.pose(handle);
+    predictor.reconcile(handle, this.authoritativePose(wire));
+    let pose = predictor.pose(handle);
+    let previous = pose;
+    for (const frame of this.pendingInputs) {
+      previous = pose;
+      predictor.step(handle, predictInput(frame));
+      pose = predictor.pose(handle);
+    }
+
+    // Compare the two predictions at the current input point. The un-replayed
+    // snapshot is older and can differ even when client and server agree.
+    if (reset) {
+      this.localOffsetValue.x = 0;
+      this.localOffsetValue.y = 0;
+    } else {
+      const error = Math.hypot(before.x - pose.x, before.y - pose.y);
+      netStats.lastErrorPx = error;
+      netStats.errorMaxPx = Math.max(netStats.errorMaxPx, error);
+      if (error > LARGE_CORRECTION_PX) netStats.reconciles += 1;
+      if (Math.hypot(before.impulseX - pose.impulseX, before.impulseY - pose.impulseY) > 40) {
+        netStats.velocityAdoptions += 1;
+      }
+
+      // Keep the displayed position continuous when replacing both interpolation endpoints.
+      const alpha = this.localAlphaValue;
+      const shiftX = (actor.previous.x - previous.x) * (1 - alpha) + (actor.position.x - pose.x) * alpha;
+      const shiftY = (actor.previous.y - previous.y) * (1 - alpha) + (actor.position.y - pose.y) * alpha;
+      if (Math.hypot(shiftX, shiftY) > 1) {
+        this.localOffsetValue.x += shiftX;
+        this.localOffsetValue.y += shiftY;
+      }
+    }
+    this.writeLocalPose(actor, previous, pose);
+  }
+
+  private authoritativePose(wire: ActorSnap): Parameters<Predictor['reconcile']>[1] {
+    return {
+      ...position(wire.x, wire.y),
+      vx: wire.vx / VEL_SCALE,
+      vy: wire.vy / VEL_SCALE,
+      impulseX: wire.impulseX / VEL_SCALE,
+      impulseY: wire.impulseY / VEL_SCALE,
+      facing: wire.facing,
+      grounded: wire.flags & 1,
+      jumps: (wire.flags >> 1) & 0b11,
+      groundedPlatform: wire.groundedPlatform,
+      dropPlatform: wire.dropPlatform,
+      dropTimer: wire.dropTimer,
+      coyoteTimer: wire.coyoteTimer,
+      jumpTimer: wire.jumpTimer,
+    };
+  }
+
+  private writeLocalPose(actor: ActorState, previous: Vec2, pose: PredictedPose): void {
+    actor.previous = { x: previous.x, y: previous.y };
+    actor.position = { x: pose.x, y: pose.y };
+    actor.facing = pose.facing < 0 ? -1 : 1;
+    actor.groundedOn = pose.grounded ? 'net' : null;
+    actor.jumpsRemaining = pose.jumps;
+    actor.moveVelocity = pose.vx;
+    actor.verticalVelocity = pose.vy;
+    this.lastStepPose = actor.position;
+  }
+
+  resetConnection(): void {
+    this.pendingInputs.length = 0;
+    this.pendingEdges = 0;
+    this.stepAccumulator = 0;
+    this.lastAdvanceAt = 0;
+    this.awaitingPredictionSnapshot = true;
+    this.snapshots.length = 0;
+    this.renderTick = null;
+    this.pendingEvents.length = 0;
+  }
+
   advance(_deltaMs: number, readHuman: (slot: 1 | 2) => ActorInput): BattleEvent[] {
     const input = readHuman(1);
     const edges =
@@ -374,7 +524,8 @@ export class NetMatchSource implements MatchSource {
 
     const canPredict = this.predictor !== null
       && this.predictHandle !== null
-      && this.localActorValue >= 0
+      && !this.awaitingPredictionSnapshot
+      && this.lastLocalStatus === 0
       && this.stateValue.phase === 'playing';
 
     // Fixed 1/60 s local clock driven by wall time. Two bugs hid here before: stepping once
@@ -397,23 +548,19 @@ export class NetMatchSource implements MatchSource {
       // lost when a frame advances two steps or none.
       const frameEdges = this.pendingEdges;
       this.pendingEdges = 0;
-      this.client.sendInput([{
+      const frame: InputFrame = {
         seq: this.seq,
         tickHint: 0,
         moveX: input.moveX,
         held: input.shootHeld ? HELD_FIRE : 0,
         edges: frameEdges,
-      }]);
+      };
+      this.client.sendInput([frame]);
       netStats.inputFrames += 1;
       if (canPredict) {
-        this.predictor!.step(this.predictHandle!, {
-          moveX: input.moveX,
-          jump: (frameEdges & EDGE_JUMP) !== 0,
-          drop: (frameEdges & EDGE_DROP) !== 0,
-          fire: input.shootHeld,
-          bomb: (frameEdges & EDGE_BOMB) !== 0,
-          reload: (frameEdges & EDGE_RELOAD) !== 0,
-        });
+        if (this.pendingInputs.length === MAX_PENDING_INPUTS) this.pendingInputs.shift();
+        this.pendingInputs.push(frame);
+        this.predictor!.step(this.predictHandle!, predictInput(frame));
         netStats.steps += 1;
         previousStep = this.lastStepPose;
         const pose = this.predictor!.pose(this.predictHandle!);
@@ -429,11 +576,7 @@ export class NetMatchSource implements MatchSource {
       if (lastPose) {
         const actor = this.stateValue.actors[this.localActorValue];
         if (actor) {
-          actor.previous = previousStep ?? { x: lastPose.x, y: lastPose.y };
-          actor.position = { x: lastPose.x, y: lastPose.y };
-          actor.facing = lastPose.facing < 0 ? -1 : 1;
-          actor.groundedOn = lastPose.grounded ? 'net' : null;
-          actor.jumpsRemaining = lastPose.jumps;
+          this.writeLocalPose(actor, previousStep ?? lastPose, lastPose);
         }
       }
       this.localAlphaValue = Math.max(0, Math.min(1, this.stepAccumulator / FIXED_STEP));
@@ -451,9 +594,7 @@ export class NetMatchSource implements MatchSource {
       }
     }
 
-    this.alphaValue = this.snapshot
-      ? Math.min(1, (performance.now() - this.snapshotAt) / this.snapshotInterval)
-      : 0;
+    this.presentSnapshots(Math.min(elapsed, MAX_CATCH_UP));
     const events = this.pendingEvents;
     this.pendingEvents = [];
     return events;

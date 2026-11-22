@@ -15,6 +15,16 @@ export interface PredictedPose {
   grounded: number;
   jumps: number;
   dropRemaining: number;
+  impulseX: number;
+  impulseY: number;
+}
+
+interface AuthoritativePose extends Omit<PredictedPose, 'dropRemaining'> {
+  groundedPlatform: number;
+  dropPlatform: number;
+  dropTimer: number;
+  coyoteTimer: number;
+  jumpTimer: number;
 }
 
 export interface PredictInput {
@@ -37,7 +47,8 @@ interface Exports {
   gb_step(handle: number, moveX: number, held: number, edges: number): void;
   gb_pose(handle: number, out: number): void;
   gb_set_pose(handle: number, x: number, y: number, vx: number, vy: number, facing: number, grounded: number, jumps: number): void;
-  gb_set_velocity(handle: number, vx: number, vy: number): void;
+  gb_set_impulse(handle: number, x: number, y: number): void;
+  gb_set_movement_state(handle: number, ground: number, drop: number, dropTimer: number, coyoteTimer: number, jumpTimer: number): void;
   gb_free_solo(handle: number): void;
 }
 
@@ -48,15 +59,17 @@ export class Predictor {
 
   private constructor(instance: WebAssembly.Instance) {
     this.exports = instance.exports as unknown as Exports;
-    this.posePtr = this.exports.gb_alloc(8 * 8);
+    this.posePtr = this.exports.gb_alloc(10 * Float64Array.BYTES_PER_ELEMENT);
   }
 
-  static async load(url = 'predict.wasm'): Promise<Predictor | null> {
+  static async load(url = 'predict.wasm?v=3'): Promise<Predictor | null> {
     try {
       const response = await fetch(url);
       if (!response.ok) return null;
       const bytes = await response.arrayBuffer();
       const { instance } = await WebAssembly.instantiate(bytes, {});
+      if (typeof instance.exports.gb_set_movement_state !== 'function'
+        || typeof instance.exports.gb_set_impulse !== 'function') return null;
       return new Predictor(instance);
     } catch {
       return null;
@@ -94,7 +107,7 @@ export class Predictor {
 
   pose(handle: number): PredictedPose {
     this.exports.gb_pose(handle, this.posePtr);
-    const view = new Float64Array(this.exports.memory.buffer, this.posePtr, 8);
+    const view = new Float64Array(this.exports.memory.buffer, this.posePtr, 10);
     return {
       x: view[0]!,
       y: view[1]!,
@@ -104,10 +117,12 @@ export class Predictor {
       grounded: view[5]!,
       jumps: view[6]!,
       dropRemaining: view[7]!,
+      impulseX: view[8]!,
+      impulseY: view[9]!,
     };
   }
 
-  reconcile(handle: number, pose: PredictedPose): void {
+  reconcile(handle: number, pose: AuthoritativePose): void {
     this.exports.gb_set_pose(
       handle,
       pose.x,
@@ -118,11 +133,9 @@ export class Predictor {
       pose.grounded,
       pose.jumps,
     );
-  }
-
-  /** Adopt the server's velocity without teleporting the predicted position. */
-  setVelocity(handle: number, vx: number, vy: number): void {
-    this.exports.gb_set_velocity(handle, vx, vy);
+    this.exports.gb_set_impulse(handle, pose.impulseX, pose.impulseY);
+    this.exports.gb_set_movement_state(handle, pose.groundedPlatform, pose.dropPlatform,
+      pose.dropTimer, pose.coyoteTimer, pose.jumpTimer);
   }
 
   destroy(handle: number): void {

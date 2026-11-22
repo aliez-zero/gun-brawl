@@ -1,8 +1,8 @@
 //! Browser-side movement prediction, compiled to `wasm32`.
 //!
 //! The server stays authoritative; this module only advances the local actor
-//! with the same movement code so input feels immediate. Each snapshot either
-//! confirms the prediction or snaps it back when the error is large.
+//! with the same movement code so input feels immediate. The client can restore
+//! an authoritative snapshot and replay the inputs the server hasn't seen yet.
 //!
 //! The ABI is raw (no wasm-bindgen): handles are `u32` pointers and poses are
 //! f64 arrays written into memory the caller allocates.
@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 
 use gunbrawl_content::Content;
 use gunbrawl_core::actor::create_actor;
-use gunbrawl_core::constants::FIXED_STEP;
+use gunbrawl_core::constants::{FIXED_STEP, MOVEMENT};
 use gunbrawl_core::movement::move_actor;
 use gunbrawl_core::types::{ActorConfig, ActorInput, ActorState, Control, MapDef, Vec2, WeaponDef};
 
@@ -120,7 +120,7 @@ pub extern "C" fn gb_step(solo: *mut Solo, move_x: i32, held: u32, edges: u32) {
     unsafe { (*solo).step(input) };
 }
 
-/// Write `[x, y, vx, vy, facing, grounded, jumps, drop_remaining]` into `out`.
+/// Write `[x, y, vx, vy, facing, grounded, jumps, drop_remaining, impulse_x, impulse_y]`.
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn gb_pose(solo: *const Solo, out: *mut f64) {
@@ -141,6 +141,8 @@ pub extern "C" fn gb_pose(solo: *const Solo, out: *mut f64) {
         },
         actor.jumps_remaining as f64,
         actor.drop_remaining,
+        actor.impulse.x,
+        actor.impulse.y,
     ];
     unsafe {
         std::ptr::copy_nonoverlapping(pose.as_ptr(), out, pose.len());
@@ -173,21 +175,49 @@ pub extern "C" fn gb_set_pose(
     actor.jumps_remaining = jumps.min(2) as u8;
 }
 
-/// Adopt the authoritative velocity without moving the actor.
-///
-/// Knockback is server-side only, so a client that never reconciles small position
-/// errors keeps gliding through a hit until the error passes the snap threshold and
-/// then jumps. Copying the velocity each snapshot lets the local actor ride the knockback
-/// from the next step on, and the position converges smoothly instead of snapping.
+/// Restore external force separately so movement acceleration doesn't cancel it.
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn gb_set_velocity(solo: *mut Solo, vx: f64, vy: f64) {
+pub extern "C" fn gb_set_impulse(solo: *mut Solo, x: f64, y: f64) {
     if solo.is_null() {
         return;
     }
     let actor = unsafe { &mut (*solo).actor };
-    actor.move_velocity = vx;
-    actor.vertical_velocity = vy;
+    actor.impulse = Vec2::new(x, y);
+}
+
+/// Restore platform and timer state before replaying buffered inputs.
+#[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn gb_set_movement_state(
+    solo: *mut Solo,
+    grounded_platform: u8,
+    drop_platform: u8,
+    drop_timer: u8,
+    coyote_timer: u8,
+    jump_timer: u8,
+) {
+    if solo.is_null() {
+        return;
+    }
+    let actor = unsafe { &mut (*solo).actor };
+    actor.grounded_on = (grounded_platform != u8::MAX).then_some(grounded_platform);
+    actor.drop_platform = (drop_platform != u8::MAX).then_some(drop_platform);
+    actor.drop_remaining = restore_timer(drop_timer, MOVEMENT.drop_time);
+    actor.coyote_remaining = restore_timer(coyote_timer, MOVEMENT.coyote_time);
+    actor.jump_buffer = restore_timer(jump_timer, MOVEMENT.input_buffer);
+}
+
+fn restore_timer(encoded: u8, duration: f64) -> f64 {
+    if encoded == 0 {
+        return 0.0;
+    }
+    // Recreate the same subtractions as the authoritative fixed-step loop.
+    let mut remaining = duration;
+    for _ in 1..encoded {
+        remaining = (remaining - FIXED_STEP).max(0.0);
+    }
+    remaining
 }
 
 #[no_mangle]
