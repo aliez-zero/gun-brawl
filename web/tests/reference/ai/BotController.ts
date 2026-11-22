@@ -1,7 +1,7 @@
 import { Random } from '../core/Random';
-import { idleInput } from '../core/types';
-import type { ActorInput, ActorState, Difficulty, MatchState } from '../core/types';
-import { nearestPlatform, planRoute, platformForActor } from './Navigation';
+import { idleInput } from '../../../src/game/core/types';
+import type { ActorInput, ActorState, Difficulty, MatchState } from '../../../src/game/core/types';
+import { nearestPlatform, planRoute, platformForActor } from '../../../src/game/ai/Navigation';
 
 interface BotProfile {
   reaction: number;

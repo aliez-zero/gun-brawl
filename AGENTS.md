@@ -13,7 +13,7 @@
 5. [架构文档](./docs/ARCHITECTURE.md)：运行时分层与逻辑顺序。
 6. [产品需求](./docs/PRD.md)、[调研依据](./docs/RESEARCH.md)：产品目标与来源。PRD 不等于完成清单。全部文档见 [文档导航](./docs/README.md)。
 
-当前基线为 TypeScript + Phaser 3 + Vite 的本地原型。已有人机、本地双人和无限练习；DeepSeek 对战通过 Vite 的 Node 同源网关接入，密钥仅在服务端环境变量中，见 [接入说明](./docs/DEEPSEEK.md)。没有网络联机。详细状态以实际代码和 `docs/DEVELOPMENT.md` 为准。
+当前客户端使用 TypeScript、Phaser 3 和 Vite。所有对局由 Rust 房间和 `gunbrawl-core` 推进，同屏双人也向服务端发送两套键位的指令。旧 TypeScript 模拟放在 `web/tests/reference`，用于测试和回放对照。DeepSeek 通过 Node 同源网关接入，见 [接入说明](./docs/DEEPSEEK.md)。
 
 ## 接手与并行
 
@@ -53,7 +53,7 @@ pnpm install
 pnpm dev
 pnpm test
 pnpm build
-# 浏览器检查需先启动开发服务器
+# 浏览器检查需先启动 Vite 和 Rust 游戏服务
 pnpm test:browser
 
 # 联机后端（server/ Rust workspace）

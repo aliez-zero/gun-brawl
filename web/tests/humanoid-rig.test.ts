@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { APPEARANCE_PRESETS, presetAppearance } from '../src/content/appearances';
 import { createMatchConfig } from '../src/content/matches';
 import { WEAPONS, WEAPON_MODELS } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import type { Vec2, WeaponId } from '../src/game/core/types';
 import { humanoidSupportGrip, HumanoidMotion, sampleHumanoid, worldWeaponMount } from '../src/presentation/characters/HumanoidRig';
 import type { HumanoidMotionInput, HumanoidPose } from '../src/presentation/characters/HumanoidRig';

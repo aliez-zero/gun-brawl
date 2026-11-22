@@ -1,6 +1,6 @@
 # 并行开发计划与任务看板
 
-更新：2026-10-19（北京时间）。当前已接入 17 型号与两类终极武器、炸弹 / 投放、四图 / 导航、三档规则 AI、改键、自定义 2—4 人、训练 / 图鉴、六关战役、v2 存档、DeepSeek 接口与全角色混搭骨架。任务状态和剩余边界见第 3 节总看板及 [开发现状](./DEVELOPMENT.md)。T00 历史见 [首批契约](./updates/2026-10-17-t00-contracts.md)，武器见 [17 型号交付](./updates/2026-10-18-weapon-models.md)，地图见 [适中难度交接](./updates/2026-10-18-moderate-map-difficulty.md)。
+更新于 2026-11-22。当前已接入 17 型号与两类终极武器、炸弹 / 投放、四图 / 导航、三档规则 AI、改键、自定义 2—4 人、训练 / 图鉴、六关战役、v2 存档、DeepSeek 接口与全角色混搭骨架。任务状态和剩余边界见第 3 节总看板及 [开发现状](./DEVELOPMENT.md)。T00 历史见 [首批契约](./updates/2026-10-17-t00-contracts.md)，武器见 [17 型号交付](./updates/2026-10-18-weapon-models.md)，地图见 [适中难度交接](./updates/2026-10-18-moderate-map-difficulty.md)。
 
 先读 [开发现状](./DEVELOPMENT.md)、[架构](./ARCHITECTURE.md) 和 [根目录协作约定](../AGENTS.md)。产品规则引用 [PRD](./PRD.md)；任务验收是增量条件，不能替代全量 A01—A30。各模块的独立任务文件见 [模块任务包](./modules/README.md)。
 
@@ -31,14 +31,14 @@ DeepSeek 接入交付（EAI-D，2026-10-18）：本会话在 `D:\Code\gun-brawl`
 | 范围 | 单一写入负责人 | 其他任务如何接入 |
 | --- | --- | --- |
 | `src/game/core/types.ts` | 集成者 | 提交字段 / 事件 / 兼容方案；接口先合入后消费 |
-| `BattleSimulation.ts`、`MatchRunner.ts`、`actors.ts`、`MatchSystem.ts` | 集成者 | 提供系统调用点、初始化 / 复活 / 加时 / 结算改动清单 |
+| `server/crates/core/src`、`server/crates/server/src/room` | 集成者 | 提供系统调用点、初始化 / 复活 / 加时 / 结算改动清单 |
 | `src/app/GameApplication.ts`、`src/scenes/ArenaScene.ts` | 集成者 | 模块导出组件 / 服务 / 操作，由集成者装配 |
 | `src/ui/GameUI.ts` | 集成者 | 新页面优先写为独立视图 / 组件，交付渲染与回调接口 |
 | `src/style.css` | 集成者 | 新功能使用独立、有命名空间的样式文件，最后统一接入 |
 | `src/storage/SaveStore.ts` | T12 负责人 | T06 / T07 / T09 / T10 提交字段和校验需求，不各自改版本 |
-| `CombatSystem.ts`、`content/weapons.ts` | T01 负责人 | T02 通过独立爆炸服务协作，T03 通过武器切换入口协作 |
+| `server/crates/core/src/combat.rs`、`content/weapons.ts` | T01 负责人 | T02 通过独立爆炸服务协作，T03 通过武器切换入口协作 |
 | `content/maps.ts`、`ArenaRenderer.ts` | T04 负责人 | T01 / T02 / T03 / T10 提交呈现接入清单；同文件子块仍需串行整合 |
-| `BotController.ts` 及导航模块 | T05 负责人 | 消费冻结后的地图 / 武器 / 炸弹数据，仍只输出输入 |
+| `server/crates/bot` 及外部 AI 输入 | T05 负责人 | 消费冻结后的地图 / 武器 / 炸弹数据，仍只输出输入 |
 | `KeyboardInput.ts`、`content/controls.ts` | T06 负责人 | T02 的投弹输入由双方按公共契约接入 |
 | `content/matches.ts` | T07 负责人 | 战役和训练提供配置构造器，不重复改基础模式工厂 |
 | `scripts/smoke.mjs`、测试配置、包依赖 | 集成者，T11 提供改动 | 各模块先新增独立测试文件；公共脚本串行合入 |
@@ -124,6 +124,7 @@ DeepSeek 接入交付（EAI-D，2026-10-18）：本会话在 `D:\Code\gun-brawl`
 | T10 | 多风格外观编辑与角色重绘 | M2 | 箱子 / 炸弹 / 17 型号表现依赖 T01—T03 | 已完成当前范围 / 当前会话（五人及全部混搭连续骨架 / 双手 IK / 分层附件 / 动作预览，17 型号程序化外观、家族换弹 / 火光、逐型号音高；逐枪装填 / 表情 / 胜利动作 / 参考机待续） |
 | T10-A | 免费牛仔网格动画样板 | T10 增量 | 现有人体骨架与武器挂点 | 已完成当前样板 / 当前会话（main / 83c7f71；八肢段蒙皮、曲线与过渡、WebGL / Canvas、制作文档；通用 smoke 新页面间歇超时已登记，参考机性能未测） |
 | T11 | 增量回归、完整验收、性能 / 资源 | 全阶段；发布门槛 M3 | 可立即做基线清单；完整验收依赖对应功能 | 自动化基线完成 / 当前会话（四人淘汰 / 加时测试、浏览器 4 人完整局到加时结算、QA 矩阵；真实 GPU / 4 真人性能未测；Chrome / Edge 156 均通过，不宣布发布完成） |
+| 全模式服务端对局 | 普通菜单与房间码共用 Rust 对局循环 | 客户端与服务端协议 v4 | 依赖 Rust 核心、内容数据、WebSocket 和快照插值 | 本地验收通过。`main` 工作区，基线 `c8faf95`。输入、训练、战役、DeepSeek 模拟响应及公共房间重连已接入。 |
 | T11-P4 | 联机预测校正、快照插值与战斗反馈 | 联机手感 | 房间快照与 WASM 预测 | 本地验收通过 / 当前会话集成（`D:\Code\gun-brawl`，`main`，前后端协议 v3） |
 | T12 | 存档扩展、迁移、清档与结果去重 | M1—M2 | T00 已提供 `matchId` 结果接入点；战役字段已由 T09 接入 | 核心完成 / 当前会话（v2 迁移、清档、20 条历史去重、战役进度） |
 

@@ -1,9 +1,9 @@
-import { ACTOR_HEIGHT, ACTOR_WIDTH } from '../core/constants';
-import { MOVEMENT } from '../core/constants';
+import { ACTOR_HEIGHT, ACTOR_WIDTH } from '../../../src/game/core/constants';
+import { MOVEMENT } from '../../../src/game/core/constants';
 import { addImpulse, segmentRect } from '../core/math';
 import type {
   ActorState, BattleEvent, ExplosionHit, ExplosionRequest, ExplosionResolver, MatchState, Vec2,
-} from '../core/types';
+} from '../../../src/game/core/types';
 
 /** Feet position -> the point used for radial falloff and line of sight. */
 export function explosionTarget(actor: ActorState): Vec2 {

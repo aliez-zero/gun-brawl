@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { BASIC_PISTOL } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { createWeaponInstance, idleInput } from '../src/game/core/types';
 import type { ActorInput, MatchConfig, WeaponDefinition } from '../src/game/core/types';

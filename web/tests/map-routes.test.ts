@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ARENAS, ALIEN_STARSHIP, NEON_CITY, SKY_CITADEL, TRAINING_ARENA } from '../src/content/maps';
 import { createMatchConfig } from '../src/content/matches';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
-import { MatchRunner } from '../src/game/core/MatchRunner';
+import { MatchRunner } from './reference/core/MatchRunner';
 import { idleInput } from '../src/game/core/types';
 import type { ActorState, MapDefinition, Platform } from '../src/game/core/types';
-import { moveActor } from '../src/game/systems/MovementSystem';
+import { moveActor } from './reference/systems/MovementSystem';
 
 const moveToward = (x: number, target: number): -1 | 0 | 1 => Math.abs(target - x) < 5 ? 0 : target > x ? 1 : -1;
 const launchActions = ['walk', 'drop', -1, 14, 23, 32] as const;

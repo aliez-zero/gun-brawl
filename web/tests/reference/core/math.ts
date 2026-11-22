@@ -1,5 +1,5 @@
-import { ACTOR_HEIGHT, ACTOR_WIDTH, MOVEMENT } from './constants';
-import type { ActorState, Rect, Vec2 } from './types';
+import { ACTOR_HEIGHT, ACTOR_WIDTH, MOVEMENT } from '../../../src/game/core/constants';
+import type { ActorState, Rect, Vec2 } from '../../../src/game/core/types';
 
 export const approach = (value: number, target: number, amount: number): number =>
   value < target ? Math.min(value + amount, target) : Math.max(value - amount, target);

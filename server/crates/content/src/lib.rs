@@ -11,6 +11,18 @@ use serde::Deserialize;
 const MAPS_JSON: &str = include_str!("../data/maps.json");
 const WEAPONS_JSON: &str = include_str!("../data/weapons.json");
 const DROPS_JSON: &str = include_str!("../data/drops.json");
+const CAMPAIGN_JSON: &str = include_str!("../data/campaign.json");
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CampaignLevel {
+    id: String,
+    map_id: String,
+    stocks: u8,
+    duration: u16,
+    drop_mode: u8,
+    difficulty: u8,
+}
 
 #[derive(Deserialize)]
 struct RawDrops {
@@ -30,7 +42,8 @@ pub struct Content {
     pub weapons: Vec<WeaponDef>,
     pub default_drops: Vec<DropPoolEntry>,
     pub standard_drops: Vec<DropPoolEntry>,
-    /// FNV-1a over the three JSON files; sent in `Hello` to reject mixed builds.
+    campaign: Vec<CampaignLevel>,
+    /// FNV-1a over the content files; sent in `Hello` to reject mixed builds.
     pub hash: u64,
 }
 
@@ -48,13 +61,34 @@ impl Content {
         let raw: RawDrops = serde_json::from_str(DROPS_JSON).map_err(|error| error.to_string())?;
         let default_drops = resolve_drops(&weapons, &raw.default)?;
         let standard_drops = resolve_drops(&weapons, &raw.standard)?;
-        let hash = fnv1a(&[MAPS_JSON, WEAPONS_JSON, DROPS_JSON]);
+        let campaign = serde_json::from_str(CAMPAIGN_JSON).map_err(|error| error.to_string())?;
+        let hash = fnv1a(&[MAPS_JSON, WEAPONS_JSON, DROPS_JSON, CAMPAIGN_JSON]);
         Ok(Self {
             maps,
             weapons,
             default_drops,
             standard_drops,
+            campaign,
             hash,
+        })
+    }
+
+    pub fn campaign_level_matches(
+        &self,
+        id: &str,
+        map: &str,
+        stocks: u8,
+        duration: u16,
+        drop_mode: u8,
+        difficulty: u8,
+    ) -> bool {
+        self.campaign.iter().any(|level| {
+            level.id == id
+                && level.map_id == map
+                && level.stocks == stocks
+                && level.duration == duration
+                && level.drop_mode == drop_mode
+                && level.difficulty == difficulty
         })
     }
 

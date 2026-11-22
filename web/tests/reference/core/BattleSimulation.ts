@@ -1,8 +1,8 @@
-import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../../content/drops';
-import { WEAPON_SLOTS } from '../../content/weapons';
-import { createActor } from './actors';
-import { idleInput } from './types';
-import type { ActorInput, BattleEvent, MatchConfig, MatchState, WeaponId } from './types';
+import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../../../src/content/drops';
+import { WEAPON_SLOTS } from '../../../src/content/weapons';
+import { createActor } from '../../../src/game/core/actors';
+import { idleInput } from '../../../src/game/core/types';
+import type { ActorInput, BattleEvent, MatchConfig, MatchState, WeaponId } from '../../../src/game/core/types';
 import { moveActor } from '../systems/MovementSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { DropSystem } from '../systems/DropSystem';

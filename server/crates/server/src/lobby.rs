@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
 use gunbrawl_content::Content;
-use gunbrawl_proto::RoomView;
+use gunbrawl_proto::{PrivateMatch, RoomView};
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
@@ -121,6 +121,41 @@ impl Lobby {
         }
         warn!("could not allocate a room code");
         None
+    }
+
+    /// Private games use the same clock and simulation as shareable rooms. Their
+    /// sole command sender belongs to the WebSocket, so closing it frees the game.
+    pub fn start_private(
+        &self,
+        player: Player,
+        sender: mpsc::UnboundedSender<Bytes>,
+        setup: PrivateMatch,
+    ) -> Result<mpsc::Sender<Command>, &'static str> {
+        let config = RoomConfig {
+            map: setup.map.clone(),
+            stocks: setup.stocks,
+            duration: setup.duration,
+            drop_mode: setup.drop_mode,
+        };
+        let mut room = Room::new(
+            format!("private-{}", player.id),
+            config,
+            self.content.clone(),
+            self.metrics.clone(),
+            None,
+            self.directory.clone(),
+            RoomRules::default(),
+        );
+        room.start_private(player, sender, setup)?;
+        let (tx, rx) = mpsc::channel(64);
+        let metrics = self.metrics.clone();
+        Metrics::incr(&metrics.rooms_created);
+        Metrics::incr(&metrics.private_rooms);
+        tokio::spawn(async move {
+            run_room(room, rx).await;
+            Metrics::decr(&metrics.private_rooms);
+        });
+        Ok(tx)
     }
 
     /// Ask a room to shut down (admin action); its task deregisters itself.

@@ -1,7 +1,7 @@
-import { BASIC_PISTOL, weaponMuzzle } from '../../content/weapons';
-import { MOVEMENT } from '../core/constants';
+import { BASIC_PISTOL, weaponMuzzle } from '../../../src/content/weapons';
+import { MOVEMENT } from '../../../src/game/core/constants';
 import { actorRect, addImpulse, segmentRect } from '../core/math';
-import type { ActorInput, ActorState, BattleEvent, MatchState, Vec2 } from '../core/types';
+import type { ActorInput, ActorState, BattleEvent, MatchState, Vec2 } from '../../../src/game/core/types';
 import { applyExplosionHits, ExplosionSystem } from './ExplosionSystem';
 import { hasAmmo, revertToPistol, startReload, tickReload } from './WeaponSystem';
 

@@ -39,7 +39,7 @@ try {
     const Phaser = (await import('/node_modules/.vite/deps/phaser.js')).default;
     const { ArenaRenderer } = await import('/src/presentation/ArenaRenderer.ts');
     const { WeaponLayer } = await import('/src/presentation/WeaponLayer.ts');
-    const { BattleSimulation } = await import('/src/game/core/BattleSimulation.ts');
+    const { BattleSimulation } = await import('/tests/reference/core/BattleSimulation.ts');
     const { createCustomMatchConfig, DEFAULT_CUSTOM_MATCH } = await import('/src/content/matches.ts');
     const { presetAppearance } = await import('/src/content/appearances.ts');
     const { createWeapon, weaponMuzzle } = await import('/src/content/weapons.ts');

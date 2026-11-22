@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDeepSeekGateway } from '../../server/ai/deepseek.mjs';
 import type { GatewayOptions } from '../../server/ai/deepseek.mjs';
 import { createDeepSeekMatchConfig } from '../src/content/matches';
-import { MatchRunner } from '../src/game/core/MatchRunner';
+import { MatchRunner } from './reference/core/MatchRunner';
 import { createObservation } from '../src/game/ai/external/Protocol';
 import { idleInput } from '../src/game/core/types';
 

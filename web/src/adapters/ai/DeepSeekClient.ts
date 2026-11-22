@@ -1,6 +1,13 @@
 import { createObservation, MAX_OBSERVATION_AGE, MAX_RECENT_ACTIONS, parseExternalAction } from '../../game/ai/external/Protocol';
-import type { ExternalActionOutcome, RecentExternalAction } from '../../game/ai/external/Protocol';
-import type { MatchRunner } from '../../game/core/MatchRunner';
+import type { CommandContext, ExternalAction, ExternalActionOutcome, GameObservation, RecentExternalAction } from '../../game/ai/external/Protocol';
+import type { ActorState, MatchState, Vec2 } from '../../game/core/types';
+
+interface ExternalMatchSource {
+  readonly observationState: Readonly<MatchState>;
+  readonly tick: number;
+  externalEpoch(actorId: string): number | undefined;
+  applyExternalInput(actorId: string, action: ExternalAction, context: CommandContext): boolean;
+}
 
 export interface DeepSeekInfo {
   configured: boolean; model: string; maxRequests: number; requestIntervalMs: number; timeoutMs: number; contextTokens: number;
@@ -58,32 +65,44 @@ export async function closeDeepSeekSession(sessionId: string, fetcher: typeof fe
   });
 }
 
-/** Asynchronous transport around a synchronous runner. Never advances or writes simulation state. */
+/** Requests a decision for the latest observed match epoch. */
 export class DeepSeekClient {
   private pending: AbortController | null = null;
   private epoch: number | undefined;
   private sequence = 0;
   private nextRequestAt = 0;
   private stopped = false;
+  private paused = false;
+  private epochAtPause: number | undefined;
   private terminal = false;
   private actionUntilTick = 0;
   private recentActions: RecentExternalAction[] = [];
-  private actionAnchor: { x: number; y: number; tick: number } | null = null;
+  private actionAnchor: Vec2 | null = null;
   private readonly status: DeepSeekStatus = { phase: 'waiting', message: '等待开场', decisions: 0, latencyMs: null, requests: 0, tokens: 0 };
 
   constructor(
-    private readonly runner: MatchRunner,
+    private readonly source: ExternalMatchSource,
     private readonly actorId: string,
     private readonly session: DeepSeekSession,
     private readonly onStatus: (status: DeepSeekStatus | null) => void,
     private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
     private readonly now: () => number = () => performance.now(),
-  ) { this.publish('waiting', '等待开场'); }
+  ) { this.onStatus({ ...this.status }); }
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    if (paused && !this.stopped && !this.terminal) {
+      this.epochAtPause = this.source.externalEpoch(this.actorId);
+      this.pending?.abort();
+      this.pending = null;
+      this.publish('paused', '已暂停');
+    }
+  }
 
   update(): void {
     if (this.stopped) return;
-    const state = this.runner.state;
-    const epoch = this.runner.externalEpoch(this.actorId);
+    const state = this.source.observationState;
+    const epoch = this.source.externalEpoch(this.actorId);
     if (epoch !== this.epoch) {
       this.epoch = epoch;
       this.pending?.abort(); this.pending = null;
@@ -94,23 +113,28 @@ export class DeepSeekClient {
     if (state.phase === 'finished') {
       this.publish('finished', '本局结束'); this.stopConnection(); return;
     }
-    if (this.terminal) return;
+    if (this.paused || this.terminal) return;
+    // A quick resume can precede the snapshot acknowledging the pause.
+    if (this.epochAtPause !== undefined && epoch === this.epochAtPause) return;
+    this.epochAtPause = undefined;
     const actor = state.actors.find((candidate) => candidate.config.id === this.actorId);
     if (state.phase !== 'playing' || actor?.status !== 'alive' || epoch === undefined) {
+      this.pending?.abort();
+      this.pending = null;
       this.publish('paused', state.phase === 'paused' ? '已暂停' : actor?.status === 'eliminated' ? '已淘汰' : actor?.status === 'respawning' ? '等待复活' : '等待开场');
       return;
     }
-    if (this.status.phase === 'executing' && this.runner.tick >= this.actionUntilTick) this.publish('waiting', '操作结束，等待决策');
+    const tick = this.source.tick;
+    if (this.status.phase === 'executing' && tick >= this.actionUntilTick) this.publish('waiting', '操作结束，等待决策');
     if (this.pending || this.now() < this.nextRequestAt) return;
-    void this.request(epoch);
+    this.refreshActionOutcome(actor, tick);
+    void this.request(epoch, createObservation(state, this.actorId, tick, this.recentActions));
   }
 
-  private async request(epoch: number): Promise<void> {
+  private async request(epoch: number, observation: GameObservation): Promise<void> {
     const controller = new AbortController(); this.pending = controller;
     const started = this.now();
     this.nextRequestAt = started + this.session.requestIntervalMs;
-    this.refreshActionOutcome();
-    const observation = createObservation(this.runner.state, this.actorId, this.runner.tick, this.recentActions);
     const sequence = ++this.sequence;
     this.status.requests++;
     this.publish('thinking', '正在决策');
@@ -120,23 +144,28 @@ export class DeepSeekClient {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
         body: JSON.stringify({ sessionId: this.session.sessionId, sequence, epoch, observation }),
       }));
-      if (this.stopped || controller.signal.aborted || epoch !== this.runner.externalEpoch(this.actorId) || this.pending !== controller) return;
+      if (this.stopped || this.paused || controller.signal.aborted
+        || epoch !== this.source.externalEpoch(this.actorId) || this.pending !== controller) return;
+      const state = this.source.observationState;
+      const actor = state.actors.find((candidate) => candidate.config.id === this.actorId);
+      if (state.phase !== 'playing' || actor?.status !== 'alive') return;
+      const submittedTick = this.source.tick;
       const action = parseExternalAction(body.action);
       if (!action || body.sequence !== sequence || body.epoch !== epoch || body.observationTick !== observation.tick) throw new DeepSeekError('AI 指令校验失败', 'INVALID_ACTION');
       this.status.latencyMs = Math.round(this.now() - started);
       this.applyUsage(body.usage);
-      if (this.runner.applyExternalInput(this.actorId, action, { epoch, sequence, observationTick: observation.tick })) {
+      if (this.source.applyExternalInput(this.actorId, action, { epoch, sequence, observationTick: observation.tick })) {
         this.status.decisions++;
-        this.recentActions = [...this.recentActions, { ...action, tick: observation.tick }].slice(-MAX_RECENT_ACTIONS);
-        const actor = this.runner.state.actors.find((candidate) => candidate.config.id === this.actorId);
-        this.actionAnchor = actor ? { x: actor.position.x, y: actor.position.y, tick: observation.tick } : null;
-        this.actionUntilTick = Math.min(this.runner.tick + action.holdFrames, observation.tick + MAX_OBSERVATION_AGE);
+        // Start measuring movement when the input is submitted, after the model's response time.
+        this.recentActions = [...this.recentActions, { ...action, tick: submittedTick }].slice(-MAX_RECENT_ACTIONS);
+        this.actionAnchor = { ...actor.position };
+        this.actionUntilTick = Math.min(submittedTick + action.holdFrames, observation.tick + MAX_OBSERVATION_AGE);
         this.publish('executing', `${action.moveX === 1 ? '向右' : action.moveX === -1 ? '向左' : '停步'}${action.shootHeld ? ' · 开火' : ''}${action.jumpPressed ? ' · 跳跃' : ''}`);
       } else {
         this.publish('waiting', '指令已过期，重新观察');
       }
     } catch (error) {
-      if (this.stopped || this.pending !== controller || epoch !== this.runner.externalEpoch(this.actorId)) return;
+      if (this.stopped || this.pending !== controller || epoch !== this.source.externalEpoch(this.actorId)) return;
       const code = error instanceof DeepSeekError ? error.code : 'NETWORK';
       if (error instanceof DeepSeekError) this.applyUsage(error.usage);
       this.terminal = ['AUTH', 'BALANCE', 'BUDGET', 'NOT_CONFIGURED', 'SESSION_EXPIRED', 'PARAMETERS', 'CONTEXT_TOO_LARGE'].includes(code);
@@ -148,13 +177,12 @@ export class DeepSeekClient {
     }
   }
 
-  private refreshActionOutcome(): void {
+  private refreshActionOutcome(actor: ActorState, tick: number): void {
     const latest = this.recentActions.at(-1);
     const anchor = this.actionAnchor;
-    const actor = this.runner.state.actors.find((candidate) => candidate.config.id === this.actorId);
-    if (!latest || !anchor || !actor || latest.outcome) return;
+    if (!latest || !anchor || latest.outcome || tick <= latest.tick) return;
     const outcome: ExternalActionOutcome = {
-      observedTick: this.runner.tick,
+      observedTick: tick,
       deltaX: Math.round((actor.position.x - anchor.x) * 100) / 100,
       deltaY: Math.round((actor.position.y - anchor.y) * 100) / 100,
       platformId: actor.groundedOn,

@@ -1,5 +1,5 @@
-import { createWeapon } from '../../content/weapons';
-import type { ActorState, WeaponId } from '../core/types';
+import { createWeapon } from '../../../src/content/weapons';
+import type { ActorState, WeaponId } from '../../../src/game/core/types';
 
 /**
  * Legal weapon entry points for T03 / T08. None of these touch fireCooldown:

@@ -1,3 +1,4 @@
+import type { LocalRenderPose } from '../net/MatchSource';
 import Phaser from 'phaser';
 import type { MatchState } from '../game/core/types';
 import { createWeaponArtCanvas, WEAPON_ART, weaponArtKey, weaponDisplayScale } from './WeaponArt';
@@ -36,7 +37,7 @@ export class WeaponLayer {
     state: Readonly<MatchState> | null,
     alpha: number,
     mounts?: ReadonlyMap<string, WeaponMount>,
-    localPose?: { index: number; alpha: number; offset?: { x: number; y: number } },
+    localPoses?: ReadonlyMap<number, LocalRenderPose>,
   ): void {
     if (!state) {
       for (const sprite of this.sprites.values()) sprite.setVisible(false);
@@ -69,8 +70,9 @@ export class WeaponLayer {
         this.sprites.set(actor.config.id, sprite);
       }
       const interpolate = state.phase === 'playing';
-      const actorAlpha = localPose && localPose.index === index ? localPose.alpha : alpha;
-      const offset = localPose && localPose.index === index ? localPose.offset : undefined;
+      const prediction = localPoses?.get(index);
+      const actorAlpha = prediction?.alpha ?? alpha;
+      const offset = prediction?.offset;
       const x = (interpolate ? Phaser.Math.Linear(actor.previous.x, actor.position.x, actorAlpha) : actor.position.x)
         + (offset?.x ?? 0);
       const y = (interpolate ? Phaser.Math.Linear(actor.previous.y, actor.position.y, actorAlpha) : actor.position.y)

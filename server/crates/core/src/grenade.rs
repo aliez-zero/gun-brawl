@@ -1,4 +1,4 @@
-//! Bomb runtime, port of `web/src/game/systems/GrenadeSystem.ts`.
+//! Bomb runtime, port of `web/tests/reference/systems/GrenadeSystem.ts`.
 
 use crate::combat::{apply_explosion_hits, resolve_explosion};
 use crate::constants::BOMB;

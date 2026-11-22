@@ -4,12 +4,12 @@ import { ARENAS } from '../src/content/maps';
 import { createMatchConfig } from '../src/content/matches';
 import { BASIC_PISTOL } from '../src/content/weapons';
 import { createActor } from '../src/game/core/actors';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
-import { MatchRunner } from '../src/game/core/MatchRunner';
+import { MatchRunner } from './reference/core/MatchRunner';
 import { idleInput } from '../src/game/core/types';
 import type { ActorState } from '../src/game/core/types';
-import { moveActor } from '../src/game/systems/MovementSystem';
+import { moveActor } from './reference/systems/MovementSystem';
 
 describe('playable themed maps', () => {
   it.each(ARENAS)('$name has safe spawns and every platform can be reached with legal jumps', (map) => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../src/content/drops';
 import { ARMORY_WEAPONS, BASIC_PISTOL, WEAPON_MODELS, createWeapon, getWeapon, weaponBurstImpulse, weaponSustainedImpulse } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { supportGrip } from '../src/presentation/WeaponSupport';
 

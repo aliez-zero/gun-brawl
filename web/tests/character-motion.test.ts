@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { createWeapon } from '../src/content/weapons';
 import { idleInput } from '../src/game/core/types';

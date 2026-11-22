@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
 import { cloneCustomMatch, createCustomMatchConfig, createDeepSeekMatchConfig, createMatchConfig, validateCustomMatch } from '../content/matches';
 import { closeDeepSeekSession, getDeepSeekInfo, openDeepSeekSession } from '../adapters/ai/DeepSeekClient';
-import type { DeepSeekInfo } from '../adapters/ai/DeepSeekClient';
-import type { CustomMatchSettings } from '../content/matches';
+import type { DeepSeekInfo, DeepSeekSession } from '../adapters/ai/DeepSeekClient';
+import type { CustomMatchSettings, MatchSelections } from '../content/matches';
 import { CAMPAIGN_LEVELS, createCampaignConfig, getCampaignLevel } from '../content/campaign';
 import { normalizeAppearance } from '../content/appearances';
 import { getArena, isMapId } from '../content/maps';
 import { getWeapon } from '../content/weapons';
-import type { BattleEvent, GameMode, MatchState, WeaponId } from '../game/core/types';
+import type { BattleEvent, GameMode, MatchConfig, MatchResult, MatchState, WeaponId } from '../game/core/types';
 import { SoundEffects } from '../presentation/SoundEffects';
 import { MusicPlayer } from '../presentation/music/MusicPlayer';
 import { normalizeMusic, sceneMusic } from '../content/music';
@@ -17,16 +17,19 @@ import { NetClient } from '../net/NetClient';
 import { NetMatchSource } from '../net/NetMatchSource';
 import { netStats } from '../net/NetStats';
 import { Predictor } from '../net/Predictor';
-import type { RoomView } from '../net/protocol';
-import { PHASE_COUNTDOWN, PHASE_PLAYING } from '../net/protocol';
+import type { MatchResultWire, RoomView } from '../net/protocol';
+import { PHASE_COUNTDOWN, PHASE_LOBBY, PHASE_PLAYING } from '../net/protocol';
 import { BootScene } from '../scenes/BootScene';
 import { randomId } from '../ids';
 import { browserStorage, SaveStore } from '../storage/SaveStore';
 import { GameUI } from '../ui/GameUI';
+import { gameServerUrl, PrivateMatchSession, type PrivateMatchOptions } from './PrivateMatchSession';
 
 type Dialog = 'settings' | 'help' | 'appearance' | 'maps' | 'custom' | 'encyclopedia' | 'campaign' | 'deepseek' | 'online';
-type Screen = 'menu' | 'match' | 'pause' | 'result' | Dialog;
+type Screen = 'menu' | 'connecting' | 'match' | 'pause' | 'result' | Dialog;
 const isDialog = (screen: Screen): screen is Dialog => ['settings', 'help', 'appearance', 'maps', 'custom', 'encyclopedia', 'campaign', 'deepseek', 'online'].includes(screen);
+
+const newSeed = (): number => crypto.getRandomValues(new Uint32Array(1))[0]!;
 
 export class GameApplication {
   private readonly store = new SaveStore(browserStorage());
@@ -45,7 +48,9 @@ export class GameApplication {
   private deepSeekActive = false;
   private deepSeekInfo: DeepSeekInfo | null = null;
   private deepSeekSetupRequest: AbortController | null = null;
+  private privateMatch: PrivateMatchSession | null = null;
   private online: NetClient | null = null;
+  private connectingOnline: Promise<NetClient> | null = null;
   private onlineSource: NetMatchSource | null = null;
   private onlineRoom: RoomView | null = null;
   private onlineStatus = '';
@@ -92,7 +97,7 @@ export class GameApplication {
       startCustom: (settings) => this.startCustom(settings),
       resetTraining: () => { this.arena.resetTraining(); },
       setDummyMoving: (value) => { this.arena.setDummyMoving(value); },
-      startTrainingWeapon: (weaponId) => this.startTrainingWeapon(weaponId),
+      startTrainingWeapon: (weaponId) => this.start('training', weaponId),
       dismissTrainingIntro: () => {
         this.store.data.trainingIntroSeen = true;
         this.persist();
@@ -154,52 +159,33 @@ export class GameApplication {
         netStats: () => Record<string, number>;
       };
     }).__gunbrawlDebug = {
-      dropConnection: () => this.online?.dropConnection(),
+      dropConnection: () => (this.privateMatch ?? this.online)?.dropConnection(),
       netStats: () => netStats.snapshot(),
     };
   }
 
-  private start(mode: GameMode): void {
+  private selections(matchId = randomId()): MatchSelections {
+    return {
+      mapId: this.store.data.selectedMapId,
+      appearances: this.store.data.appearances,
+      trainingCompleted: this.store.data.trainingCompleted,
+      matchId,
+    };
+  }
+
+  private start(mode: GameMode, trainingWeapon?: WeaponId): void {
     if (!this.isReady) return;
     if (mode === 'custom') { this.openDialog('custom'); return; }
     if (mode === 'campaign') { this.openDialog('campaign'); return; }
-    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
-    this.sound.unlock();
-    this.activeMode = mode;
-    this.store.data.lastMode = mode;
-    this.persist();
-    this.screen = 'match';
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-    const matchId = randomId();
-    this.arena.startMatch(createMatchConfig(mode, seed, {
-      mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances, matchId,
-      trainingCompleted: this.store.data.trainingCompleted,
-    }));
-    this.ui.showMatch(this.arena.matchState!);
-    this.syncMusic();
-    (document.activeElement as HTMLElement | null)?.blur();
+    this.startPrivate(createMatchConfig(mode, newSeed(), this.selections()), { trainingWeapon });
   }
 
   private startCustom(settings: CustomMatchSettings): void {
     if (!this.isReady) return;
     const errors = validateCustomMatch(settings);
     if (errors.length) { this.ui.notify(errors[0]!); return; }
-    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
-    const normalized = cloneCustomMatch(settings);
-    this.sound.unlock();
-    this.activeMode = 'custom';
-    this.store.data.lastMode = 'custom';
-    this.store.data.customMatch = normalized;
-    this.persist();
-    this.screen = 'match';
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-    const matchId = randomId();
-    this.arena.startMatch(createCustomMatchConfig(normalized, seed, {
-      appearances: this.store.data.appearances, matchId,
-    }));
-    this.ui.showMatch(this.arena.matchState!);
-    this.syncMusic();
-    (document.activeElement as HTMLElement | null)?.blur();
+    this.store.data.customMatch = cloneCustomMatch(settings);
+    this.startPrivate(createCustomMatchConfig(this.store.data.customMatch, newSeed(), this.selections()));
   }
 
   private startCampaign(levelId: string): void {
@@ -207,19 +193,50 @@ export class GameApplication {
     const level = getCampaignLevel(levelId);
     if (!level) { this.ui.notify('无效的战役关卡'); return; }
     if (this.store.data.campaign.unlocked < level.order) { this.ui.notify('先通关上一关才能解锁'); return; }
-    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
+    this.startPrivate(createCampaignConfig(level, newSeed(), this.selections()));
+  }
+
+  private startPrivate(config: MatchConfig, options: PrivateMatchOptions = {}): void {
+    this.cancelDeepSeekSetup();
+    this.leavePrivateSession();
+    this.leaveOnlineSession();
+    this.arena.showMenu();
     this.sound.unlock();
-    this.activeMode = 'campaign';
-    this.activeCampaignLevel = level.id;
-    this.store.data.lastMode = 'campaign';
-    this.persist();
+    this.activeMode = config.mode;
+    this.activeCampaignLevel = config.campaignLevelId ?? null;
+    this.deepSeekActive = Boolean(options.deepSeek);
+    if (!options.deepSeek) {
+      this.store.data.lastMode = config.mode;
+      this.persist();
+    }
+    this.screen = 'connecting';
+    this.ui.showConnecting();
+    this.syncMusic();
+    this.privateMatch = new PrivateMatchSession(config, options, {
+      predictor: () => this.predictor,
+      onStart: (source, session) => {
+        this.enterMatch(source, session);
+        if (document.hidden || !document.hasFocus()) this.pause();
+      },
+      onResult: (result) => this.finishMatch(result),
+      onError: (message) => {
+        this.menu();
+        this.ui.notify(`无法继续对局，${message}。请确认游戏服务已启动后重试。`);
+      },
+    });
+    void this.privateMatch.start();
+  }
+
+  private leavePrivateSession(): void {
+    this.privateMatch?.dispose();
+    this.privateMatch = null;
+    this.deepSeekActive = false;
+  }
+
+  private enterMatch(source: NetMatchSource, session?: DeepSeekSession): void {
     this.screen = 'match';
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
-    const matchId = randomId();
-    this.arena.startMatch(createCampaignConfig(level, seed, {
-      appearances: this.store.data.appearances, matchId,
-    }));
-    this.ui.showMatch(this.arena.matchState!);
+    this.arena.startMatch(source, session);
+    this.ui.showMatch(source.state, Boolean(this.onlineSource));
     this.syncMusic();
     (document.activeElement as HTMLElement | null)?.blur();
   }
@@ -233,7 +250,14 @@ export class GameApplication {
   }
 
   private restart(): void {
-    if (this.deepSeekActive) { this.openDialog('deepseek'); void this.startDeepSeek(); }
+    if (this.onlineSource) {
+      this.showOnlineRoom();
+      if (this.online && this.online.playerId === this.onlineRoom?.host) this.online.rematch();
+    } else if (this.deepSeekActive) {
+      this.returnScreen = this.screen === 'result' ? 'result' : 'pause';
+      this.screen = 'deepseek';
+      void this.startDeepSeek();
+    }
     else if (this.activeMode === 'custom') this.startCustom(this.store.data.customMatch);
     else if (this.activeMode === 'campaign' && this.activeCampaignLevel) this.startCampaign(this.activeCampaignLevel);
     else this.start(this.activeMode);
@@ -263,22 +287,14 @@ export class GameApplication {
     const request = new AbortController(); this.deepSeekSetupRequest = request;
     this.ui.showDeepSeekSetup(this.deepSeekInfo, null, true);
     const matchId = randomId();
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0]!;
+    const seed = newSeed();
     const timer = setTimeout(() => request.abort(), 6000);
     try {
       const session = await openDeepSeekSession(matchId, 'deepseek', request.signal);
       if (this.deepSeekSetupRequest !== request || this.screen !== 'deepseek') {
         void closeDeepSeekSession(session.sessionId).catch(() => {}); return;
       }
-      this.deepSeekActive = true; this.activeMode = 'duel-ai'; this.screen = 'match';
-      this.sound.unlock();
-      this.arena.startMatch(createDeepSeekMatchConfig(seed, {
-        mapId: this.store.data.selectedMapId, appearances: this.store.data.appearances, matchId,
-      }), session);
-      this.ui.showMatch(this.arena.matchState!);
-      this.syncMusic();
-      (document.activeElement as HTMLElement | null)?.blur();
-      if (document.hidden || !document.hasFocus()) this.pause();
+      this.startPrivate(createDeepSeekMatchConfig(seed, this.selections(matchId)), { deepSeek: session });
     } catch (error) {
       if (this.deepSeekSetupRequest === request && this.screen === 'deepseek') this.ui.showDeepSeekSetup(this.deepSeekInfo, error instanceof Error ? error.message : '无法连接 DeepSeek');
     } finally { clearTimeout(timer); }
@@ -297,6 +313,7 @@ export class GameApplication {
   /** Online lobby: connect once, then create or join a room. */
   private async openOnline(): Promise<void> {
     if (!this.isReady) return;
+    if (this.screen === 'connecting') this.menu();
     this.cancelDeepSeekSetup();
     if (this.screen === 'match' && !this.onlineSource) this.pause();
     this.returnScreen = this.screen === 'pause' ? 'pause' : this.screen === 'result' ? 'result' : 'menu';
@@ -326,12 +343,14 @@ export class GameApplication {
   }
 
   private async ensureOnline(): Promise<NetClient> {
+    if (this.connectingOnline) return this.connectingOnline;
     if (this.online?.connected) return this.online;
-    const client = this.online ?? new NetClient({
+    const client: NetClient = this.online ?? new NetClient({
       onRoom: (room) => this.handleOnlineRoom(room),
       onSnapshot: (snapshot) => this.onlineSource?.applySnapshot(snapshot),
       onMatchEnd: (result) => this.handleOnlineEnd(result),
       onStatus: (status, detail) => {
+        if (this.online !== client) return;
         this.onlineStatus = detail ?? ({ connecting: '正在连接…', open: '已连接', closed: '连接已断开', error: '连接失败' }[status] ?? '');
         document.body.dataset.net = status;
         if (status === 'open') this.reconnectAttempts = 0;
@@ -348,14 +367,16 @@ export class GameApplication {
       },
     });
     this.online = client;
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    await client.connect(`${protocol}://${window.location.host}/ws`);
-    return client;
+    const connection = client.connect(gameServerUrl()).then(() => client);
+    this.connectingOnline = connection;
+    try { return await connection; }
+    finally { if (this.connectingOnline === connection) this.connectingOnline = null; }
   }
 
   /** Reconnect with backoff; the server replays room state by device token. */
   private scheduleReconnect(): void {
-    if (this.reconnectTimer !== null) return;
+    const client = this.online;
+    if (!client || this.reconnectTimer !== null) return;
     if (this.reconnectAttempts >= 5) {
       this.reconnecting = false;
       this.ui.notify('重连失败，已离开房间');
@@ -370,10 +391,12 @@ export class GameApplication {
       this.reconnectTimer = null;
       void this.ensureOnline()
         .then(() => {
+          if (this.online !== client) return;
           this.reconnecting = false;
           this.onlineStatus = '已重连';
         })
         .catch(() => {
+          if (this.online !== client) return;
           this.reconnecting = false;
           this.scheduleReconnect();
         });
@@ -383,6 +406,7 @@ export class GameApplication {
   private async createOnlineRoom(name: string, map: string, stocks: number, duration: number): Promise<void> {
     try {
       const client = await this.ensureOnline();
+      if (this.screen !== 'online' || this.online !== client) return;
       client.createRoom(name || client.name, map, stocks, duration, 0);
       this.onlineStatus = '正在创建房间…';
     } catch (error) {
@@ -394,6 +418,7 @@ export class GameApplication {
   private async joinOnlineRoom(name: string, code: string): Promise<void> {
     try {
       const client = await this.ensureOnline();
+      if (this.screen !== 'online' || this.online !== client) return;
       if (!code) { this.onlineStatus = '请输入房间码'; } else { client.joinRoom(code, name || client.name); this.onlineStatus = '正在加入房间…'; }
     } catch (error) {
       this.onlineStatus = error instanceof Error ? error.message : '连接失败';
@@ -403,6 +428,14 @@ export class GameApplication {
 
   private handleOnlineRoom(room: RoomView): void {
     this.onlineRoom = room;
+    if (room.phase === PHASE_LOBBY && this.onlineSource) {
+      this.onlineSource.dispose();
+      this.onlineSource = null;
+      this.arena.showMenu();
+      this.showOnlineRoom();
+      this.refreshMenuPreview();
+      return;
+    }
     if ((room.phase === PHASE_COUNTDOWN || room.phase === PHASE_PLAYING) && !this.onlineSource) {
       this.startOnlineMatch(room);
       return;
@@ -410,38 +443,40 @@ export class GameApplication {
     if (this.screen === 'online') this.ui.showOnline(room, this.online?.playerId ?? 0, this.onlineStatus);
   }
 
+  private showOnlineRoom(): void {
+    this.returnScreen = 'menu';
+    this.screen = 'online';
+    this.refreshOnline();
+    this.syncMusic();
+  }
+
   private startOnlineMatch(room: RoomView): void {
     if (!this.online) return;
     const source = new NetMatchSource(this.online, room, this.predictor);
     source.setLatency(this.onlineLatency.rtt, this.onlineLatency.jitter);
+    this.leavePrivateSession();
     this.onlineSource = source;
-    this.screen = 'match';
     this.sound.unlock();
-    this.arena.startOnline(source);
-    this.ui.showMatch(source.state);
+    this.enterMatch(source);
     this.updateNetStatus();
-    this.syncMusic();
-    (document.activeElement as HTMLElement | null)?.blur();
   }
 
-  private handleOnlineEnd(result: import('../net/protocol').MatchResultWire): void {
-    const matchResult = {
-      id: `online-${this.onlineRoom?.code ?? 'room'}`,
-      mode: 'custom' as const,
-      winner: result.winner === null ? null : `p${result.winner}`,
-      duration: result.durationMs / 1000,
-      overtime: result.overtime,
-      actors: result.actors.map((actor) => ({
-        id: `p${actor.id}`,
-        name: actor.name,
-        stocks: actor.stocks,
-        knockouts: actor.knockouts,
-        falls: actor.falls,
-        selfFalls: actor.selfFalls,
-      })),
-    };
+  private handleOnlineEnd(result: MatchResultWire): void {
+    if (this.onlineSource && !this.onlineSource.state.result) this.finishMatch(this.onlineSource.finish(result));
+  }
+
+  private finishMatch(result: MatchResult): void {
+    this.arena.finishMatch();
     this.screen = 'result';
-    this.ui.showResult(matchResult);
+    if (!this.onlineSource) {
+      if (result.mode === 'campaign') {
+        if (this.store.recordCampaignResult(result)) this.ui.notify('关卡通过，下一关已解锁');
+      } else {
+        this.store.recordResult(result);
+      }
+      this.notifyStorage();
+    }
+    this.ui.showResult(result, Boolean(this.onlineSource));
     this.syncMusic();
   }
 
@@ -456,6 +491,7 @@ export class GameApplication {
     this.onlineSource = null;
     const client = this.online;
     this.online = null;
+    this.connectingOnline = null;
     if (client) {
       client.leave();
       client.disconnect();
@@ -466,12 +502,12 @@ export class GameApplication {
   }
 
   private leaveOnline(): void {
-    this.leaveOnlineSession();
     this.onlineStatus = '已离开房间';
     this.menu();
   }
 
-  private updateNetStatus(): void {    if (!this.onlineSource) {
+  private updateNetStatus(): void {
+    if (!this.onlineSource) {
       this.ui.updateNetStatus(null);
       return;
     }
@@ -482,26 +518,15 @@ export class GameApplication {
     this.ui.updateNetStatus(`PING ${Math.round(rtt)}ms · JITTER ${Math.round(jitter)}ms`);
   }
 
-  private clearSave(): void {    this.cancelDeepSeekSetup(); this.deepSeekActive = false;
+  private clearSave(): void {
     this.store.clear();
     this.arena.setBindings(this.store.data.bindings);
     this.arena.setReducedMotion(this.store.data.settings.reducedMotion);
     this.sound.volume = this.store.data.settings.volume;
     this.music.configure(this.store.data.settings.music);
-    this.screen = 'menu';
     this.activeMode = this.store.data.lastMode;
-    this.arena.showMenu();
-    this.refreshMenuPreview();
-    this.ui.showMenu();
-    this.syncMusic();
+    this.menu();
     this.ui.notify(this.store.available ? '本地存档已清除' : '存档已重置，但本地存储不可写');
-  }
-
-  private startTrainingWeapon(weaponId: WeaponId): void {
-    this.start('training');
-    if (!this.isReady) return;
-    this.arena.selectTrainingWeapon(weaponId);
-    this.ui.updateHUD(this.arena.matchState!);
   }
 
   private frame(state: Readonly<MatchState>): void {
@@ -509,28 +534,17 @@ export class GameApplication {
     if (this.onlineSource) this.updateNetStatus();
     if (state.config.mode === 'training' && state.training) {
       const completed = state.training.completedTasks;
-      if (completed.length !== this.store.data.trainingCompleted.length) {
-        this.store.data.trainingCompleted = [...completed];
+      const saved = this.store.data.trainingCompleted;
+      if (completed.some((task) => !saved.includes(task))) {
+        this.store.data.trainingCompleted = [...new Set([...saved, ...completed])];
         this.persist();
-        this.ui.notify(`训练任务完成 ${completed.length}/6`);
+        this.ui.notify(`训练任务完成 ${this.store.data.trainingCompleted.length}/6`);
       }
     }
   }
 
   private handleEvents(events: readonly BattleEvent[]): void {
     for (const event of events) {
-      if (event.type === 'finished') {
-        this.screen = 'result';
-        if (event.result.mode === 'campaign') {
-          const unlocked = this.store.recordCampaignResult(event.result);
-          if (unlocked) this.ui.notify('关卡通过，下一关已解锁');
-        } else {
-          this.store.recordResult(event.result);
-        }
-        this.notifyStorage();
-        this.ui.showResult(event.result);
-        this.syncMusic();
-      }
       if (event.type === 'overtime') this.ui.notify('进入决胜加时，每人只剩一条命！');
       if (event.type === 'pickup') {
         const actor = this.arena.matchState?.actors.find((candidate) => candidate.config.id === event.actorId);
@@ -561,6 +575,7 @@ export class GameApplication {
   private menu(): void {
     if (!this.isReady) return;
     this.cancelDeepSeekSetup();
+    this.leavePrivateSession();
     this.leaveOnlineSession();
     this.screen = 'menu';
     this.arena.showMenu();
@@ -571,6 +586,7 @@ export class GameApplication {
 
   private openDialog(kind: Dialog): void {
     if (!this.isReady) return;
+    if (this.screen === 'connecting') this.menu();
     this.cancelDeepSeekSetup();
     if (isDialog(this.screen)) { this.screen = kind; }
     else {
@@ -594,7 +610,7 @@ export class GameApplication {
     this.cancelDeepSeekSetup();
     this.screen = this.returnScreen;
     if (this.screen === 'pause') this.ui.showPause();
-    else if (this.screen === 'result' && this.arena.matchState?.result) this.ui.showResult(this.arena.matchState.result);
+    else if (this.screen === 'result' && this.arena.matchState?.result) this.ui.showResult(this.arena.matchState.result, Boolean(this.onlineSource));
     else this.menu();
     this.syncMusic();
   }
@@ -603,6 +619,7 @@ export class GameApplication {
     if (this.screen === 'match') this.pause();
     else if (this.screen === 'pause') this.resume();
     else if (this.screen === 'online') this.leaveOnline();
+    else if (this.screen === 'connecting') this.menu();
     else this.closeDialog();
   }
 
@@ -642,6 +659,8 @@ export class GameApplication {
 
   destroy(): void {
     this.cancelDeepSeekSetup();
+    this.leavePrivateSession();
+    this.leaveOnlineSession();
     this.audioListeners.abort();
     window.removeEventListener('blur', this.onBlur);
     document.removeEventListener('visibilitychange', this.onVisibility);

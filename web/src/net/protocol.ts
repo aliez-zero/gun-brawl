@@ -1,21 +1,27 @@
 /**
- * Wire protocol v3, mirroring `server/crates/proto`.
+ * Wire protocol v4, mirroring `server/crates/proto`.
  *
  * Enum variant indices must match the Rust definitions exactly; the Rust side
  * is the source of truth and its tests pin the layout.
  */
 import { Reader, Writer } from './postcard';
+import { writePrivateAction, writePrivateMatch } from './privateProtocol';
+import type { PrivateAction, PrivateMatch } from './privateProtocol';
+export type { PrivateAction, PrivateMatch } from './privateProtocol';
 
-export const PROTO_VERSION = 3;
+export const PROTO_VERSION = 4;
 
 export const SLOT_EMPTY = 0;
 export const SLOT_HUMAN = 1;
 export const SLOT_BOT = 2;
+export const SLOT_DUMMY = 3;
+export const SLOT_EXTERNAL = 4;
 
 export const PHASE_LOBBY = 0;
 export const PHASE_COUNTDOWN = 1;
 export const PHASE_PLAYING = 2;
 export const PHASE_RESULT = 3;
+export const PHASE_PAUSED = 4;
 
 export const EVENT_SHOT = 1;
 export const EVENT_HIT = 2;
@@ -28,6 +34,9 @@ export const EVENT_DROP_INCOMING = 8;
 export const EVENT_DROP_LANDED = 9;
 export const EVENT_DROP_EXPIRED = 10;
 export const EVENT_PHASE = 11;
+export const EVENT_RELOAD = 12;
+export const EVENT_BOMB_EMPTY = 13;
+export const EVENT_OVERTIME = 14;
 
 export const HELD_FIRE = 1 << 0;
 export const EDGE_JUMP = 1 << 0;
@@ -79,7 +88,7 @@ export interface ActorSnap {
   ammo: number;
   reserve: number;
   fireCd: number;
-  reload: number;
+  reloadMs: number;
   protection: number;
   respawn: number;
   groundedPlatform: number;
@@ -87,6 +96,11 @@ export interface ActorSnap {
   dropTimer: number;
   coyoteTimer: number;
   jumpTimer: number;
+  bombs: number;
+  bombCooldownMs: number;
+  knockouts: number;
+  falls: number;
+  selfFalls: number;
 }
 
 export interface ProjectileSnap {
@@ -104,6 +118,9 @@ export interface BombSnap {
   owner: number;
   x: number;
   y: number;
+  fuseMs: number;
+  vx: number;
+  vy: number;
 }
 
 export interface DropSnap {
@@ -113,6 +130,7 @@ export interface DropSnap {
   y: number;
   state: number;
   warning: boolean;
+  timerMs: number;
 }
 
 export interface EventSnap {
@@ -120,6 +138,10 @@ export interface EventSnap {
   actor: number;
   x: number;
   y: number;
+  weapon: number;
+  object: number;
+  other: number;
+  radius: number;
 }
 
 export interface Snapshot {
@@ -127,6 +149,12 @@ export interface Snapshot {
   serverMs: number;
   phase: number;
   remainingMs: number;
+  countdownMs: number;
+  overtime: boolean;
+  trainingCompleted: number;
+  dummyMoving: boolean;
+  externalEpoch: number;
+  playingTick: number;
   acks: number[];
   actors: ActorSnap[];
   projectiles: ProjectileSnap[];
@@ -143,7 +171,7 @@ export interface MatchResultWire {
 }
 
 export type ServerMessage =
-  | { type: 'welcome'; playerId: number; name: string; tickRate: number; snapshotRate: number }
+  | { type: 'welcome'; playerId: number; name: string; tokenExpires: number; tickRate: number; snapshotRate: number }
   | { type: 'room'; room: RoomView }
   | { type: 'snapshot'; snapshot: Snapshot }
   | { type: 'matchEnd'; result: MatchResultWire }
@@ -161,7 +189,23 @@ export type ClientMessage =
   | { type: 'rematch' }
   | { type: 'input'; frames: InputFrame[] }
   | { type: 'ping'; t: number }
-  | { type: 'leave' };
+  | { type: 'leave' }
+  | { type: 'startPrivate'; setup: PrivateMatch }
+  | { type: 'privateInput'; actor: number; frames: InputFrame[] }
+  | { type: 'privateControl'; action: PrivateAction };
+
+function writeFrames(writer: Writer, frames: InputFrame[]): void {
+  writer.varint(frames.length);
+  for (const frame of frames) writeInput(writer, frame);
+}
+
+function writeInput(writer: Writer, frame: InputFrame): void {
+  writer.varint(frame.seq);
+  writer.varint(frame.tickHint);
+  writer.i8(frame.moveX);
+  writer.u8(frame.held);
+  writer.u8(frame.edges);
+}
 
 export function encodeClient(message: ClientMessage): Uint8Array {
   const writer = new Writer();
@@ -204,14 +248,7 @@ export function encodeClient(message: ClientMessage): Uint8Array {
       break;
     case 'input':
       writer.varint(7);
-      writer.varint(message.frames.length);
-      for (const frame of message.frames) {
-        writer.varint(frame.seq);
-        writer.varint(frame.tickHint);
-        writer.i8(frame.moveX);
-        writer.u8(frame.held);
-        writer.u8(frame.edges);
-      }
+      writeFrames(writer, message.frames);
       break;
     case 'ping':
       writer.varint(8);
@@ -219,6 +256,19 @@ export function encodeClient(message: ClientMessage): Uint8Array {
       break;
     case 'leave':
       writer.varint(9);
+      break;
+    case 'startPrivate':
+      writer.varint(10);
+      writePrivateMatch(writer, message.setup);
+      break;
+    case 'privateInput':
+      writer.varint(11);
+      writer.u8(message.actor);
+      writeFrames(writer, message.frames);
+      break;
+    case 'privateControl':
+      writer.varint(12);
+      writePrivateAction(writer, message.action, writeInput);
       break;
   }
   return writer.finish();
@@ -248,7 +298,7 @@ function readActor(reader: Reader): ActorSnap {
     ammo: reader.u8(),
     reserve: reader.u8(),
     fireCd: reader.u8(),
-    reload: reader.u8(),
+    reloadMs: reader.varint(),
     protection: reader.u8(),
     respawn: reader.u8(),
     groundedPlatform: reader.u8(),
@@ -256,12 +306,17 @@ function readActor(reader: Reader): ActorSnap {
     dropTimer: reader.u8(),
     coyoteTimer: reader.u8(),
     jumpTimer: reader.u8(),
+    bombs: reader.u8(),
+    bombCooldownMs: reader.varint(),
+    knockouts: reader.varint(),
+    falls: reader.varint(),
+    selfFalls: reader.varint(),
   };
 }
 
 function readProjectile(reader: Reader): ProjectileSnap {
   return {
-    id: reader.u8(),
+    id: reader.varint(),
     owner: reader.u8(),
     weapon: reader.u8(),
     x: reader.zigzag(),
@@ -272,22 +327,29 @@ function readProjectile(reader: Reader): ProjectileSnap {
 }
 
 function readBomb(reader: Reader): BombSnap {
-  return { id: reader.u8(), owner: reader.u8(), x: reader.zigzag(), y: reader.zigzag() };
+  return {
+    id: reader.varint(), owner: reader.u8(), x: reader.zigzag(), y: reader.zigzag(),
+    fuseMs: reader.varint(), vx: reader.zigzag(), vy: reader.zigzag(),
+  };
 }
 
 function readDrop(reader: Reader): DropSnap {
   return {
-    id: reader.u8(),
+    id: reader.varint(),
     weapon: reader.u8(),
     x: reader.zigzag(),
     y: reader.zigzag(),
     state: reader.u8(),
     warning: reader.bool(),
+    timerMs: reader.varint(),
   };
 }
 
 function readEvent(reader: Reader): EventSnap {
-  return { kind: reader.u8(), actor: reader.u8(), x: reader.zigzag(), y: reader.zigzag() };
+  return {
+    kind: reader.u8(), actor: reader.u8(), x: reader.zigzag(), y: reader.zigzag(),
+    weapon: reader.u8(), object: reader.varint(), other: reader.u8(), radius: reader.varint(),
+  };
 }
 
 function readRoom(reader: Reader): RoomView {
@@ -315,13 +377,22 @@ function readSnapshot(reader: Reader): Snapshot {
   const serverMs = reader.varint();
   const phase = reader.u8();
   const remainingMs = reader.varint();
+  const countdownMs = reader.varint();
+  const overtime = reader.bool();
+  const trainingCompleted = reader.u8();
+  const dummyMoving = reader.bool();
+  const externalEpoch = reader.varint();
+  const playingTick = reader.varint();
   const acks = [reader.varint(), reader.varint(), reader.varint(), reader.varint()];
   const actors = readVec(reader, readActor);
   const projectiles = readVec(reader, readProjectile);
   const bombs = readVec(reader, readBomb);
   const drops = readVec(reader, readDrop);
   const events = readVec(reader, readEvent);
-  return { tick, serverMs, phase, remainingMs, acks, actors, projectiles, bombs, drops, events };
+  return {
+    tick, serverMs, phase, remainingMs, countdownMs, overtime, trainingCompleted, dummyMoving,
+    externalEpoch, playingTick, acks, actors, projectiles, bombs, drops, events,
+  };
 }
 
 function readResult(reader: Reader): MatchResultWire {
@@ -349,6 +420,7 @@ export function decodeServer(bytes: Uint8Array): ServerMessage {
         type: 'welcome',
         playerId: reader.varint(),
         name: reader.str(),
+        tokenExpires: reader.varint(),
         tickRate: reader.varint(),
         snapshotRate: reader.varint(),
       };

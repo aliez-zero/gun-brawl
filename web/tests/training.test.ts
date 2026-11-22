@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { WEAPON_SLOTS } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
-import { TrainingSystem } from '../src/game/systems/TrainingSystem';
+import { TrainingSystem } from './reference/systems/TrainingSystem';
 
 function training(): BattleSimulation {
   const simulation = new BattleSimulation({ ...createMatchConfig('training', 42), countdown: 0 });

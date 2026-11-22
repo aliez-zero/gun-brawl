@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { presetAppearance } from '../src/content/appearances';
 import { createMatchConfig } from '../src/content/matches';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import type { Vec2 } from '../src/game/core/types';
 import { COWBOY_CLIPS, cowboyStep, sampleCurve } from '../src/presentation/characters/CowboyClips';
 import { HumanoidMotion, sampleHumanoid } from '../src/presentation/characters/HumanoidRig';

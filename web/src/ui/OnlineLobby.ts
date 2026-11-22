@@ -1,3 +1,4 @@
+import { escapeLabel } from './format';
 import { ARENAS } from '../content/maps';
 import { SLOT_BOT, SLOT_EMPTY, type RoomView } from '../net/protocol';
 
@@ -19,15 +20,15 @@ export function onlineLobbyHtml(room: RoomView | null, playerId: number, status:
         <label class="online-field">时长（秒） <select id="online-duration"><option>180</option><option>120</option><option>300</option><option>600</option></select></label>
       </div>
       <div class="dialog-actions"><button class="start-button" data-action="online-create"><span>创建房间</span><span>↗</span></button></div>
-      <p class="dialog-copy online-status" id="online-status">${status}</p>`;
+      <p class="dialog-copy online-status" id="online-status">${escapeLabel(status)}</p>`;
   }
 
   const slots = room.slots.map((slot, index) => {
     const label = slot.kind === SLOT_EMPTY
       ? '空位'
       : slot.kind === SLOT_BOT
-        ? `${slot.name}（AI）`
-        : `${slot.name}${slot.player === playerId ? '（你）' : ''}${slot.ready ? ' · 已准备' : ''}`;
+        ? `${escapeLabel(slot.name)}（AI）`
+        : `${escapeLabel(slot.name)}${slot.player === playerId ? '（你）' : ''}${slot.ready ? ' · 已准备' : ''}`;
     const bot = room.host === playerId && slot.kind === SLOT_EMPTY
       ? `<button data-action="online-bot" data-slot="${index}">设为 AI</button>`
       : '';
@@ -51,5 +52,5 @@ export function onlineLobbyHtml(room: RoomView | null, playerId: number, status:
       ${start}${rematch}
       <button data-action="online-leave">离开房间</button>
     </div>
-    <p class="dialog-copy online-status" id="online-status">${status}</p>`;
+    <p class="dialog-copy online-status" id="online-status">${escapeLabel(status)}</p>`;
 }

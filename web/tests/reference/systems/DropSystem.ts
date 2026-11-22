@@ -1,7 +1,7 @@
-import { DEFAULT_DROP_POOL, normalizeDropPool } from '../../content/drops';
-import type { DropPoolEntry } from '../../content/drops';
+import { DEFAULT_DROP_POOL, normalizeDropPool } from '../../../src/content/drops';
+import type { DropPoolEntry } from '../../../src/content/drops';
 import { actorRect } from '../core/math';
-import type { ActorState, BattleEvent, MapDefinition, MatchState, Vec2, WeaponDrop } from '../core/types';
+import type { ActorState, BattleEvent, MapDefinition, MatchState, Vec2, WeaponDrop } from '../../../src/game/core/types';
 import { equipWeapon } from './WeaponSystem';
 
 const FIRST_DROP = 8;

@@ -3,13 +3,12 @@ import { DeepSeekClient } from '../adapters/ai/DeepSeekClient';
 import type { DeepSeekSession, DeepSeekStatus } from '../adapters/ai/DeepSeekClient';
 import { DEFAULT_KEY_BINDINGS } from '../content/controls';
 import type { KeyBindings } from '../content/controls';
-import { MatchRunner } from '../game/core/MatchRunner';
-import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchConfig, MatchState, WeaponId } from '../game/core/types';
+import type { BattleEvent, CharacterAppearance, HumanSlot, MapDefinition, MatchState } from '../game/core/types';
 import { KeyboardInput } from '../presentation/KeyboardInput';
 import { ArenaRenderer } from '../presentation/ArenaRenderer';
 import { FieldLayer } from '../presentation/FieldLayer';
 import { WeaponLayer } from '../presentation/WeaponLayer';
-import { NetMatchSource } from '../net/NetMatchSource';
+import type { NetMatchSource } from '../net/NetMatchSource';
 import { netStats } from '../net/NetStats';
 import type { SoundEffects } from '../presentation/SoundEffects';
 
@@ -22,8 +21,8 @@ export interface ArenaCallbacks {
 }
 
 export class ArenaScene extends Phaser.Scene {
-  private runner: MatchRunner | null = null;
-  private online: NetMatchSource | null = null;
+  private source: NetMatchSource | null = null;
+  private suspended = false;
   private externalAI: DeepSeekClient | null = null;
   private keyboard!: KeyboardInput;
   private arenaView!: ArenaRenderer;
@@ -56,36 +55,23 @@ export class ArenaScene extends Phaser.Scene {
     this.callbacks.onReady();
   }
 
-  startMatch(config: MatchConfig, session?: DeepSeekSession): void {
-    this.externalAI?.destroy(); this.externalAI = null;
-    this.online = null;
-    this.keyboard.clear();
-    this.arenaView.reset();
-    this.weaponView.reset();
-    this.fieldView.reset();
-    this.arenaView.setMap(config.map);
-    this.runner = new MatchRunner(config);
-    if (session) this.externalAI = new DeepSeekClient(this.runner, 'deepseek', session, this.callbacks.onExternalAI);
-    this.callbacks.onFrame(this.runner.state);
-  }
-
-  /** Online matches render authoritative snapshots; there is no local runner. */
-  startOnline(source: NetMatchSource): void {
-    this.externalAI?.destroy(); this.externalAI = null;
-    this.runner = null;
-    this.online = source;
-    this.keyboard.clear();
-    this.arenaView.reset();
-    this.weaponView.reset();
-    this.fieldView.reset();
+  startMatch(source: NetMatchSource, session?: DeepSeekSession): void {
+    this.showMenu();
+    this.source = source;
     this.arenaView.setMap(source.state.config.map);
-    this.callbacks.onFrame(source.state);
+    if (session) this.externalAI = new DeepSeekClient(source, 'deepseek', session, this.callbacks.onExternalAI);
   }
 
   showMenu(): void {
-    this.externalAI?.destroy(); this.externalAI = null;
-    this.keyboard.clear(); this.keyboard.enabled = false; this.runner = null; this.online = null;
-    this.weaponView.reset(); this.fieldView.reset(); this.arenaView.reset();
+    this.externalAI?.destroy();
+    this.externalAI = null;
+    this.source = null;
+    this.suspended = false;
+    this.keyboard.enabled = false;
+    this.keyboard.clear();
+    this.weaponView.reset();
+    this.fieldView.reset();
+    this.arenaView.reset();
   }
 
   setMenuPreview(map: MapDefinition, looks: Record<HumanSlot, CharacterAppearance>): void {
@@ -95,66 +81,63 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   pauseMatch(): void {
-    if (this.online) return;
+    this.suspended = true;
     this.keyboard.enabled = false;
     this.keyboard.clear();
     this.cameras.main.resetFX();
-    this.runner?.pause();
+    this.externalAI?.setPaused(true);
+    this.source?.pause();
+  }
+
+  finishMatch(): void {
+    this.keyboard.enabled = false;
+    this.keyboard.clear();
     this.externalAI?.update();
   }
 
   resumeMatch(): void {
-    if (this.online) return;
     this.keyboard.clear();
-    this.runner?.resume();
+    this.source?.resume();
+    this.externalAI?.setPaused(false);
+    this.suspended = false;
   }
+
   setBindings(bindings: KeyBindings): void {
     this.bindings = bindings;
     if (this.keyboard) this.keyboard.setBindings(bindings);
   }
   setReducedMotion(value: boolean): void { this.arenaView.reducedMotion = value; }
-  resetTraining(): void { this.runner?.resetTraining(); this.keyboard.clear(); }
-  setDummyMoving(value: boolean): void { this.runner?.setDummyMoving(value); }
-  selectTrainingWeapon(slotOrId: number | WeaponId): void { this.runner?.simulation.selectTrainingWeapon(slotOrId); }
-  get matchState(): Readonly<MatchState> | null { return this.online?.state ?? this.runner?.state ?? null; }
+  resetTraining(): void { this.source?.resetTraining(); this.keyboard.clear(); }
+  setDummyMoving(value: boolean): void { this.source?.setDummyMoving(value); }
+  get matchState(): Readonly<MatchState> | null { return this.source?.state ?? null; }
 
   update(_time: number, delta: number): void {
-    if (this.online) {
-      const source = this.online;
-      netStats.frames += 1;
-      this.keyboard.enabled = source.state.phase === 'playing';
-      const events = source.advance(delta, (slot) => this.keyboard.sample(slot));
-      this.arenaView.handle(events);
-      this.fieldView.handle(events);
-      for (const event of events) this.soundEffects.play(event);
-      const localPose = source.localActor !== undefined && source.localAlpha !== undefined
-        ? { index: source.localActor, alpha: source.localAlpha, offset: source.localOffset }
-        : undefined;
-      this.arenaView.draw(source.state, source.alpha, delta / 1000, localPose);
-      this.weaponView.draw(source.state, source.alpha, this.arenaView.weaponMounts, localPose);
-      this.fieldView.draw(source.state, source.alpha, delta / 1000);
-      this.callbacks.onFrame(source.state);
-      if (events.length) this.callbacks.onEvents(events);
-      return;
-    }
-    if (!this.runner) {
+    const source = this.source;
+    if (source) {
+      this.frame(source, delta);
+    } else {
       this.arenaView.draw(null, 0, delta / 1000);
       this.weaponView.draw(null, 0);
       this.fieldView.draw(null, 0, delta / 1000);
-      return;
     }
-    this.keyboard.enabled = this.runner.state.phase === 'playing';
-    const weaponSlot = this.keyboard.consumeWeaponSlot();
-    if (weaponSlot !== null) this.runner.simulation.selectTrainingWeapon(weaponSlot);
-    const events = this.runner.advance(delta, (slot) => this.keyboard.sample(slot));
+  }
+
+  private frame(source: NetMatchSource, delta: number): void {
+    netStats.frames++;
+    this.keyboard.enabled = !this.suspended && source.state.phase === 'playing';
+    if (source.state.config.mode === 'training') {
+      const slot = this.keyboard.consumeWeaponSlot();
+      if (slot !== null) source.selectTrainingWeapon(slot);
+    }
+    const events = source.advance(delta, (slot) => this.keyboard.sample(slot));
     this.externalAI?.update();
     this.arenaView.handle(events);
     this.fieldView.handle(events);
     for (const event of events) this.soundEffects.play(event);
-    this.arenaView.draw(this.runner.state, this.runner.alpha, delta / 1000);
-    this.weaponView.draw(this.runner.state, this.runner.alpha, this.arenaView.weaponMounts);
-    this.fieldView.draw(this.runner.state, this.runner.alpha, delta / 1000);
-    this.callbacks.onFrame(this.runner.state);
+    this.arenaView.draw(source.state, source.alpha, delta / 1000, source.localPoses);
+    this.weaponView.draw(source.state, source.alpha, this.arenaView.weaponMounts, source.localPoses);
+    this.fieldView.draw(source.state, source.alpha, delta / 1000);
+    this.callbacks.onFrame(source.state);
     if (events.length) this.callbacks.onEvents(events);
   }
 }

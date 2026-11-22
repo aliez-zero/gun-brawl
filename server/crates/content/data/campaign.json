@@ -1,0 +1,50 @@
+[
+  {
+    "id": "level-1",
+    "mapId": "sky-citadel",
+    "stocks": 3,
+    "duration": 120,
+    "dropMode": 0,
+    "difficulty": 0
+  },
+  {
+    "id": "level-2",
+    "mapId": "neon-city",
+    "stocks": 2,
+    "duration": 100,
+    "dropMode": 1,
+    "difficulty": 0
+  },
+  {
+    "id": "level-3",
+    "mapId": "neon-city",
+    "stocks": 3,
+    "duration": 120,
+    "dropMode": 1,
+    "difficulty": 1
+  },
+  {
+    "id": "level-4",
+    "mapId": "alien-starship",
+    "stocks": 2,
+    "duration": 90,
+    "dropMode": 2,
+    "difficulty": 1
+  },
+  {
+    "id": "level-5",
+    "mapId": "sky-citadel",
+    "stocks": 2,
+    "duration": 90,
+    "dropMode": 1,
+    "difficulty": 2
+  },
+  {
+    "id": "level-6",
+    "mapId": "alien-starship",
+    "stocks": 1,
+    "duration": 120,
+    "dropMode": 0,
+    "difficulty": 2
+  }
+]

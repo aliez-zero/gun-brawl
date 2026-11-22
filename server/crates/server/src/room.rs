@@ -4,28 +4,37 @@
 //! The room owns all mutable game state. Sessions only forward commands and
 //! receive encoded messages, so no lock is ever held across a tick.
 
-use std::collections::{HashMap, VecDeque};
+mod external;
+mod input;
+mod private;
+#[cfg(test)]
+mod private_tests;
+mod shared;
+mod snapshot;
+#[cfg(test)]
+mod tests;
+
+use external::ExternalController;
+use input::InputQueue;
+use snapshot::{event_snap, phase_id};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
 use gunbrawl_bot::BotController;
 use gunbrawl_content::Content;
-use gunbrawl_core::constants::MOVEMENT;
 use gunbrawl_core::types::{
-    ActorConfig, ActorInput, ActorStatus, BattleEvent, Control, Difficulty, DropMode, DropState,
-    GameMode, InputTable, MatchConfig, MatchPhase,
+    ActorConfig, Control, Difficulty, DropMode, GameMode, MapDef, MatchConfig, MatchPhase,
 };
-use gunbrawl_core::{Simulation, SNAPSHOT_RATE, TICK_RATE};
+use gunbrawl_core::{Simulation, FIXED_STEP, SNAPSHOT_RATE, TICK_RATE};
 use gunbrawl_proto::{
-    encode, quantize_pos, quantize_vel, ActorSnap, BombSnap, DropSnap, EventSnap, InputFrame,
-    MatchResultWire, RoomView, SlotView, Snapshot, EVENT_BOMB, EVENT_DROP_EXPIRED,
-    EVENT_DROP_INCOMING, EVENT_DROP_LANDED, EVENT_EXPLOSION, EVENT_HIT, EVENT_PICKUP,
-    EVENT_RESPAWN, EVENT_RINGOUT, EVENT_SHOT, PHASE_COUNTDOWN, PHASE_LOBBY, PHASE_PLAYING,
-    PHASE_RESULT, S2C, SLOT_BOT, SLOT_EMPTY, SLOT_HUMAN,
+    encode, EventSnap, InputFrame, MatchResultWire, PrivateAction, RoomView, SlotView,
+    PHASE_COUNTDOWN, PHASE_LOBBY, PHASE_PAUSED, PHASE_RESULT, S2C, SLOT_BOT, SLOT_EMPTY,
+    SLOT_HUMAN,
 };
 use tokio::sync::mpsc;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::lobby::RoomDirectory;
 use crate::metrics::Metrics;
@@ -90,6 +99,15 @@ pub enum Command {
         player: u32,
         frames: Vec<InputFrame>,
     },
+    PrivateInput {
+        player: u32,
+        actor: u8,
+        frames: Vec<InputFrame>,
+    },
+    PrivateControl {
+        player: u32,
+        action: PrivateAction,
+    },
     /// Admin action: stop the room and let its task deregister.
     Close,
 }
@@ -115,68 +133,6 @@ impl Slot {
     }
 }
 
-struct InputQueue {
-    frames: VecDeque<InputFrame>,
-    last: Option<InputFrame>,
-    last_seq: u32,
-}
-
-impl InputQueue {
-    fn new() -> Self {
-        Self {
-            frames: VecDeque::with_capacity(4),
-            last: None,
-            last_seq: 0,
-        }
-    }
-
-    fn push(&mut self, frame: InputFrame) {
-        if self.frames.len() >= 4 {
-            self.frames.pop_front();
-        }
-        self.frames.push_back(frame);
-    }
-
-    fn consume(&mut self) -> InputFrame {
-        // A client whose clock runs slightly ahead of the server tick slowly fills this
-        // queue, and popping the oldest frame every tick means the player's input is
-        // applied a full queue depth (up to 67 ms) late for the rest of the match. Collapse
-        // a backlog into the newest frame instead, keeping edges so a jump or bomb press
-        // that arrived in a skipped frame still happens.
-        if self.frames.len() > 2 {
-            let mut held = 0u8;
-            let mut edges = 0u8;
-            let mut newest: Option<InputFrame> = None;
-            while let Some(frame) = self.frames.pop_front() {
-                held |= frame.held;
-                edges |= frame.edges;
-                newest = Some(frame);
-            }
-            if let Some(mut frame) = newest {
-                frame.held = held;
-                frame.edges = edges;
-                self.frames.push_front(frame);
-            }
-        }
-        let frame = match self.frames.pop_front() {
-            Some(frame) => frame,
-            None => match self.last {
-                Some(last) => InputFrame::repeat(last, self.last_seq, self.last_seq),
-                None => InputFrame {
-                    seq: 0,
-                    tick_hint: 0,
-                    move_x: 0,
-                    held: 0,
-                    edges: 0,
-                },
-            },
-        };
-        self.last = Some(frame);
-        self.last_seq = frame.seq;
-        frame
-    }
-}
-
 pub struct Room {
     code: String,
     host: u32,
@@ -190,6 +146,9 @@ pub struct Room {
     /// Events from all simulation ticks since the previous snapshot.
     pending_events: Vec<EventSnap>,
     phase: u8,
+    private: bool,
+    external: Option<ExternalController>,
+    playing_tick: u32,
     simulation: Option<Simulation>,
     /// Actor index -> slot index for the running match.
     actor_slots: Vec<usize>,
@@ -254,6 +213,9 @@ impl Room {
             last_snapshot: None,
             pending_events: Vec::new(),
             phase: PHASE_LOBBY,
+            private: false,
+            external: None,
+            playing_tick: 0,
             simulation: None,
             actor_slots: Vec::new(),
             bots: Vec::new(),
@@ -284,21 +246,6 @@ impl Room {
         self.shutdown
     }
 
-    /// Fill every empty slot with a bot at the admin-configured difficulty.
-    fn fill_empty_slots_with_bots(&mut self) {
-        for index in 0..MAX_SLOTS {
-            if self.slots[index].kind == SLOT_EMPTY {
-                self.slots[index] = Slot {
-                    kind: SLOT_BOT,
-                    player: 0,
-                    name: format!("AI {}", index + 1),
-                    ready: true,
-                    difficulty: self.rules.bot_difficulty,
-                };
-            }
-        }
-    }
-
     /// True once nobody has been connected for [`IDLE_ROOM_TIMEOUT`] and no slot is still
     /// waiting out its reconnect grace.
     pub fn should_close(&self) -> bool {
@@ -307,208 +254,41 @@ impl Room {
             && self.last_human_at.elapsed() >= IDLE_ROOM_TIMEOUT
     }
 
-    /// Free slots whose reconnect grace ran out, so a stale slot cannot be resumed or keep
-    /// a room alive forever.
-    fn expire_missing(&mut self) {
-        if self.missing.is_empty() {
-            return;
-        }
-        let now = Instant::now();
-        let mut expired: Vec<u32> = self
-            .missing
-            .iter()
-            .filter(|(_, since)| now.duration_since(**since) >= RECONNECT_GRACE)
-            .map(|(player, _)| *player)
-            .collect();
-        expired.sort_unstable();
-        for player in expired {
-            info!(room = %self.code, player, "reconnect grace expired, slot freed");
-            self.remove_player(player);
-        }
-    }
-
     fn handle(&mut self, command: Command) {
-        match command {
-            Command::Join { player, sender } => {
-                if self.phase != PHASE_LOBBY {
-                    let mut bytes = Vec::new();
-                    if gunbrawl_proto::encode_into(
-                        &S2C::Kick {
-                            code: 409,
-                            message: "对局进行中".into(),
-                        },
-                        &mut bytes,
-                    )
-                    .is_ok()
-                    {
-                        let _ = sender.send(Bytes::from(bytes));
-                    }
-                    return;
-                }
-                if self.slots.iter().all(|slot| slot.kind != SLOT_EMPTY) {
-                    return;
-                }
-                let slot_index = self
-                    .slots
-                    .iter()
-                    .position(|slot| slot.kind == SLOT_EMPTY)
-                    .unwrap_or(0);
-                if self.host == 0 {
-                    self.host = player.id;
-                }
-                self.slots[slot_index] = Slot {
-                    kind: SLOT_HUMAN,
-                    player: player.id,
-                    name: player.name.clone(),
-                    ready: false,
-                    difficulty: 1,
-                };
-                self.players.insert(player.id, sender);
-                self.broadcast_room();
-                info!(room = %self.code, player = player.id, slot = slot_index, "player joined");
-            }
-            Command::Leave { player } => {
-                self.remove_player(player);
-            }
-            Command::Disconnect { player } => {
-                self.players.remove(&player);
-                self.missing.insert(player, Instant::now());
-                // Keep the field full for everyone else: the seat plays itself until the
-                // player reconnects (or the grace expires), instead of leaving a statue
-                // that still takes hits and can even keep the last held fire button down.
-                self.hand_off_to_bot(player);
-                info!(room = %self.code, player, "player disconnected, slot held for 60s");
-            }
-            Command::Resume { player, sender } => {
-                let known = self
-                    .slots
-                    .iter()
-                    .any(|slot| slot.kind == SLOT_HUMAN && slot.player == player.id);
-                if !known {
-                    return;
-                }
-                self.missing.remove(&player.id);
-                self.players.insert(player.id, sender.clone());
-                self.take_back_from_bot(player.id);
-                let view = self.room_view();
-                if let Ok(payload) = encode(&S2C::Room(view)) {
-                    let _ = sender.send(Bytes::from(payload));
-                }
-                if let Some(snapshot) = &self.last_snapshot {
-                    let _ = sender.send(snapshot.clone());
-                }
-                self.broadcast_room();
-                info!(room = %self.code, player = player.id, "player resumed");
-            }
-            Command::PickSlot {
-                player,
-                slot,
-                kind,
-                difficulty,
-            } => {
-                let slot_index = slot as usize;
-                if slot_index >= MAX_SLOTS || self.phase != PHASE_LOBBY {
-                    return;
-                }
-                if kind == SLOT_BOT {
-                    self.slots[slot_index] = Slot {
-                        kind: SLOT_BOT,
-                        player: 0,
-                        name: format!("AI {}", slot_index + 1),
-                        ready: true,
-                        difficulty,
-                    };
-                } else if kind == SLOT_EMPTY && self.slots[slot_index].player != player {
-                    self.slots[slot_index] = Slot::empty();
-                }
-                let _ = player;
-                self.broadcast_room();
-            }
-            Command::Ready { player, ready } => {
-                if let Some(slot) = self
-                    .slots
-                    .iter_mut()
-                    .find(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
-                {
-                    slot.ready = ready;
-                }
-                self.broadcast_room();
-            }
-            Command::Start { player } => {
-                if player == self.host && self.phase == PHASE_LOBBY {
-                    self.start_match();
-                }
-            }
-            Command::Rematch { player } => {
-                if player == self.host && self.phase == PHASE_RESULT {
-                    self.phase = PHASE_LOBBY;
-                    self.simulation = None;
-                    for slot in &mut self.slots {
-                        slot.ready = slot.kind == SLOT_BOT;
-                    }
-                    self.broadcast_room();
-                }
-            }
-            Command::Input { player, frames } => {
-                let Some(slot_index) = self
-                    .slots
-                    .iter()
-                    .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
-                else {
-                    return;
-                };
-                for frame in frames.into_iter().take(4) {
-                    self.inputs[slot_index].push(frame);
-                }
-            }
-            Command::Close => {
-                self.shutdown = true;
-            }
+        if self.private {
+            self.handle_private(command);
+        } else {
+            self.handle_shared(command);
         }
     }
 
-    fn start_match(&mut self) {
-        let Some(map) = self.content.map(&self.config.map).cloned() else {
-            warn!(room = %self.code, map = %self.config.map, "unknown map");
-            return;
-        };
-        if self.rules.bot_fill {
-            self.fill_empty_slots_with_bots();
-        }
-        let mut actors: Vec<ActorConfig> = Vec::with_capacity(MAX_SLOTS);
+    fn begin_match(
+        &mut self,
+        mode: GameMode,
+        map: MapDef,
+        controls: Vec<(usize, Control)>,
+        training_completed: u8,
+    ) {
         self.actor_slots.clear();
         self.bots.clear();
-        for (index, slot) in self.slots.iter().enumerate() {
-            if slot.kind == SLOT_EMPTY {
-                continue;
+        self.external = None;
+        let mut actors = Vec::with_capacity(controls.len());
+        for (index, (slot, control)) in controls.into_iter().enumerate() {
+            let seed = self.seed.wrapping_add(index as u32);
+            if control == Control::External {
+                self.external = Some(ExternalController::new(index, seed.wrapping_add(10_000)));
             }
-            let control = if slot.kind == SLOT_BOT {
-                Control::Bot(match slot.difficulty {
-                    0 => Difficulty::Easy,
-                    2 => Difficulty::Hard,
-                    _ => Difficulty::Normal,
-                })
-            } else {
-                Control::Human((index % 2) as u8 + 1)
-            };
-            let bot = match control {
-                Control::Bot(difficulty) => Some(BotController::new(
-                    difficulty,
-                    self.seed.wrapping_add(actors.len() as u32),
-                )),
+            self.bots.push(match control {
+                Control::Bot(difficulty) => Some(BotController::new(difficulty, seed)),
                 _ => None,
-            };
+            });
             actors.push(ActorConfig {
-                id: actors.len() as u8,
-                name: slot.name.clone(),
+                id: index as u8,
+                name: self.slots[slot].name.clone(),
                 color: 0xffffff,
                 control,
             });
-            self.actor_slots.push(index);
-            self.bots.push(bot);
-        }
-        if actors.len() < 2 {
-            return;
+            self.actor_slots.push(slot);
         }
         let pistol = self.content.pistol();
         let drop_mode = match self.config.drop_mode {
@@ -524,7 +304,7 @@ impl Room {
             }
         }
         let config = MatchConfig {
-            mode: GameMode::Custom,
+            mode,
             map,
             weapons,
             actors,
@@ -536,7 +316,15 @@ impl Room {
             seed: self.seed,
             drop_mode,
         };
-        self.simulation = Some(Simulation::new(config, self.content.drop_pool(drop_mode)));
+        let mut simulation = Simulation::new(config, self.content.drop_pool(drop_mode));
+        if let Some(training) = &mut simulation.training {
+            training.completed = training_completed;
+        }
+        if let Some(external) = &mut self.external {
+            external.sync(&simulation.state);
+        }
+        self.simulation = Some(simulation);
+        self.playing_tick = 0;
         self.started_at = MatchRecord::now();
         self.phase = PHASE_COUNTDOWN;
         self.tick = 0;
@@ -558,57 +346,24 @@ impl Room {
         // simulating: the result branch below broadcasts, persists and counts on every
         // tick, so a room sitting on the result screen was writing 60 match records a
         // second and inflating matches_finished_total without bound.
-        if self.phase == PHASE_RESULT {
+        if matches!(self.phase, PHASE_RESULT | PHASE_PAUSED) {
             return;
         }
         let Some(mut simulation) = self.simulation.take() else {
             return;
         };
-        let mut table: InputTable = [None; 4];
-        let dt = 1.0 / TICK_RATE as f64;
-        for (actor_index, slot) in table.iter_mut().enumerate() {
-            if actor_index >= simulation.state.actors.len() {
-                break;
-            }
-            if let Some(Some(bot)) = self.bots.get_mut(actor_index) {
-                *slot = Some(bot.sample(actor_index, &simulation.state, dt));
-                continue;
-            }
-            let Some(slot_index) = self.actor_slots.get(actor_index).copied() else {
-                continue;
-            };
-            let frame = self.inputs[slot_index].consume();
-            *slot = Some(ActorInput {
-                move_x: frame.move_x,
-                jump_pressed: frame.edges & gunbrawl_proto::EDGE_JUMP != 0,
-                drop_pressed: frame.edges & gunbrawl_proto::EDGE_DROP != 0,
-                shoot_held: frame.held & gunbrawl_proto::HELD_FIRE != 0,
-                bomb_pressed: frame.edges & gunbrawl_proto::EDGE_BOMB != 0,
-                reload_pressed: frame.edges & gunbrawl_proto::EDGE_RELOAD != 0,
-            });
+        let table = self.build_inputs(&simulation);
+        let was_playing = simulation.state.phase == MatchPhase::Playing;
+        simulation.step(FIXED_STEP, &table);
+        if was_playing {
+            self.playing_tick = self.playing_tick.wrapping_add(1);
         }
-
-        simulation.step(dt, &table);
         Metrics::incr(&self.metrics.ticks);
-        self.pending_events
-            .extend(simulation.drain_events().iter().filter_map(event_snap));
-
-        self.phase = match simulation.state.phase {
-            MatchPhase::Countdown => PHASE_COUNTDOWN,
-            MatchPhase::Playing | MatchPhase::Paused => PHASE_PLAYING,
-            MatchPhase::Finished => PHASE_RESULT,
-        };
+        self.collect_events(&mut simulation);
 
         let finished = simulation.state.phase == MatchPhase::Finished;
         if self.tick.is_multiple_of(TICK_RATE / SNAPSHOT_RATE) || finished {
-            let snapshot = self.build_snapshot(&simulation);
-            if let Ok(payload) = encode(&S2C::Snapshot(Box::new(snapshot))) {
-                let payload = Bytes::from(payload);
-                self.pending_events.clear();
-                Metrics::incr(&self.metrics.snapshots);
-                self.last_snapshot = Some(payload.clone());
-                self.broadcast_bytes(payload);
-            }
+            self.send_snapshot(&simulation);
         }
         // Runs exactly once: the tick that sees Finished settles the match and flips the
         // phase, and the guard at the top of step() then stops all further ticking.
@@ -647,100 +402,48 @@ impl Room {
                 self.broadcast_room();
             }
         }
-        self.tick += 1;
+        self.tick = self.tick.wrapping_add(1);
         self.simulation = Some(simulation);
     }
 
-    fn build_snapshot(&self, simulation: &Simulation) -> Snapshot {
-        let state = &simulation.state;
-        let acks = std::array::from_fn(|slot| self.inputs[slot].last_seq);
-        let actors = state
-            .actors
-            .iter()
-            .map(|actor| {
-                let flags =
-                    u8::from(actor.grounded_on.is_some()) | ((actor.jumps_remaining.min(3)) << 1);
-                ActorSnap {
-                    id: actor.config.id,
-                    x: quantize_pos(actor.position.x as f32),
-                    y: quantize_pos(actor.position.y as f32),
-                    vx: quantize_vel(actor.move_velocity as f32),
-                    vy: quantize_vel(actor.vertical_velocity as f32),
-                    impulse_x: quantize_vel(actor.impulse.x as f32),
-                    impulse_y: quantize_vel(actor.impulse.y as f32),
-                    facing: actor.facing,
-                    flags,
-                    status: match actor.status {
-                        ActorStatus::Alive => 0,
-                        ActorStatus::Respawning => 1,
-                        ActorStatus::Eliminated => 2,
-                    },
-                    stocks: actor.stocks.clamp(0, 255) as u8,
-                    weapon: actor.weapon.weapon,
-                    ammo: actor
-                        .weapon
-                        .ammo
-                        .map(|ammo| ammo.clamp(0, 254) as u8)
-                        .unwrap_or(255),
-                    reserve: actor.weapon.reserve.clamp(0, 255) as u8,
-                    fire_cd: (actor.fire_cooldown * 100.0).clamp(0.0, 255.0) as u8,
-                    reload: (actor.reload_remaining * 100.0).clamp(0.0, 255.0) as u8,
-                    protection: (actor.protection_remaining * 10.0).clamp(0.0, 255.0) as u8,
-                    respawn: (actor.respawn_remaining * 10.0).clamp(0.0, 255.0) as u8,
-                    grounded_platform: actor.grounded_on.unwrap_or(u8::MAX),
-                    drop_platform: actor.drop_platform.unwrap_or(u8::MAX),
-                    drop_timer: movement_timer(actor.drop_remaining, MOVEMENT.drop_time),
-                    coyote_timer: movement_timer(actor.coyote_remaining, MOVEMENT.coyote_time),
-                    jump_timer: movement_timer(actor.jump_buffer, MOVEMENT.input_buffer),
-                }
-            })
-            .collect();
-        let projectiles = state
-            .projectiles
-            .iter()
-            .map(|projectile| gunbrawl_proto::ProjSnap {
-                id: projectile.id as u8,
-                owner: projectile.owner,
-                weapon: projectile.weapon,
-                x: quantize_pos(projectile.position.x as f32),
-                y: quantize_pos(projectile.position.y as f32),
-                vx: quantize_vel(projectile.velocity.x as f32),
-                vy: quantize_vel(projectile.velocity.y as f32),
-            })
-            .collect();
-        let bombs = state
-            .bombs
-            .iter()
-            .map(|bomb| BombSnap {
-                id: bomb.id as u8,
-                owner: bomb.owner,
-                x: quantize_pos(bomb.position.x as f32),
-                y: quantize_pos(bomb.position.y as f32),
-            })
-            .collect();
-        let drops = state
-            .drops
-            .iter()
-            .map(|drop| DropSnap {
-                id: drop.id as u8,
-                weapon: drop.weapon,
-                x: quantize_pos(drop.position.x as f32),
-                y: quantize_pos(drop.position.y as f32),
-                state: u8::from(drop.state == DropState::Active),
-                warning: drop.warning,
-            })
-            .collect();
-        Snapshot {
-            tick: self.tick,
-            server_ms: (state.elapsed * 1000.0) as u64,
-            phase: self.phase,
-            remaining_ms: (state.remaining * 1000.0) as u32,
-            acks,
-            actors,
-            projectiles,
-            bombs,
-            drops,
-            events: self.pending_events.clone(),
+    fn collect_events(&mut self, simulation: &mut Simulation) {
+        self.phase = phase_id(simulation.state.phase);
+        if let Some(external) = &mut self.external {
+            external.sync(&simulation.state);
+        }
+        self.pending_events
+            .extend(simulation.drain_events().iter().filter_map(event_snap));
+    }
+
+    fn send_snapshot(&mut self, simulation: &Simulation) {
+        let snapshot = snapshot::build(
+            &simulation.state,
+            self.tick,
+            self.phase,
+            std::array::from_fn(|slot| self.inputs[slot].last_seq),
+            &self.pending_events,
+            snapshot::ModeState {
+                training_completed: simulation
+                    .training
+                    .as_ref()
+                    .map_or(0, |training| training.completed),
+                dummy_moving: simulation
+                    .training
+                    .as_ref()
+                    .is_some_and(|training| training.dummy_moving),
+                external_epoch: self
+                    .external
+                    .as_ref()
+                    .map_or(0, |external| external.epoch()),
+                playing_tick: self.playing_tick,
+            },
+        );
+        if let Ok(payload) = encode(&S2C::Snapshot(Box::new(snapshot))) {
+            let payload = Bytes::from(payload);
+            self.pending_events.clear();
+            Metrics::incr(&self.metrics.snapshots);
+            self.last_snapshot = Some(payload.clone());
+            self.broadcast_bytes(payload);
         }
     }
 
@@ -813,7 +516,9 @@ impl Room {
 
     fn broadcast_room(&self) {
         let view = self.room_view();
-        self.directory.upsert(view.clone());
+        if !self.private {
+            self.directory.upsert(view.clone());
+        }
         self.broadcast(&S2C::Room(view));
     }
 
@@ -828,131 +533,14 @@ impl Room {
             let _ = sender.send(payload.clone());
         }
     }
-
-    fn remove_player(&mut self, player: u32) {
-        // Resolve the actor before the slot is cleared, or the mapping is lost.
-        let actor_index = self.actor_index_of(player);
-        if let Some(index) = self
-            .slots
-            .iter()
-            .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
-        {
-            self.slots[index] = Slot::empty();
-        }
-        if let Some(actor_index) = actor_index {
-            // A player who never comes back must not keep a live actor in the arena: it
-            // would still block shots, count for the win check and pad the score table.
-            if let Some(simulation) = self.simulation.as_mut() {
-                if let Some(actor) = simulation.state.actors.get_mut(actor_index) {
-                    if actor.status == ActorStatus::Alive {
-                        actor.status = ActorStatus::Eliminated;
-                        info!(room = %self.code, player, "player gone mid-match, actor eliminated");
-                    }
-                }
-            }
-        }
-        self.players.remove(&player);
-        self.missing.remove(&player);
-        if self.host == player {
-            self.host = self
-                .slots
-                .iter()
-                .find(|slot| slot.kind == SLOT_HUMAN)
-                .map(|slot| slot.player)
-                .unwrap_or(0);
-        }
-        if self.players.is_empty() {
-            self.phase = PHASE_LOBBY;
-            self.simulation = None;
-        }
-        self.broadcast_room();
-    }
-
-    /// Slot index of a human player, if they still hold a seat.
-    fn actor_index_of(&self, player: u32) -> Option<usize> {
-        let slot_index = self
-            .slots
-            .iter()
-            .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)?;
-        self.actor_slots
-            .iter()
-            .position(|index| *index == slot_index)
-    }
-
-    fn hand_off_to_bot(&mut self, player: u32) {
-        let Some(actor_index) = self.actor_index_of(player) else {
-            return;
-        };
-        let Some(slot) = self.bots.get_mut(actor_index) else {
-            return;
-        };
-        if slot.is_some() {
-            return;
-        }
-        *slot = Some(BotController::new(
-            Difficulty::Normal,
-            self.seed
-                .wrapping_add(actor_index as u32)
-                .wrapping_add(self.tick),
-        ));
-        info!(room = %self.code, player, "bot took over the seat");
-    }
-
-    fn take_back_from_bot(&mut self, player: u32) {
-        let Some(actor_index) = self.actor_index_of(player) else {
-            return;
-        };
-        if let Some(slot) = self.bots.get_mut(actor_index) {
-            if slot.take().is_some() {
-                info!(room = %self.code, player, "player resumed control");
-            }
-        }
-        if let Some(slot_index) = self
-            .slots
-            .iter()
-            .position(|slot| slot.kind == SLOT_HUMAN && slot.player == player)
-        {
-            // Drop frames queued before the disconnect; a stale "fire held" would fire again.
-            self.inputs[slot_index] = InputQueue::new();
-        }
-    }
 }
 
-fn movement_timer(remaining: f64, duration: f64) -> u8 {
-    if remaining <= 0.0 {
-        return 0;
+fn difficulty(wire: u8) -> Difficulty {
+    match wire {
+        0 => Difficulty::Easy,
+        2 => Difficulty::Hard,
+        _ => Difficulty::Normal,
     }
-    ((duration - remaining) * f64::from(TICK_RATE)).round() as u8 + 1
-}
-
-fn event_snap(event: &BattleEvent) -> Option<EventSnap> {
-    let (kind, actor, position) = match event {
-        BattleEvent::Shot {
-            actor, position, ..
-        } => (EVENT_SHOT, *actor, *position),
-        BattleEvent::Hit { actor, position } => (EVENT_HIT, *actor, *position),
-        BattleEvent::Bomb {
-            actor, position, ..
-        } => (EVENT_BOMB, *actor, *position),
-        BattleEvent::Explosion { position, .. } => (EVENT_EXPLOSION, 0, *position),
-        BattleEvent::Ringout {
-            actor, position, ..
-        } => (EVENT_RINGOUT, *actor, *position),
-        BattleEvent::Respawn { actor, position } => (EVENT_RESPAWN, *actor, *position),
-        BattleEvent::Pickup {
-            actor, position, ..
-        } => (EVENT_PICKUP, *actor, *position),
-        BattleEvent::DropIncoming { position, .. } => (EVENT_DROP_INCOMING, 0, *position),
-        BattleEvent::DropLanded { position, .. } => (EVENT_DROP_LANDED, 0, *position),
-        BattleEvent::DropExpired { position, .. } => (EVENT_DROP_EXPIRED, 0, *position),
-        _ => return None,
-    };
-    Some(EventSnap {
-        kind,
-        actor,
-        x: quantize_pos(position.x as f32),
-        y: quantize_pos(position.y as f32),
-    })
 }
 
 /// Room loop.
@@ -1012,374 +600,4 @@ pub async fn run_room(mut room: Room, mut rx: mpsc::Receiver<Command>) {
         }
     }
     info!(room = %room.code(), "room closed");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::atomic::Ordering;
-
-    fn test_room() -> Room {
-        let content = Arc::new(Content::parse().expect("content data"));
-        let metrics = Arc::new(Metrics::default());
-        let config = RoomConfig {
-            map: "sky-citadel".to_string(),
-            stocks: 3,
-            duration: 180,
-            drop_mode: 0,
-        };
-        Room::new(
-            "TEST01".to_string(),
-            config,
-            content,
-            metrics,
-            None,
-            Arc::new(RoomDirectory::default()),
-            RoomRules::default(),
-        )
-    }
-
-    #[test]
-    fn a_fresh_room_stays_open() {
-        assert!(!test_room().should_close());
-    }
-
-    fn frame(seq: u32, move_x: i8, edges: u8) -> InputFrame {
-        InputFrame {
-            seq,
-            tick_hint: 0,
-            move_x,
-            held: 0,
-            edges,
-        }
-    }
-
-    #[test]
-    fn an_input_backlog_collapses_to_the_newest_frame() {
-        let mut queue = InputQueue::new();
-        queue.push(frame(1, 1, gunbrawl_proto::EDGE_JUMP));
-        queue.push(frame(2, 1, 0));
-        queue.push(frame(3, -1, gunbrawl_proto::EDGE_BOMB));
-
-        let applied = queue.consume();
-
-        // Newest state wins, but presses from the skipped frames are not dropped.
-        assert_eq!(applied.seq, 3);
-        assert_eq!(applied.move_x, -1);
-        assert_eq!(
-            applied.edges,
-            gunbrawl_proto::EDGE_JUMP | gunbrawl_proto::EDGE_BOMB
-        );
-        assert!(queue.frames.len() <= 1, "the backlog should be gone");
-    }
-
-    #[test]
-    fn a_short_queue_is_applied_in_order() {
-        let mut queue = InputQueue::new();
-        queue.push(frame(1, 1, 0));
-        queue.push(frame(2, -1, gunbrawl_proto::EDGE_JUMP));
-
-        assert_eq!(queue.consume().seq, 1);
-        assert_eq!(queue.consume().seq, 2);
-        // Nothing queued: repeat the last frame so held buttons keep applying.
-        let repeated = queue.consume();
-        assert_eq!(repeated.seq, 2);
-        assert_eq!(repeated.edges, 0, "edges must not fire twice");
-    }
-
-    #[test]
-    fn an_abandoned_room_is_reclaimed() {
-        let mut room = test_room();
-        room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
-        assert!(room.should_close());
-    }
-
-    #[test]
-    fn a_room_with_a_connected_human_is_never_reclaimed() {
-        let mut room = test_room();
-        let (tx, _rx) = mpsc::unbounded_channel();
-        room.handle(Command::Join {
-            player: Player {
-                id: 7,
-                name: "p".to_string(),
-            },
-            sender: tx,
-        });
-        room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
-        room.step();
-        assert!(!room.should_close());
-    }
-
-    #[test]
-    fn expired_reconnect_grace_frees_the_slot_and_lets_the_room_go() {
-        let mut room = test_room();
-        let (tx, _rx) = mpsc::unbounded_channel();
-        room.handle(Command::Join {
-            player: Player {
-                id: 7,
-                name: "p".to_string(),
-            },
-            sender: tx,
-        });
-        room.handle(Command::Disconnect { player: 7 });
-        assert!(room.slots.iter().any(|slot| slot.player == 7));
-        assert!(
-            !room.should_close(),
-            "the grace period must outlive the disconnect"
-        );
-
-        room.missing
-            .insert(7, Instant::now() - RECONNECT_GRACE - Duration::from_secs(1));
-        room.last_human_at = Instant::now() - IDLE_ROOM_TIMEOUT - Duration::from_secs(1);
-        room.step();
-
-        assert!(
-            !room.slots.iter().any(|slot| slot.player == 7),
-            "slot should be freed"
-        );
-        assert!(room.should_close());
-    }
-
-    #[test]
-    fn a_room_on_the_result_screen_stops_ticking() {
-        let mut room = test_room();
-        room.phase = PHASE_RESULT;
-        let ticks_before = room.metrics.ticks.load(Ordering::Relaxed);
-        let matches_before = room.metrics.matches.load(Ordering::Relaxed);
-
-        for _ in 0..120 {
-            room.step();
-        }
-
-        assert_eq!(room.metrics.ticks.load(Ordering::Relaxed), ticks_before);
-        assert_eq!(room.metrics.matches.load(Ordering::Relaxed), matches_before);
-    }
-
-    #[test]
-    fn a_match_that_runs_out_of_time_is_settled_exactly_once() {
-        let mut room = test_room();
-        room.config.duration = 1;
-        let (tx, _rx) = mpsc::unbounded_channel();
-        room.handle(Command::Join {
-            player: Player {
-                id: 1,
-                name: "a".to_string(),
-            },
-            sender: tx,
-        });
-        room.handle(Command::PickSlot {
-            player: 1,
-            slot: 1,
-            kind: SLOT_BOT,
-            difficulty: 1,
-        });
-        room.handle(Command::Start { player: 1 });
-        assert_eq!(room.phase, PHASE_COUNTDOWN, "the match should have started");
-
-        // 3 s countdown + 1 s match + overtime; 50 s of ticks is far past any of them.
-        for _ in 0..3000 {
-            room.step();
-        }
-        let settled = room.metrics.matches.load(Ordering::Relaxed);
-        assert_eq!(settled, 1, "the finished match must be settled once");
-        assert_eq!(room.phase, PHASE_RESULT);
-
-        for _ in 0..300 {
-            room.step();
-        }
-        assert_eq!(room.metrics.matches.load(Ordering::Relaxed), settled);
-    }
-
-    fn playing_room() -> Room {
-        let mut room = test_room();
-        let (tx, rx) = mpsc::unbounded_channel();
-        std::mem::forget(rx); // keep the seat connected for the whole test
-        room.handle(Command::Join {
-            player: Player {
-                id: 1,
-                name: "human".to_string(),
-            },
-            sender: tx,
-        });
-        room.handle(Command::PickSlot {
-            player: 1,
-            slot: 1,
-            kind: SLOT_BOT,
-            difficulty: 1,
-        });
-        room.handle(Command::Start { player: 1 });
-        for _ in 0..200 {
-            room.step(); // past the three second countdown
-        }
-        room
-    }
-
-    #[test]
-    fn events_between_snapshots_are_sent_once() {
-        let mut room = playing_room();
-        room.step(); // send the snapshot immediately before the shot
-        let shot_tick = room.tick;
-        assert!(!shot_tick.is_multiple_of(TICK_RATE / SNAPSHOT_RATE));
-        room.handle(Command::Input {
-            player: 1,
-            frames: vec![InputFrame {
-                held: gunbrawl_proto::HELD_FIRE,
-                ..frame(1, 0, 0)
-            }],
-        });
-        room.step();
-        room.handle(Command::Input {
-            player: 1,
-            frames: vec![frame(2, 0, 0)],
-        });
-        room.step();
-
-        let read_snapshot = |room: &Room| {
-            let payload = room.last_snapshot.as_ref().expect("snapshot sent");
-            let S2C::Snapshot(snapshot) = gunbrawl_proto::decode(payload).expect("valid snapshot")
-            else {
-                panic!("expected a snapshot")
-            };
-            snapshot
-        };
-        let count_shots = |snapshot: &Snapshot| {
-            snapshot
-                .events
-                .iter()
-                .filter(|event| event.kind == EVENT_SHOT && event.actor == 0)
-                .count()
-        };
-        let snapshot = read_snapshot(&room);
-        assert_eq!(snapshot.tick, shot_tick + 1);
-        assert_eq!(count_shots(&snapshot), 1);
-
-        room.step();
-        room.step();
-        assert_eq!(count_shots(&read_snapshot(&room)), 0);
-    }
-
-    fn actor(room: &Room, index: usize) -> (ActorStatus, gunbrawl_core::types::Vec2) {
-        let actor = &room
-            .simulation
-            .as_ref()
-            .expect("match running")
-            .state
-            .actors[index];
-        (actor.status, actor.position)
-    }
-
-    #[test]
-    fn a_disconnected_player_keeps_playing_under_a_bot() {
-        let mut room = playing_room();
-        let (status, start) = actor(&room, 0);
-        assert_eq!(status, ActorStatus::Alive);
-
-        room.handle(Command::Disconnect { player: 1 });
-        assert!(room.bots[0].is_some(), "a bot should take the seat");
-
-        for _ in 0..120 {
-            room.step();
-        }
-        let (status, moved) = actor(&room, 0);
-        assert_eq!(status, ActorStatus::Alive);
-        assert!(
-            (moved.x - start.x).abs() > 1.0 || (moved.y - start.y).abs() > 1.0,
-            "the seat should still be moving: {start:?} -> {moved:?}",
-        );
-    }
-
-    #[test]
-    fn a_match_that_ends_after_everyone_left_is_not_recorded() {
-        let mut room = test_room();
-        room.config.duration = 1;
-        let (tx, rx) = mpsc::unbounded_channel();
-        std::mem::forget(rx);
-        room.handle(Command::Join {
-            player: Player {
-                id: 1,
-                name: "gone".to_string(),
-            },
-            sender: tx,
-        });
-        room.handle(Command::PickSlot {
-            player: 1,
-            slot: 1,
-            kind: SLOT_BOT,
-            difficulty: 1,
-        });
-        room.handle(Command::Start { player: 1 });
-
-        // The human drops right after kickoff; the takeover bot plays the match out.
-        // A draw sends the match into 30 s overtime, so allow 50 s of ticks — still short
-        // of the 60 s reconnect grace.
-        room.handle(Command::Disconnect { player: 1 });
-        for _ in 0..3000 {
-            room.step();
-        }
-
-        assert_eq!(
-            room.phase, PHASE_RESULT,
-            "the match should still have finished"
-        );
-        assert_eq!(
-            room.metrics.matches.load(Ordering::Relaxed),
-            0,
-            "an abandoned match must not enter the public history",
-        );
-    }
-
-    #[test]
-    fn reconnecting_takes_control_back_from_the_bot() {
-        let mut room = playing_room();
-        room.handle(Command::Disconnect { player: 1 });
-        assert!(room.bots[0].is_some());
-
-        let (tx, rx) = mpsc::unbounded_channel();
-        std::mem::forget(rx);
-        room.handle(Command::Resume {
-            player: Player {
-                id: 1,
-                name: "human".to_string(),
-            },
-            sender: tx,
-        });
-        assert!(room.bots[0].is_none(), "the human owns the seat again");
-    }
-
-    #[test]
-    fn a_player_who_never_returns_is_eliminated_mid_match() {
-        // Two humans, so the room keeps running after the first one gives up.
-        let mut room = test_room();
-        for (id, name) in [(1u32, "one"), (2, "two")] {
-            let (tx, rx) = mpsc::unbounded_channel();
-            std::mem::forget(rx);
-            room.handle(Command::Join {
-                player: Player {
-                    id,
-                    name: name.to_string(),
-                },
-                sender: tx,
-            });
-        }
-        room.handle(Command::Start { player: 1 });
-        for _ in 0..200 {
-            room.step();
-        }
-
-        room.handle(Command::Disconnect { player: 2 });
-        room.missing
-            .insert(2, Instant::now() - RECONNECT_GRACE - Duration::from_secs(1));
-        room.step();
-
-        let (status, _) = actor(&room, 1);
-        assert_eq!(
-            status,
-            ActorStatus::Eliminated,
-            "no ghost actors in the arena"
-        );
-        assert!(
-            room.slots.iter().all(|slot| slot.player != 2),
-            "the seat is released"
-        );
-    }
 }

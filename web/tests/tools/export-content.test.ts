@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_DROP_POOL, STANDARD_DROP_POOL } from '../../src/content/drops';
+import { CAMPAIGN_LEVELS } from '../../src/content/campaign';
 import { ARENAS } from '../../src/content/maps';
 import { WEAPONS, WEAPON_MODELS, weaponMuzzle } from '../../src/content/weapons';
 import type { WeaponDefinition } from '../../src/game/core/types';
@@ -23,6 +24,12 @@ describe.skipIf(!enabled)('content export', () => {
     const weapons = [...Object.values(WEAPONS), ...Object.values(WEAPON_MODELS)]
       .filter((weapon): weapon is WeaponDefinition => Boolean(weapon))
       .map((weapon) => ({ ...weapon, muzzle: weaponMuzzle(weapon.id) }));
+    const difficulty = { easy: 0, normal: 1, hard: 2 } as const;
+    const pools = { all: 0, standard: 1, none: 2 } as const;
+    write('campaign.json', CAMPAIGN_LEVELS.map((level) => ({
+      id: level.id, mapId: level.mapId, stocks: level.stocks, duration: level.duration,
+      dropMode: pools[level.dropMode], difficulty: difficulty[level.difficulty],
+    })));
     write('maps.json', maps);
     write('weapons.json', weapons);
     write('drops.json', { default: DEFAULT_DROP_POOL, standard: STANDARD_DROP_POOL });

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { ACTOR_HEIGHT, BOMB, FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
 import type { Bomb, ExplosionRequest, MapDefinition, MatchConfig, Platform } from '../src/game/core/types';
-import { applyExplosionHits, ExplosionSystem } from '../src/game/systems/ExplosionSystem';
+import { applyExplosionHits, ExplosionSystem } from './reference/systems/ExplosionSystem';
 
 function testMap(options: { floor?: Platform['kind']; wall?: Platform['kind'] | null } = {}): MapDefinition {
   const platforms: Platform[] = [

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { getWeapon } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
-import { equipWeapon, refillWeapon } from '../src/game/systems/WeaponSystem';
+import { equipWeapon, refillWeapon } from './reference/systems/WeaponSystem';
 
 function simulation(): BattleSimulation {
   const match = new BattleSimulation({ ...createMatchConfig('local-duel', 71), countdown: 0 });

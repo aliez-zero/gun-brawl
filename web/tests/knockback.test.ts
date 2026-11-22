@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import type { WeaponId } from '../src/game/core/types';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
 import { BASIC_PISTOL, getWeapon, weaponSustainedImpulse } from '../src/content/weapons';
-import { equipWeapon } from '../src/game/systems/WeaponSystem';
+import { equipWeapon } from './reference/systems/WeaponSystem';
 
 const map = {
   id: 'knockback', name: 'knockback', width: 3000, height: 700,

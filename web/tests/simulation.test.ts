@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
-import { FixedStepLoop } from '../src/game/core/FixedStepLoop';
-import { MatchRunner } from '../src/game/core/MatchRunner';
+import { FixedStepLoop } from './reference/core/FixedStepLoop';
+import { MatchRunner } from './reference/core/MatchRunner';
 import { idleInput } from '../src/game/core/types';
 import type { ActorInput, GameMode, MatchConfig } from '../src/game/core/types';
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { presetAppearance } from '../src/content/appearances';
 import { createMatchConfig } from '../src/content/matches';
 import { createWeapon, weaponMuzzle, WEAPONS, WEAPON_MODELS } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
 import type { Vec2, WeaponId } from '../src/game/core/types';

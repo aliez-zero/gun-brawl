@@ -1,6 +1,6 @@
-import { ACTOR_HEIGHT, ACTOR_WIDTH, HIT_CREDIT_WINDOW, RESPAWN_DELAY } from '../core/constants';
-import { respawnActor } from '../core/actors';
-import type { ActorState, BattleEvent, MatchState } from '../core/types';
+import { ACTOR_HEIGHT, ACTOR_WIDTH, HIT_CREDIT_WINDOW, RESPAWN_DELAY } from '../../../src/game/core/constants';
+import { respawnActor } from '../core/respawnActor';
+import type { ActorState, BattleEvent, MatchState } from '../../../src/game/core/types';
 
 export function updateLifeTimers(state: MatchState, dt: number, events: BattleEvent[]): void {
   for (const actor of state.actors) {

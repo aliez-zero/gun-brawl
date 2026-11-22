@@ -1,4 +1,4 @@
-//! Actor construction and respawn, mirroring `web/src/game/core/actors.ts`.
+//! Actor construction, spawn selection and respawn in the authoritative simulation.
 
 use crate::constants::{BOMB, PROTECTION_TIME};
 use crate::math::hypot;

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { getWeapon } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
 import type { MapDefinition } from '../src/game/core/types';
-import { ExplosionSystem } from '../src/game/systems/ExplosionSystem';
-import { equipWeapon } from '../src/game/systems/WeaponSystem';
+import { ExplosionSystem } from './reference/systems/ExplosionSystem';
+import { equipWeapon } from './reference/systems/WeaponSystem';
 
 const map: MapDefinition = {
   id: 'rocket-blast', name: 'rocket-blast', width: 3000, height: 800,

@@ -1,9 +1,9 @@
-import { idleInput } from '../../core/types';
-import type { ActorInput, ActorState, MatchState } from '../../core/types';
-import { ACTOR_WIDTH } from '../../core/constants';
+import { idleInput } from '../../../../src/game/core/types';
+import type { ActorInput, ActorState, MatchState } from '../../../../src/game/core/types';
+import { ACTOR_WIDTH } from '../../../../src/game/core/constants';
 import { BotController } from '../BotController';
-import { MAX_OBSERVATION_AGE, parseExternalAction } from './Protocol';
-import type { CommandContext, ExternalAction } from './Protocol';
+import { MAX_OBSERVATION_AGE, parseExternalAction } from '../../../../src/game/ai/external/Protocol';
+import type { CommandContext, ExternalAction } from '../../../../src/game/ai/external/Protocol';
 
 /** Synchronous input mailbox. Network and wall-clock decisions stay outside the simulation; only emergency safety input is local. */
 export class ExternalInputController {

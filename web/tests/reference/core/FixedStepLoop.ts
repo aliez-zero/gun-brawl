@@ -1,4 +1,4 @@
-import { FIXED_STEP } from './constants';
+import { FIXED_STEP } from '../../../src/game/core/constants';
 
 export class FixedStepLoop {
   private accumulator = 0;

@@ -21,7 +21,7 @@ fn sample_snapshot() -> Snapshot {
         ammo: 12,
         reserve: 48,
         fire_cd: 0,
-        reload: 0,
+        reload_ms: 0,
         protection: 0,
         respawn: 0,
         grounded_platform: 4,
@@ -29,12 +29,23 @@ fn sample_snapshot() -> Snapshot {
         drop_timer: 0,
         coyote_timer: 2,
         jump_timer: 0,
+        bombs: 2,
+        bomb_cooldown_ms: 0,
+        knockouts: 1,
+        falls: 0,
+        self_falls: 0,
     };
     Snapshot {
         tick: 12_345,
         server_ms: 205_750,
         phase: PHASE_PLAYING,
         remaining_ms: 120_000,
+        countdown_ms: 0,
+        overtime: false,
+        training_completed: 0,
+        dummy_moving: false,
+        external_epoch: 0,
+        playing_tick: 12_000,
         acks: [42, 41, 40, 0],
         actors: vec![
             actor,
@@ -44,7 +55,7 @@ fn sample_snapshot() -> Snapshot {
         ],
         projectiles: (0..20)
             .map(|index| ProjSnap {
-                id: index as u8,
+                id: index as u32,
                 owner: (index % 4) as u8,
                 weapon: 2,
                 x: 900 + index * 40,
@@ -58,6 +69,9 @@ fn sample_snapshot() -> Snapshot {
             owner: 0,
             x: 640,
             y: 500,
+            fuse_ms: 1200,
+            vx: 10,
+            vy: -4,
         }],
         drops: vec![DropSnap {
             id: 1,
@@ -66,12 +80,17 @@ fn sample_snapshot() -> Snapshot {
             y: 445,
             state: 1,
             warning: false,
+            timer_ms: 4000,
         }],
         events: vec![EventSnap {
             kind: EVENT_HIT,
             actor: 0,
             x: 1600,
             y: -348,
+            weapon: 0,
+            object: 0,
+            other: 255,
+            radius: 0,
         }],
     }
 }

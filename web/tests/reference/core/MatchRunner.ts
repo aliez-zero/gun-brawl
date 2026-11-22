@@ -1,10 +1,10 @@
 import { BotController } from '../ai/BotController';
 import { ExternalInputController } from '../ai/external/ExternalInputController';
-import type { CommandContext } from '../ai/external/Protocol';
+import type { CommandContext } from '../../../src/game/ai/external/Protocol';
 import { BattleSimulation } from './BattleSimulation';
 import { FixedStepLoop } from './FixedStepLoop';
-import { idleInput } from './types';
-import type { ActorInput, ActorState, BattleEvent, HumanSlot, MatchConfig, MatchState } from './types';
+import { idleInput } from '../../../src/game/core/types';
+import type { ActorInput, ActorState, BattleEvent, HumanSlot, MatchConfig, MatchState } from '../../../src/game/core/types';
 
 export class MatchRunner {
   readonly simulation: BattleSimulation;

@@ -9,6 +9,7 @@ pub struct Metrics {
     pub snapshots: AtomicU64,
     pub ticks: AtomicU64,
     pub rooms_created: AtomicU64,
+    pub private_rooms: AtomicU64,
 }
 
 impl Metrics {
@@ -20,7 +21,8 @@ impl Metrics {
         counter.fetch_sub(1, Ordering::Relaxed);
     }
 
-    pub fn render(&self, rooms: usize) -> String {
+    pub fn render(&self, public_rooms: usize) -> String {
+        let rooms = public_rooms as u64 + self.private_rooms.load(Ordering::Relaxed);
         let players = self.players.load(Ordering::Relaxed);
         let matches = self.matches.load(Ordering::Relaxed);
         let snapshots = self.snapshots.load(Ordering::Relaxed);

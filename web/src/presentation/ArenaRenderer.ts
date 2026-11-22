@@ -1,3 +1,4 @@
+import type { LocalRenderPose } from '../net/MatchSource';
 import Phaser from 'phaser';
 import { presetAppearance } from '../content/appearances';
 import { TRAINING_ARENA } from '../content/maps';
@@ -120,7 +121,7 @@ export class ArenaRenderer {
     state: Readonly<MatchState> | null,
     alpha: number,
     seconds: number,
-    localPose?: { index: number; alpha: number; offset?: { x: number; y: number } },
+    localPoses?: ReadonlyMap<number, LocalRenderPose>,
   ): void {
     const g = this.effectsView;
     g.clear(); this.shadows.clear(); this.weaponMounts.clear();
@@ -142,9 +143,9 @@ export class ArenaRenderer {
       }
       // The locally predicted actor advances on its own 60 Hz clock, so it needs its own
       // interpolation fraction; everything else follows the snapshot alpha.
-      const actorAlpha = localPose && localPose.index === index ? localPose.alpha : alpha;
-      const isLocal = localPose !== undefined && localPose.index === index;
-      const offset = isLocal ? localPose!.offset : undefined;
+      const prediction = localPoses?.get(index);
+      const actorAlpha = prediction?.alpha ?? alpha;
+      const offset = prediction?.offset;
       const x = frozen
         ? actor.position.x + (offset?.x ?? 0)
         : Phaser.Math.Linear(actor.previous.x, actor.position.x, actorAlpha) + (offset?.x ?? 0);

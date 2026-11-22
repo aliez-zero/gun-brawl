@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { createDeepSeekMatchConfig } from '../src/content/matches';
 import { createObservation, parseExternalAction, MAX_OBSERVATION_AGE, MAX_RECENT_ACTIONS } from '../src/game/ai/external/Protocol';
-import { MatchRunner } from '../src/game/core/MatchRunner';
+import { MatchRunner } from './reference/core/MatchRunner';
 import { idleInput } from '../src/game/core/types';
 import { DeepSeekClient } from '../src/adapters/ai/DeepSeekClient';
 import type { DeepSeekSession, DeepSeekStatus } from '../src/adapters/ai/DeepSeekClient';
 import type { ExternalAction } from '../src/game/ai/external/Protocol';
 
-export function externalRunner(): MatchRunner {
+class ReferenceExternalMatch extends MatchRunner {
+  get observationState() { return this.state; }
+}
+
+function externalRunner(): ReferenceExternalMatch {
   const config = createDeepSeekMatchConfig(42, { matchId: 'test-episode' });
-  const runner = new MatchRunner({ ...config, countdown: 0, map: {
+  const runner = new ReferenceExternalMatch({ ...config, countdown: 0, map: {
     id: 'flat', name: '测试台', width: 1200, height: 700,
     spawns: [{ x: 100, y: 500 }, { x: 800, y: 500 }],
     bounds: { left: -100, right: 1300, top: -500, bottom: 700 },

@@ -1,6 +1,6 @@
 # 混枪大乱战 · Gun Brawl
 
-TypeScript + Phaser + Vite 的桌面浏览器平台乱斗游戏。当前完成架构基础与第一阶段可玩原型，后续按 [PRD](./docs/PRD.md) 逐步增加内容。
+桌面浏览器平台乱斗游戏。TypeScript、Phaser 和 Vite 负责客户端，Rust 服务端推进所有模式的对局。
 
 **线上环境**：<https://chizaodeijin.icu/>（HTTPS，腾讯云 4C4G）· 管理后台 <https://chizaodeijin.icu/admin>（凭证见服务器 `/srv/gun-brawl/admin-credentials.txt`）
 
@@ -16,7 +16,7 @@ TypeScript + Phaser + Vite 的桌面浏览器平台乱斗游戏。当前完成�
 
 ## 启动
 
-需要 Node.js 22.12+（建议 24 LTS）和 pnpm。
+开发时需要 Rust、Node.js 22.12+ 和 pnpm。在两个终端分别启动网页和游戏服务。
 
 ```powershell
 cd D:\Code\gun-brawl\web
@@ -26,13 +26,17 @@ pnpm dev
 
 打开终端显示的本地地址，默认是 `http://127.0.0.1:5173/`。
 
-**联机对战**：另开一个终端启动 Rust 房间服务，然后在主菜单点「联机对战」建房或用房间码加入。开发时 Vite 会把 `/ws` 代理到 `127.0.0.1:8080`。
+**游戏服务**
+
+在第二个终端启动 Rust 服务。开发时 Vite 会把 `/ws` 代理到 `127.0.0.1:8080`。
 
 ```powershell
 cd D:\Code\gun-brawl\server
 $env:GUNBRAWL_WEB_DIR = "D:\Code\gun-brawl\web\dist"
 cargo run -p gunbrawl-server
 ```
+
+人机、同屏双人、训练、战役、自定义和 DeepSeek 模式都在点击开始时自动连接服务端。同屏双人继续共用一副键盘。跨设备对战从「联机对战」创建或加入房间。
 
 ```powershell
 pnpm test:online   # 两个浏览器上下文：建房 → 加入 → 开始 → HUD → 延迟
@@ -81,7 +85,7 @@ pnpm test:deepseek # 外部 AI 完整流程；模拟响应，不产生模型费�
 
 主菜单点击“角色外观”或“更换地图”即可编辑，修改自动保存。对局中编辑会先暂停，外观和地图在下一局 / 重新开始时应用，当前局保持原配置。
 
-当前已有炸弹 / 爆炸、武器箱投放、四图、三档 AI 导航、弹匣 / 备弹 / 换弹、改键 / 键位持久化、自定义 2—4 人对局、训练任务 / 图鉴、六关战役、17 个具体武器型号和两类终极武器；仍没有网络联机。逐枪参数、投放权重和已实现的程序化外观见 [武器型号设计](./docs/WEAPONS.md) 与 [武器外观](./docs/WEAPON_ART.md)；逐枪手绘换弹 / 音色素材和人工平衡仍属后续迭代，不能把本原型视为 PRD 全量完成。
+当前已有炸弹 / 爆炸、武器箱投放、四图、三档 AI 导航、弹匣 / 备弹 / 换弹、改键 / 键位持久化、自定义 2—4 人对局、训练任务 / 图鉴、六关战役、17 个具体武器型号和两类终极武器。逐枪参数、投放权重和已实现的程序化外观见 [武器型号设计](./docs/WEAPONS.md) 与 [武器外观](./docs/WEAPON_ART.md)；逐枪手绘换弹 / 音色素材和人工平衡仍属后续迭代，不能把本原型视为 PRD 全量完成。
 
 ## 架构入口
 
@@ -92,21 +96,21 @@ src/
   app/             应用装配、菜单 / 对局 / 对话框流程
   scenes/          Phaser 启动与对局场景
   game/
-    core/          纯 TypeScript 状态、固定步长、对局运行器
-    systems/       移动、战斗、生命和胜负规则
-    ai/            生成 ActorInput 的 AI
+    core/          客户端状态类型、显示和预测所需的基础数据
+    ai/            外部 AI 观测与输入契约
+  net/             WebSocket 协议、操作发送、预测和快照插值
   presentation/    键盘、音效、Phaser 画面适配
   content/         地图、武器和对局配置
   storage/         有版本的本地存档与数据校验
   ui/              DOM 菜单、HUD、暂停、设置与结算
-tests/             核心规则与存档的自动化测试
+tests/             接口、表现和存档测试，reference/ 保存旧模拟用于对照回放
 scripts/           浏览器流程检查
 
 server/            后端：Rust workspace（crates/core、crates/proto、crates/server）与现有 Node DeepSeek 网关
 docs/              架构、开发现状和并行任务计划（仓库根）
 ```
 
-`src/game` 不导入 Phaser、DOM 或 localStorage；Phaser 负责呈现，核心碰撞由纯 TypeScript 系统负责。逻辑固定 60 Hz，显示做位置插值。渲染、DOM HUD 和音效通过状态及事件消费战斗结果。
+`server/crates/core` 统一计算移动、碰撞、命中、掉命和胜负。房间每秒推进 60 步、每秒广播 30 次快照。客户端发送输入，使用快照和战斗事件绘制画面、刷新信息栏和播放音效。Rust 移动模块同时编译为 WASM，供客户端在等待快照时预览自己的动作。
 
 ## 下一步
 
@@ -115,4 +119,4 @@ docs/              架构、开发现状和并行任务计划（仓库根）
 3. 补齐逐枪手绘换弹 / 音色、完整四人人工实战和真实设备性能验收。
 4. 完成视觉、音效、性能与正式发布检查。
 
-画面为程序绘制，音效为本地 Web Audio 合成，没有远端游戏素材依赖。普通玩法可静态部署；DeepSeek 对战还需要同源 Node 网关，本地 `pnpm dev` / `pnpm preview` 已集成。当前仅运行本地服务。
+画面为程序绘制，音效为本地 Web Audio 合成，没有远端游戏素材依赖。部署时所有玩法都需要同源 `/ws` 连接 Rust 游戏服务。DeepSeek 对战还需要 `/api/deepseek` 网关，本地 `pnpm dev` / `pnpm preview` 已集成这个网关。

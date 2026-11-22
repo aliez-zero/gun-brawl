@@ -6,9 +6,14 @@
 
 use serde::{Deserialize, Serialize};
 
+mod private;
+mod snapshot;
+pub use private::*;
+pub use snapshot::*;
+
 /// Bumped whenever the message layout or its meaning changes. The server
 /// rejects `Hello` with any other value.
-pub const PROTO_VERSION: u16 = 3;
+pub const PROTO_VERSION: u16 = 4;
 
 /// One sampled input frame.
 ///
@@ -69,12 +74,15 @@ impl InputFrame {
 pub const SLOT_EMPTY: u8 = 0;
 pub const SLOT_HUMAN: u8 = 1;
 pub const SLOT_BOT: u8 = 2;
+pub const SLOT_DUMMY: u8 = 3;
+pub const SLOT_EXTERNAL: u8 = 4;
 
 /// Phase on the wire: lobby, countdown, playing, result.
 pub const PHASE_LOBBY: u8 = 0;
 pub const PHASE_COUNTDOWN: u8 = 1;
 pub const PHASE_PLAYING: u8 = 2;
 pub const PHASE_RESULT: u8 = 3;
+pub const PHASE_PAUSED: u8 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlotView {
@@ -155,6 +163,16 @@ pub enum C2S {
         t: u64,
     },
     Leave,
+    StartPrivate {
+        setup: PrivateMatch,
+    },
+    PrivateInput {
+        actor: u8,
+        frames: Vec<InputFrame>,
+    },
+    PrivateControl {
+        action: PrivateAction,
+    },
 }
 
 /// Server -> client.
@@ -178,133 +196,6 @@ pub enum S2C {
         code: u16,
         message: String,
     },
-}
-
-/// Quantized snapshot wire format (plan §6.3).
-///
-/// Positions travel as 1/16 px and velocities as 1/8 px/s, stored in integers
-/// so postcard can varint-encode them and both ends agree on the exact value.
-pub const POS_SCALE: f32 = 16.0;
-/// Velocity quantization factor for `ProjSnap`/`ActorSnap`.
-pub const VEL_SCALE: f32 = 8.0;
-
-pub fn quantize_pos(value: f32) -> i32 {
-    (value * POS_SCALE).round() as i32
-}
-
-pub fn dequantize_pos(value: i32) -> f32 {
-    value as f32 / POS_SCALE
-}
-
-pub fn quantize_vel(value: f32) -> i16 {
-    (value * VEL_SCALE)
-        .round()
-        .clamp(i16::MIN as f32, i16::MAX as f32) as i16
-}
-
-pub fn dequantize_vel(value: i16) -> f32 {
-    value as f32 / VEL_SCALE
-}
-
-/// Authoritative actor state for rendering and movement replay.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ActorSnap {
-    pub id: u8,
-    pub x: i32,
-    pub y: i32,
-    pub vx: i16,
-    pub vy: i16,
-    pub impulse_x: i16,
-    pub impulse_y: i16,
-    pub facing: i8,
-    /// bit0 grounded, bit1-2 jumps remaining.
-    pub flags: u8,
-    pub status: u8,
-    pub stocks: u8,
-    pub weapon: u8,
-    pub ammo: u8,
-    pub reserve: u8,
-    /// Centiseconds of fire cooldown left.
-    pub fire_cd: u8,
-    /// Centiseconds of reload left.
-    pub reload: u8,
-    /// Deciseconds of spawn protection left.
-    pub protection: u8,
-    /// Deciseconds until respawn.
-    pub respawn: u8,
-    /// Platform IDs, with 255 representing no platform.
-    pub grounded_platform: u8,
-    pub drop_platform: u8,
-    /// Movement timers encode elapsed fixed steps plus one. Zero means inactive.
-    pub drop_timer: u8,
-    pub coyote_timer: u8,
-    pub jump_timer: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProjSnap {
-    pub id: u8,
-    pub owner: u8,
-    pub weapon: u8,
-    pub x: i32,
-    pub y: i32,
-    pub vx: i16,
-    pub vy: i16,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BombSnap {
-    pub id: u8,
-    pub owner: u8,
-    pub x: i32,
-    pub y: i32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DropSnap {
-    pub id: u8,
-    pub weapon: u8,
-    pub x: i32,
-    pub y: i32,
-    /// 0 incoming, 1 active.
-    pub state: u8,
-    pub warning: bool,
-}
-
-/// Visual/audio event kinds. Coordinates are quantized like actor positions.
-pub const EVENT_SHOT: u8 = 1;
-pub const EVENT_HIT: u8 = 2;
-pub const EVENT_EXPLOSION: u8 = 3;
-pub const EVENT_BOMB: u8 = 4;
-pub const EVENT_RINGOUT: u8 = 5;
-pub const EVENT_RESPAWN: u8 = 6;
-pub const EVENT_PICKUP: u8 = 7;
-pub const EVENT_DROP_INCOMING: u8 = 8;
-pub const EVENT_DROP_LANDED: u8 = 9;
-pub const EVENT_DROP_EXPIRED: u8 = 10;
-pub const EVENT_PHASE: u8 = 11;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EventSnap {
-    pub kind: u8,
-    pub actor: u8,
-    pub x: i32,
-    pub y: i32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Snapshot {
-    pub tick: u32,
-    pub server_ms: u64,
-    pub phase: u8,
-    pub remaining_ms: u32,
-    /// Last consumed input seq per slot, 0 = none.
-    pub acks: [u32; 4],
-    pub actors: Vec<ActorSnap>,
-    pub projectiles: Vec<ProjSnap>,
-    pub bombs: Vec<BombSnap>,
-    pub drops: Vec<DropSnap>,
-    pub events: Vec<EventSnap>,
 }
 
 pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, postcard::Error> {
@@ -393,7 +284,7 @@ mod tests {
             ammo: 12,
             reserve: 48,
             fire_cd: 0,
-            reload: 0,
+            reload_ms: 0,
             protection: 0,
             respawn: 0,
             grounded_platform: 4,
@@ -401,12 +292,23 @@ mod tests {
             drop_timer: 0,
             coyote_timer: 2,
             jump_timer: 0,
+            bombs: 2,
+            bomb_cooldown_ms: 0,
+            knockouts: 1,
+            falls: 0,
+            self_falls: 0,
         };
         Snapshot {
             tick: 12_345,
             server_ms: 205_750,
             phase: PHASE_PLAYING,
             remaining_ms: 120_000,
+            countdown_ms: 0,
+            overtime: false,
+            training_completed: 0,
+            dummy_moving: false,
+            external_epoch: 0,
+            playing_tick: 12_000,
             acks: [42, 41, 40, 0],
             actors: vec![
                 actor,
@@ -416,7 +318,7 @@ mod tests {
             ],
             projectiles: (0..20)
                 .map(|index| ProjSnap {
-                    id: index as u8,
+                    id: index as u32,
                     owner: (index % 4) as u8,
                     weapon: 2,
                     x: 900 + index * 40,
@@ -430,6 +332,9 @@ mod tests {
                 owner: 0,
                 x: 640,
                 y: 500,
+                fuse_ms: 1200,
+                vx: 10,
+                vy: -4,
             }],
             drops: vec![DropSnap {
                 id: 1,
@@ -438,14 +343,39 @@ mod tests {
                 y: 445,
                 state: 1,
                 warning: false,
+                timer_ms: 4000,
             }],
             events: vec![EventSnap {
                 kind: EVENT_HIT,
                 actor: 0,
                 x: 1600,
                 y: -348,
+                weapon: 0,
+                object: 0,
+                other: 255,
+                radius: 0,
             }],
         }
+    }
+
+    #[test]
+    fn browser_snapshot_fixture_matches_the_server() {
+        let mut snapshot = sample_snapshot();
+        snapshot.actors.truncate(1);
+        snapshot.actors[0].reload_ms = 3200;
+        snapshot.actors[0].bomb_cooldown_ms = 583;
+        snapshot.projectiles.truncate(1);
+        snapshot.projectiles[0].id = 321;
+        snapshot.training_completed = 33;
+        snapshot.dummy_moving = true;
+        snapshot.external_epoch = 8;
+        let bytes = encode(&S2C::Snapshot(Box::new(snapshot))).unwrap();
+        let fixture =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v4-snapshot.bin");
+        if std::env::var("UPDATE_PROTOCOL_FIXTURE").as_deref() == Ok("1") {
+            std::fs::write(&fixture, &bytes).unwrap();
+        }
+        assert_eq!(bytes, std::fs::read(fixture).unwrap());
     }
 
     #[test]

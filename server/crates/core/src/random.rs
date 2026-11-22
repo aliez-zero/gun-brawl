@@ -1,6 +1,6 @@
 //! Deterministic random streams.
 //!
-//! `Random` is mulberry32, bit-compatible with `web/src/game/core/Random.ts`.
+//! `Random` is mulberry32, bit-compatible with `web/tests/reference/core/Random.ts`.
 //! `Lcg` is the 32-bit linear congruential stream used by the drop scheduler.
 //! Both were checked against values produced by the TypeScript implementation.
 

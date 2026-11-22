@@ -1,6 +1,6 @@
 //! Movement, jumping and platform collision.
 //!
-//! Direct port of `web/src/game/systems/MovementSystem.ts`; every comparison and
+//! Direct port of `web/tests/reference/systems/MovementSystem.ts`; every comparison and
 //! epsilon is kept so the golden replay stays inside a pixel.
 
 use crate::constants::{ACTOR_HEIGHT, ACTOR_WIDTH, MOVEMENT};

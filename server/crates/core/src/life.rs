@@ -1,4 +1,4 @@
-//! Life timers and ring-outs, port of `web/src/game/systems/LifeSystem.ts`.
+//! Life timers and ring-outs, port of `web/tests/reference/systems/LifeSystem.ts`.
 
 use crate::actor::respawn_actor;
 use crate::constants::{ACTOR_HEIGHT, ACTOR_WIDTH, HIT_CREDIT_WINDOW, RESPAWN_DELAY};

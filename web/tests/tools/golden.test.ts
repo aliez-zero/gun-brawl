@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SKY_CITADEL } from '../../src/content/maps';
 import { BASIC_PISTOL } from '../../src/content/weapons';
-import { BattleSimulation } from '../../src/game/core/BattleSimulation';
+import { BattleSimulation } from '../reference/core/BattleSimulation';
 import { FIXED_STEP } from '../../src/game/core/constants';
 import type { ActorConfig, ActorInput, MatchConfig, MatchPhase } from '../../src/game/core/types';
 

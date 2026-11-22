@@ -1,5 +1,5 @@
-import { respawnActor } from '../core/actors';
-import type { BattleEvent, MatchState } from '../core/types';
+import { respawnActor } from '../core/respawnActor';
+import type { BattleEvent, MatchState } from '../../../src/game/core/types';
 
 function finish(state: MatchState, winner: string | null, events: BattleEvent[]): void {
   state.phase = 'finished';

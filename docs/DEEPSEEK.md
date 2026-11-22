@@ -1,12 +1,12 @@
 # DeepSeek 直接操作接入与交接
 
-更新：2026-10-18。任务：EAI-D，承接 [外部 AI 调研](./EXTERNAL_AI.md)。
+更新于 2026-11-22。任务 EAI-D 承接 [外部 AI 调研](./EXTERNAL_AI.md)。
 
-本轮按用户确定的方向实现：**发送游戏状态，通过 DeepSeek API 返回操作指令**。不使用视觉模型，不使用规则 AI 暗中代打。提供一名本地玩家对一名 DeepSeek 的独立入口；尚未支持全 AI 观战、多个外部模型混战或学习训练。
+玩家从主菜单进入 DeepSeek 对战。浏览器将 Rust 房间的状态交给同源网关，模型返回操作指令，Rust 在对局中应用这些指令。
 
 ## 启动
 
-本轮已生成空白 `.env.local` 供填写。新检出项目如果没有该文件，在项目根目录执行：
+开发时在 `web/` 目录准备 `.env.local`。
 
 ```powershell
 if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
@@ -25,14 +25,14 @@ DEEPSEEK_THINKING=enabled
 DEEPSEEK_REASONING_EFFORT=low
 ```
 
-然后启动或重启：
+按 [项目启动说明](../README.md#启动) 运行 Rust 游戏服务。在 `web/` 目录启动网页和 Node 网关。
 
 ```powershell
 pnpm install
 pnpm dev
 ```
 
-打开终端显示的本地地址，点击主菜单的 **DeepSeek 对战 → 挑战 DeepSeek**。使用当前已选地图、P1 外观和键位，每人三命、三分钟。设置检查不会调用模型，正式开打才产生推理请求。没有密钥时仍可玩原有全部本地模式，DeepSeek 开始按钮禁用并说明配置方法。
+打开终端显示的本地地址，点击主菜单的 **DeepSeek 对战 → 挑战 DeepSeek**。使用当前已选地图、P1 外观和键位，每人三命、三分钟。设置检查不会调用模型，正式开打才产生推理请求。其余模式只需连接 Rust 游戏服务。
 
 生产构建的本地预览也支持同源网关：
 
@@ -49,19 +49,20 @@ pnpm preview
 
 ```mermaid
 flowchart LR
-    Sim[原有 TS 模拟] --> Obs[只读状态快照]
+    Sim[Rust 房间模拟] --> Obs[只读状态快照]
     Obs --> Client[DeepSeekClient]
     Client --> Gateway[Node 同源网关]
     Gateway --> API[DeepSeek Chat Completions]
     API --> Gate[完整 JSON 与动作校验]
-    Gate --> Mailbox[ExternalInputController]
+    Gate --> WS[浏览器通过 WebSocket 投递动作]
+    WS --> Mailbox[Rust 房间校验指令与有效期]
     Mailbox --> Input[ActorInput]
     Input --> Sim
 ```
 
 网关由 Vite 的开发 / 预览中间件承载，无需另开一个服务进程。使用固定上游 `https://api.deepseek.com/chat/completions`，模型从服务端环境配置，默认 `deepseek-flash`。请求启用 JSON Output 和 thinking（默认 `low` 推理档位），最多输出 4096 token，以给模型留出判断生存、路线和攻击窗口的空间；不会流式执行半截命令，也不自动重试同一旧观测。可用 `DEEPSEEK_THINKING=disabled` 回退到快速模式，或用 `DEEPSEEK_REASONING_EFFORT=high|max` 提高推理强度。默认决策间隔为 500 ms；每次请求带最近最多 8 条动作和边缘 / 路线 / 威胁 / 最近敌人 / 目标对齐 / 武器击退等派生战术观测。
 
-普通玩法仍能作为静态文件部署；DeepSeek 功能依赖 Node 网关。只有静态文件的托管不能运行该功能。当前网关限定 localhost / 127.0.0.1 和同源请求，属于本地开发与预览实现，未设计公共账号、远程访问或公开额度分配。
+所有玩法都需要 Rust 游戏服务提供 `/ws`。DeepSeek 还需要 Node 网关，本地开发与预览使用 Vite 中间件，生产环境通过 Caddy 转发到网关容器。见 [部署手册](./DEPLOY.md)。
 
 ## 单次对话请求的 512K 上下文上限
 
@@ -104,17 +105,17 @@ flowchart LR
 }
 ```
 
-`intent` 是可选的高层偏好，可取 `recover`、`attack`、`collect`、`reposition`；本地执行器会据此选择平台路线、回台、抢箱或攻击技能。`moveX` 只能为 -1 / 0 / 1，其余五项是布尔值；`holdFrames` 为 1—45 的整数。跳跃与穿台不能同时开启。
+`intent` 是可选的高层偏好，可取 `recover`、`attack`、`collect`、`reposition`；Rust 房间会据此选择平台路线、回台、抢箱或攻击技能。`moveX` 只能为 -1 / 0 / 1，其余五项是布尔值；`holdFrames` 为 1—45 的整数。跳跃与穿台不能同时开启。
 
-移动 / 开火持续到有效期结束；跳跃、穿台、换弹和投弹只在第一逻辑步触发一次。模型指令过期或网络等待期间，本地 60Hz 战术层会继续追击、瞄准、回台和换弹；攻击意图在目标进入射程且同高时会补足开火，避免思考延迟让角色站住。边缘和落空时仍由有限的安全输入优先回台；它不修改位置，也不改变命中、碰撞、弹量、保护、扣命和胜负规则。
+移动 / 开火持续到有效期结束；跳跃、穿台、换弹和投弹只在第一逻辑步触发一次。模型指令过期或网络等待期间，Rust 房间中的 60 Hz 战术控制会继续追击、瞄准、回台和换弹；攻击意图在目标进入射程且同高时会补足开火，避免思考延迟让角色站住。边缘和落空时仍由有限的安全输入优先回台；它不修改位置，也不改变命中、碰撞、弹量、保护、扣命和胜负规则。
 
-每次请求携带独立会话、单调命令序号、控制代次和观测 tick。网关从请求记录回填这些信息，浏览器验证匹配后才接受。模型不能指定角色权限或改写物理状态。
+每次请求携带独立会话、单调命令序号、控制代次和观测 tick。网关从请求记录回填这些信息，浏览器先验证请求归属，再由 Rust 按当前模拟步和角色控制代次验证。模型不能指定角色权限或改写物理状态。
 
 ## 频率与有效期
 
 | 项目 | 当前实际默认值 |
 | --- | --- |
-| 游戏模拟 | 60 Hz，不等待网络 |
+| 游戏模拟 | Rust 房间每秒推进 60 步，模型请求异步进行 |
 | 请求间隔 | 起始请求之间至少 500 ms，每角色只允许一个请求在途 |
 | 远端超时 | 10000 ms；浏览器另加 1000 ms 传输余量 |
 | 最大观测年龄 | 180 个 playing tick，即 3 秒模拟时间 |
@@ -131,21 +132,21 @@ flowchart LR
 
 HUD 显示连接 / 思考 / 最近操作、已接收决策数、响应延迟、请求数及模型报告的累计 token。失败响应如果仍有 usage 也计入；网络中断时无法确认全部远端用量，这不是账单。
 
-**实时直接控制的边界**：真实短测中单次思考约 2—3 秒，因此当前采用“模型定方向 + 本地 60Hz 执行”的混合控制；它能减少站桩和漏开火，但不能把延迟模型变成逐帧反应的职业玩家。同步步进评测、更多真实对局样本和低延迟动作模型仍是后续选项。
+**实时直接控制的边界**：真实短测中单次思考约 2—3 秒，因此当前采用“模型定方向 + 服务端 60 Hz 执行”的混合控制；它能减少站桩和漏开火，但不能把延迟模型变成逐帧反应的职业玩家。同步步进评测、更多真实对局样本和低延迟动作模型仍是后续选项。
 
 ## 文件与公共接入
 
 | 文件 | 职责 |
 | --- | --- |
-| [Protocol.ts](../src/game/ai/external/Protocol.ts) | 快照 DTO、指令类型、浏览器 / 核心动作校验 |
-| [ExternalInputController.ts](../src/game/ai/external/ExternalInputController.ts) | 纯 TS 输入信箱、序号 / 代次 / 有效期、边沿消费 |
-| [DeepSeekClient.ts](../src/adapters/ai/DeepSeekClient.ts) | 异步传输、单请求在途、取消、退避、状态与用量 |
+| [Protocol.ts](../web/src/game/ai/external/Protocol.ts) | 快照 DTO、指令类型、浏览器 / 核心动作校验 |
+| [external.rs](../server/crates/server/src/room/external.rs) | 校验序号、代次与有效期，逐步生成角色输入 |
+| [DeepSeekClient.ts](../web/src/adapters/ai/DeepSeekClient.ts) | 异步传输、单请求在途、取消、退避、状态与用量 |
 | [deepseek.mjs](../server/ai/deepseek.mjs) | Node 网关、密钥、会话、观测白名单、限流、上游调用与响应校验 |
 | [context-budget.mjs](../server/ai/context-budget.mjs) | 单次请求 512K 上限、保守输入估算和输出预留 |
-| [DeepSeekSetup.ts](../src/ui/DeepSeekSetup.ts) | 配置状态与开局视图 |
-| [vite.config.ts](../vite.config.ts) | 开发 / 预览网关装配；忽略 Windows 原子写临时文件 |
+| [DeepSeekSetup.ts](../web/src/ui/DeepSeekSetup.ts) | 配置状态与开局视图 |
+| [vite.config.ts](../web/vite.config.ts) | 开发 / 预览网关装配；忽略 Windows 原子写临时文件 |
 
-公共文件接入：`ActorConfig` 新增 `external / deepseek`；`MatchRunner` 新增 tick、控制代次和输入投递；`ArenaScene` 创建 / 清理适配器；`GameApplication` 处理开局 / 重赛 / 对话框取消；`GameUI` 增加独立入口与状态。`createDeepSeekMatchConfig` 保留底层 `duel-ai` 规则，因此战绩计入普通休闲统计，不增加存档版本或强制保存模型模式。
+公共文件接入：`ActorConfig` 新增 `external / deepseek`；`NetMatchSource` 从服务端快照取得 tick、控制代次和观测并投递输入；`ArenaScene` 创建 / 清理适配器；`GameApplication` 处理开局 / 重赛 / 对话框取消；`GameUI` 增加独立入口与状态。`createDeepSeekMatchConfig` 保留底层 `duel-ai` 规则，因此战绩计入普通休闲统计，不增加存档版本或强制保存模型模式。
 
 API 路由：`GET /api/deepseek/status` 检查配置；`POST /api/deepseek/session` 创建或关闭会话；`POST /api/deepseek/action` 发送状态并得到一条指令。没有允许浏览器设置上游 URL、模型密钥、提示词或任意代码执行的接口。
 

@@ -59,6 +59,7 @@ try {
     await close(page);
     await page.locator('[data-mode="local-duel"]').click();
     await page.locator('[data-action="start"]').click();
+    await page.locator('#round-time').waitFor();
     await page.locator('.countdown').waitFor({ state: 'hidden', timeout: 12000 });
     assert.match(await page.locator('#match-status').textContent(), new RegExp(name));
     assert.match(await page.locator('#current-map-label').textContent(), new RegExp(name));
@@ -78,6 +79,7 @@ try {
       await close(page);
       assert.equal(frozen.equals(await page.locator('#game-canvas canvas').screenshot({ style: '#game-overlay { visibility: hidden !important; }' })), true, 'appearance changes during pause must apply next round');
       await page.getByRole('button', { name: '重新开始', exact: true }).click();
+      await page.locator('#round-time').waitFor();
       assert.match(await page.locator('#match-status').textContent(), /霓虹天际/);
       await page.keyboard.press('Escape');
     }

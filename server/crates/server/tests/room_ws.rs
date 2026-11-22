@@ -307,3 +307,185 @@ async fn bot_slot_moves_after_countdown() {
     }
     assert!(moved, "the bot should move after the countdown");
 }
+
+fn private_setup(mode: &str, second: u8) -> gunbrawl_proto::PrivateMatch {
+    use gunbrawl_proto::{PrivateActor, PrivateMatch};
+    PrivateMatch {
+        mode: mode.into(),
+        map: "training-deck".into(),
+        stocks: 3,
+        duration: 180,
+        drop_mode: 0,
+        seed: 42,
+        actors: vec![
+            PrivateActor {
+                name: "P1".into(),
+                kind: 1,
+                difficulty: 1,
+            },
+            PrivateActor {
+                name: "P2".into(),
+                kind: second,
+                difficulty: 1,
+            },
+        ],
+        training_completed: 0,
+        campaign_level: None,
+    }
+}
+
+#[tokio::test]
+async fn private_duel_runs_without_a_room_code_and_accepts_both_keyboards() {
+    use gunbrawl_proto::{PrivateAction, PHASE_COUNTDOWN, PHASE_PAUSED, PHASE_PLAYING};
+    let url = start_server().await;
+    let mut socket = connect(&url).await;
+    handshake(&mut socket).await;
+    send(
+        &mut socket,
+        &C2S::StartPrivate {
+            setup: private_setup("local-duel", 2),
+        },
+    )
+    .await;
+    let room = recv_until(&mut socket, |msg| match msg {
+        S2C::Room(room) => Some(room.clone()),
+        _ => None,
+    })
+    .await;
+    assert_eq!(room.phase, PHASE_COUNTDOWN);
+
+    let mut outsider = connect(&url).await;
+    handshake(&mut outsider).await;
+    send(
+        &mut outsider,
+        &C2S::JoinRoom {
+            code: room.code,
+            name: "guest".into(),
+        },
+    )
+    .await;
+    assert!(matches!(
+        recv(&mut outsider).await,
+        S2C::Kick { code: 404, .. }
+    ));
+
+    let initial = recv_until(&mut socket, |msg| match msg {
+        S2C::Snapshot(frame) if frame.phase == PHASE_PLAYING => {
+            Some([frame.actors[0].x, frame.actors[1].x])
+        }
+        _ => None,
+    })
+    .await;
+    for (actor, move_x) in [(0, 1), (1, -1)] {
+        send(
+            &mut socket,
+            &C2S::PrivateInput {
+                actor,
+                frames: vec![InputFrame {
+                    seq: 17,
+                    tick_hint: 0,
+                    move_x,
+                    held: 0,
+                    edges: 0,
+                }],
+            },
+        )
+        .await;
+    }
+    recv_until(&mut socket, |msg| match msg {
+        S2C::Snapshot(frame)
+            if frame.acks[..2] == [17, 17]
+                && frame.actors[0].x > initial[0]
+                && frame.actors[1].x < initial[1] =>
+        {
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    send(
+        &mut socket,
+        &C2S::PrivateControl {
+            action: PrivateAction::Pause,
+        },
+    )
+    .await;
+    let paused_tick = recv_until(&mut socket, |msg| match msg {
+        S2C::Snapshot(frame) if frame.phase == PHASE_PAUSED => Some(frame.playing_tick),
+        _ => None,
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    send(
+        &mut socket,
+        &C2S::PrivateControl {
+            action: PrivateAction::Resume,
+        },
+    )
+    .await;
+    recv_until(&mut socket, |msg| match msg {
+        S2C::Snapshot(frame) if frame.phase == PHASE_COUNTDOWN && frame.countdown_ms > 2800 => {
+            assert_eq!(frame.playing_tick, paused_tick);
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn training_reset_and_weapon_selection_round_trip_as_server_state() {
+    use gunbrawl_proto::PrivateAction;
+    let mut socket = connect(&start_server().await).await;
+    handshake(&mut socket).await;
+    let mut setup = private_setup("training", 4);
+    setup.training_completed = 1 << 2;
+    send(&mut socket, &C2S::StartPrivate { setup }).await;
+    let weapon = recv_until(&mut socket, |msg| match msg {
+        S2C::Room(room) => room.weapons.iter().position(|id| id == "awm"),
+        _ => None,
+    })
+    .await as u8;
+    send(
+        &mut socket,
+        &C2S::PrivateControl {
+            action: PrivateAction::SelectWeapon {
+                weapon: "awm".into(),
+            },
+        },
+    )
+    .await;
+    send(
+        &mut socket,
+        &C2S::PrivateControl {
+            action: PrivateAction::SetDummy { moving: false },
+        },
+    )
+    .await;
+    recv_until(&mut socket, |msg| match msg {
+        S2C::Snapshot(frame) if frame.actors[0].weapon == weapon && !frame.dummy_moving => {
+            assert_eq!(frame.training_completed, 1 << 2);
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+    send(
+        &mut socket,
+        &C2S::PrivateControl {
+            action: PrivateAction::ResetTraining,
+        },
+    )
+    .await;
+    recv_until(&mut socket, |msg| match msg {
+        S2C::Snapshot(frame)
+            if frame.phase == gunbrawl_proto::PHASE_COUNTDOWN && frame.countdown_ms >= 2950 =>
+        {
+            assert_eq!(frame.actors[0].weapon, weapon);
+            assert_eq!(frame.training_completed, 1 << 2);
+            Some(())
+        }
+        _ => None,
+    })
+    .await;
+}

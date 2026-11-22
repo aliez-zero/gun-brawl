@@ -1,4 +1,4 @@
-//! Match resolution, port of `web/src/game/systems/MatchSystem.ts`.
+//! Match resolution, port of `web/tests/reference/systems/MatchSystem.ts`.
 
 use crate::actor::respawn_actor;
 use crate::types::{

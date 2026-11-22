@@ -1,5 +1,5 @@
-import { BOMB } from '../core/constants';
-import type { ActorInput, ActorState, BattleEvent, Bomb, MatchState, Platform } from '../core/types';
+import { BOMB } from '../../../src/game/core/constants';
+import type { ActorInput, ActorState, BattleEvent, Bomb, MatchState, Platform } from '../../../src/game/core/types';
 import { applyExplosionHits, ExplosionSystem } from './ExplosionSystem';
 
 /**

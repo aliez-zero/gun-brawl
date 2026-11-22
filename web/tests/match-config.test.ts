@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_CUSTOM_MATCH, cloneCustomMatch, createCustomMatchConfig, normalizeCustomMatch, validateCustomMatch,
 } from '../src/content/matches';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { idleInput } from '../src/game/core/types';
 
 describe('T07 custom match configuration', () => {

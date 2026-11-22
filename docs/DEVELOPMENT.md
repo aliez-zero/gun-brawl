@@ -1,8 +1,10 @@
 # 开发现状与交接
 
-更新日期：2026-10-19（北京时间）。代码基线：`0.1.0` 本地核心原型；本页按实际文件核对，不表示 PRD 全量交付。
+更新于 2026-11-22。项目包括 Rust 游戏服务和 TypeScript 浏览器客户端。
 
 ## 1. 接手结论
+
+**全模式服务端对局（2026-11-22）**。人机、同屏双人、训练、战役、自定义及 DeepSeek 从原菜单自动创建专属对局。专属对局和房间码对战都由 Rust 每秒推进 60 步，服务端决定战斗、训练任务和结算。v4 客户端按玩家独立发送输入、读取每秒 30 份快照。旧 TypeScript 模拟在 `web/tests/reference` 用于回放对照。退出或断开会释放专属对局，公共房间继续支持重连。模块及数据流见 [运行时架构](./ARCHITECTURE.md)。
 
 **T11-P4 联机手感（2026-11-22）**。客户端按房间槽位的输入确认序号重放未确认操作，用服务器 tick 缓冲远端角色、弹丸和炸弹的位置。Rust 房间把两个模拟步的战斗事件合并到下一份快照，并发送本地预测所需的击退、平台与移动计时状态。协议升级到 v3，发布时需一起更新前端、`predict.wasm` 和 Rust 服务端。
 
@@ -34,7 +36,7 @@ T01 的 17 个具体型号与两类终极武器、T02 炸弹 / 爆炸、T03 投�
 
 ## 2. 完成状态口径
 
-外部 AI（T05-E / EAI-D）：调研后按用户选择实现 DeepSeek 状态接口与直接操作模式：Node 同源网关、纯 TS 输入信箱、独立对战入口、暂停 / 复活 / 重赛清理、超时 / 预算和用量状态。配置与边界见 [DeepSeek 接入](./DEEPSEEK.md)，原路线比较见 [研究归档](./EXTERNAL_AI.md)。当前环境无密钥，未调用真实付费模型；模拟响应不代表真实延迟或胜率。全 AI 观战、多外部 AI、战术辅助、视觉与强化学习仍未实现。
+外部 AI（T05-E / EAI-D）：调研后按用户选择实现 DeepSeek 状态接口与直接操作模式：Node 同源网关、Rust 对局输入控制器、独立对战入口、暂停 / 复活 / 重赛清理、超时 / 预算和用量状态。配置与边界见 [DeepSeek 接入](./DEEPSEEK.md)，原路线比较见 [研究归档](./EXTERNAL_AI.md)。当前环境无密钥，未调用真实付费模型；模拟响应不代表真实延迟或胜率。全 AI 观战、多外部 AI、战术辅助、视觉与强化学习仍未实现。
 
 EAI-C 单次模型请求上下文上限：默认且最大 512000 token，含 4096 token 输出预留，按保守估算超限拒绝。每次只发送规则和当前观测，同局内也不累计完整对话历史；请求额度 / 累计 token 用量另行管理。默认开启 `low` thinking 推理，可通过服务端环境变量回退快速模式。配置入口显示单次上限。真实模型效果需要在配置密钥后用固定种子评测；模拟链路只验证协议。配置和估算口径见 [DeepSeek 交接](./DEEPSEEK.md)。
 
@@ -50,20 +52,20 @@ EAI-C 单次模型请求上下文上限：默认且最大 512000 token，含 409
 | ID / 模块 | 状态 | 当前已有 | 尚缺 / 完成边界 | 主要代码入口 |
 | --- | --- | --- | --- | --- |
 | F01 主菜单 / 快速对战 | 已实现当前范围 | 五种模式（人机、本地双人、自由练习、自定义、战役）、倒计时、帮助、设置、进入和返回；首次训练引导；快速人机仍固定普通 AI，另有 DeepSeek 独立入口 | 完整产品入口与用户引导验收 | `src/ui/GameUI.ts`、`src/app/GameApplication.ts`、`src/content/matches.ts` |
-| F02 移动与平台 | 已实现核心 | 左右与朝向、二段跳、宽限、跳跃缓存、穿台、单向 / 实体碰撞、插值；四图出生点和合法跳跃通路回归 | 实体复杂组合、最低视口完整人工验收；移动平台不在当前 P0 | `src/game/systems/MovementSystem.ts`、`src/game/core/math.ts` |
-| F03 攻击与击退 | 已实现核心 | 手枪连射、后坐力、独立击退、扫掠命中、实体挡弹、声音与命中特效；弹丸冻结武器 / 速度 / 推力；17 型号与八类别名、霰弹、耗尽回退、重炮冲量上限；炸弹 / 火箭爆炸与自伤 | 炸弹 / 拾枪保护的全组合人工验收、逐枪真实音色 | `src/game/systems/CombatSystem.ts`、`WeaponSystem.ts`、`src/content/weapons.ts`、表现层 |
-| F04 生命与胜负 | 已实现当前模式规则 | 默认三命、自定义生命、完整碰撞体出界、复活 / 保护、统一判胜、超时、30 秒加时、平局、5 秒击出归因；四人淘汰 / 加时 / 结算有逻辑和浏览器证据 | 炸弹 / 拾枪保护全组合人工验收；4 真人需要扩展输入槽 | `src/game/systems/LifeSystem.ts`、`MatchSystem.ts`、`src/game/core/actors.ts` |
-| F05 枪械 | 已实现 17 型号 + 终极 | 17 个具体型号逐枪弹匣 / 备弹 / 换弹 / 水平 + 垂直后坐 / 射程 / 击退 / 霰弹 / 火箭爆炸，按基准 / 快速点射 / 重手炮 / 稳健 / 极速 / 弹幕 / 均衡 / 重击 / 远距 / 双管 / 泵动 / 半自动 / 精准 / 快速 / 重狙 / 范围 / 高爆分工；图鉴显示单发 / 持续威力条，模型逐型号尺寸 / 轮廓区分；八类别名兼容训练 1—8 与旧档；两类终极（加特林 / 重炮）；投放、HUD 型号名、图鉴 17 卡、训练任意型号、程序化型号外观与射击音高 | 逐枪手绘换弹 / 火光 / 真实音色、人工逐枪平衡 | `src/content/weapons.ts`、`drops.ts`、`WeaponArt.ts`、`SoundEffects.ts`、`CombatSystem.ts` |
+| F02 移动与平台 | 已实现核心 | 左右与朝向、二段跳、宽限、跳跃缓存、穿台、单向 / 实体碰撞、插值；四图出生点和合法跳跃通路回归 | 实体复杂组合、最低视口完整人工验收；移动平台不在当前 P0 | `server/crates/core/src/movement.rs`、`math.rs` |
+| F03 攻击与击退 | 已实现核心 | 手枪连射、后坐力、独立击退、扫掠命中、实体挡弹、声音与命中特效；弹丸冻结武器 / 速度 / 推力；17 型号与八类别名、霰弹、耗尽回退、重炮冲量上限；炸弹 / 火箭爆炸与自伤 | 炸弹 / 拾枪保护的全组合人工验收、逐枪真实音色 | `server/crates/core/src/combat.rs`、`grenade.rs`、`src/content/weapons.ts`、表现层 |
+| F04 生命与胜负 | 已实现当前模式规则 | 默认三命、自定义生命、完整碰撞体出界、复活 / 保护、统一判胜、超时、30 秒加时、平局、5 秒击出归因；四人淘汰 / 加时 / 结算有逻辑和浏览器证据 | 炸弹 / 拾枪保护全组合人工验收；4 真人需要扩展输入槽 | `server/crates/core/src/life.rs`、`match_rule.rs`、`actor.rs` |
+| F05 枪械 | 已实现 17 型号 + 终极 | 17 个具体型号逐枪弹匣 / 备弹 / 换弹 / 水平 + 垂直后坐 / 射程 / 击退 / 霰弹 / 火箭爆炸，按基准 / 快速点射 / 重手炮 / 稳健 / 极速 / 弹幕 / 均衡 / 重击 / 远距 / 双管 / 泵动 / 半自动 / 精准 / 快速 / 重狙 / 范围 / 高爆分工；图鉴显示单发 / 持续威力条，模型逐型号尺寸 / 轮廓区分；八类别名兼容训练 1—8 与旧档；两类终极（加特林 / 重炮）；投放、HUD 型号名、图鉴 17 卡、训练任意型号、程序化型号外观与射击音高 | 逐枪手绘换弹 / 火光 / 真实音色、人工逐枪平衡 | `src/content/weapons.ts`、`drops.ts`、`WeaponArt.ts`、`SoundEffects.ts`、`server/crates/core/src/combat.rs` |
 | F06 地图 | 可玩四图、差异化布局与投放点已实现 | 古城 9 台双塔庭院、都市 8 台非对称楼顶、飞船 8 台反应堆枢纽；加宽落脚区和下层接应，内侧失足可恢复，外围连续击出 / 单发救回；安全投放点与平台导航图；训练台保留，逐出生点全平台可达、选择保存 / 切图 / 重赛 | 四图四人全组合人工验收 | `src/content/maps.ts`、`WorldArt.ts`、`ArenaRenderer.ts`、`src/game/ai/Navigation.ts`、`src/ui/maps/` |
-| F07 武器投放 | 已实现核心 | 8 秒首投 / 预告 / 落地、种子随机、四图安全点位、三箱上限、20 秒到期、同帧争抢、HUD / 音效 / 箱子表现；终极武器低权重进入默认池；自定义对局可选全部 / 仅标准 / 关闭投放 | 完整多人实战验证 | `src/game/systems/DropSystem.ts`、`src/content/drops.ts`、`src/presentation/FieldLayer.ts` |
-| F08 AI | 已实现核心 | 平台导航图（四图所有平台对可达路线）、缺口跳 / 穿台 / 下层恢复、1 秒无进展重规划、三档反应 / 追击距离 / 射程 / 投弹差异、武器射程、340 px 抢箱、炸弹规避；只输出 `ActorInput` | 多人战术 / 集火、完整人工三档验收、逐枪选位精细调参 | `src/game/ai/BotController.ts`、`Navigation.ts`、`MatchRunner.ts` |
-| F09 自定义对局 | 已实现核心流程 | 配置页、2—4 槽位、最多两名本地玩家、逐 AI 难度、地图、1—9 命、30—600 秒、全部 / 标准 / 关闭投放、实时校验、最近配置保存；4 人 HUD / 淘汰 / 加时 / 结算 / 重赛与本地观战通过 | 全地图 / 难度组合人工验收，结果页直接返回配置；4 真人需要新增输入槽 | `src/content/matches.ts`、`BattleSimulation.ts`、`src/ui/GameUI.ts` |
+| F07 武器投放 | 已实现核心 | 8 秒首投 / 预告 / 落地、种子随机、四图安全点位、三箱上限、20 秒到期、同帧争抢、HUD / 音效 / 箱子表现；终极武器低权重进入默认池；自定义对局可选全部 / 仅标准 / 关闭投放 | 完整多人实战验证 | `server/crates/core/src/drops.rs`、`src/content/drops.ts`、`src/presentation/FieldLayer.ts` |
+| F08 AI | 已实现核心 | 平台导航图（四图所有平台对可达路线）、缺口跳 / 穿台 / 下层恢复、1 秒无进展重规划、三档反应 / 追击距离 / 射程 / 投弹差异、武器射程、340 px 抢箱、炸弹规避；只输出 `ActorInput` | 多人战术 / 集火、完整人工三档验收、逐枪选位精细调参 | `server/crates/bot/src/lib.rs`、`server/crates/server/src/room/input.rs` |
+| F09 自定义对局 | 已实现核心流程 | 配置页、2—4 槽位、最多两名本地玩家、逐 AI 难度、地图、1—9 命、30—600 秒、全部 / 标准 / 关闭投放、实时校验、最近配置保存；4 人 HUD / 淘汰 / 加时 / 结算 / 重赛与本地观战通过 | 全地图 / 难度组合人工验收，结果页直接返回配置；4 真人需要新增输入槽 | `src/content/matches.ts`、`server/crates/server/src/room/private.rs`、`src/ui/CustomMatchForm.ts` |
 | F10 战役 | 已实现核心 | 六关独立地图 / AI / 生命 / 时限 / 武器池；线性解锁、最佳成绩（剩余生命优先、耗时次之）、失败 / 平局不解锁、通关重玩、结果页下一关 / 重试 / 选关；独立于普通人机统计 | 逐关专属剧情 / 奖励、完整六关人工实战平衡验收 | `src/content/campaign.ts`、`GameApplication.ts`、`GameUI.ts`、`SaveStore.ts` |
-| F11 训练场 | 已实现核心 | 六项任务（移动 / 二段跳 / 穿台 / 命中 / 击出 / 投弹）、移动 / 静止假人、局部重置、1—8 试枪 / 补弹、无限时 / 生命、0.5 秒回场、排除战绩、完成标记、首次引导、图鉴返回保留；训练固定训练台 | 显式跳过、命中 / 击出浏览器人工验收 | `src/content/tutorial.ts`、`TrainingSystem.ts`、生命 / 胜负系统、UI |
+| F11 训练场 | 已实现核心 | 六项任务（移动 / 二段跳 / 穿台 / 命中 / 击出 / 投弹）、移动 / 静止假人、局部重置、1—8 试枪 / 补弹、无限时 / 生命、0.5 秒回场、排除战绩、完成标记、首次引导、图鉴返回保留；训练固定训练台 | 显式跳过、命中 / 击出浏览器人工验收 | `src/content/tutorial.ts`、`server/crates/core/src/training.rs`、`src/ui/MatchHUD.ts` |
 | F12 角色外观 | 已实现编辑、五人混搭骨架与免费牛仔网格样板 | 五种脸 / 服装、六种头饰状态、八配色 / 三肤色、P1/P2 独立保存；全组合连续分层骨架 / 固定骨长 / 双手 IK / 服装附件摆动；牛仔双骨权重蒙皮 / 关键帧 / 空中混合；五风格动作 / 朝向 / 1× / 真实手枪预览、玩家身份色；17 型号外观、家族换弹倾斜、火光和逐型号音高 | 其他服装按材质扩展蒙皮、逐枪完整装填 / 拉栓、转身 / 世界锁脚、专属表情 / 胜利动作、预览武器切换 / 时间轴、同外观多人全量人工与参考机性能验收 | `src/content/appearances.ts`、`src/presentation/characters/`、`CharacterArt.ts`、`CharacterPainter.ts`、`CharacterMotion.ts`、`WeaponArt.ts`、`ArenaRenderer.ts`、`src/ui/appearance/` |
 | F13 设置与暂停 | 已实现核心 | 音量、减少震动、Esc、失焦 / 隐藏暂停、恢复倒计时；两名玩家 7 个动作的改键、冲突 / 保留键校验、恢复默认、即时生效、刷新保留；设置面板内录键 | 独立录键组件、手柄 / 鼠标侧键、震动强度仍待；震动目前是布尔开关 | `KeyboardInput.ts`、`src/content/controls.ts`、`GameUI.ts`、应用层 |
 | F14 本地存档 | 已实现核心 | v2 原 key 迁移、音量 / 震动、最近模式 / 地图、P1/P2 外观、键位、自定义对局、训练完成 / 首次引导、战役进度、基本统计、20 条有界历史结果去重、清档和读写容错；兼容旧 v1 / 旧 v2 缺失字段；T00 起每局 `matchId` 与种子解耦 | 任意历史去重不做 | `src/storage/SaveStore.ts`、`GameApplication.ts`、`GameUI.ts` |
-| F15 结算与重赛 | 已实现当前模式；完整流程待扩展 | 胜负 / 平局、生命 / 击出 / 出界、时长、重赛、返回主菜单；每局 `matchId` 写入结果，重赛不复用旧 ID；最近 20 条结果去重；战役结果独立提交并支持下一关 / 重试 / 选关 | 返回自定义配置、长时资源验收 | `MatchSystem.ts`、`GameApplication.ts`、`GameUI.ts` |
+| F15 结算与重赛 | 已实现当前模式；完整流程待扩展 | 胜负 / 平局、生命 / 击出 / 出界、时长、重赛、返回主菜单；每局 `matchId` 写入结果，重赛不复用旧 ID；最近 20 条结果去重；战役结果独立提交并支持下一关 / 重试 / 选关 | 返回自定义配置、长时资源验收 | `server/crates/core/src/match_rule.rs`、`GameApplication.ts`、`GameUI.ts` |
 
 `Difficulty` 的 easy / normal / hard 已有独立策略参数与回归，反应基值分别约 0.5 / 0.3 / 0.18 秒。快速人机入口固定 normal，自定义和战役使用三档配置；完整人工难度曲线仍待验收。
 
@@ -74,16 +76,16 @@ EAI-C 单次模型请求上下文上限：默认且最大 512000 token，含 409
 | 层 | 责任 | 扩展时保持 |
 | --- | --- | --- |
 | `src/app` | 装配引擎 / UI / 存档、页面流转 | 统一入口和保存时机 |
-| `src/scenes` | Phaser 生命周期、固定步运行和渲染衔接 | 不在场景内另算扣命 / 胜负 |
-| `src/game/core` | 公共类型、状态、运行器、时钟、几何和生成 | 可在无浏览器环境运行 |
-| `src/game/systems` | 移动、战斗、生命、胜负 | 由单一逻辑时间驱动，批量出界后判胜 |
-| `src/game/ai` | 从公开状态生成角色指令 | 不直接改位置 / 生命 / 跳跃数 |
+| `src/scenes`、`src/net` | Phaser 场景、输入、快照插值和预测校正 | 渲染与 HUD 共享服务端状态 |
+| `src/game/core` | 客户端状态类型和显示所需的初值 | 可在无浏览器环境读取 |
+| `server/crates/core` | 移动、战斗、生命、胜负和训练 | 由房间时钟驱动，批量出界后判胜 |
+| `server/crates/bot`、`room/external.rs` | 生成规则 AI 指令或接收外部 AI 动作 | AI 和玩家使用相同的游戏输入 |
 | `src/content` | 地图、武器、外观、模式和默认键位配置 | 不启动场景，不写运行中状态 |
 | `src/presentation` | 键盘、程序绘制、Web Audio | 消费状态与事件，清理资源 |
 | `src/ui` | DOM 菜单、HUD、对话框 | 通过回调请求操作 |
 | `src/storage` | 存档端口、校验、降级和统计 | 不持久化未完成对局 |
 
-DeepSeek 使用 Vite dev / preview 的 Node 同源网关。联机房间由 `server/crates/server` 运行权威模拟，通过 WebSocket 向 `web/src/net` 提供快照。`src/game` 保持纯 TypeScript，Phaser 负责渲染与输入。
+DeepSeek 使用 Vite dev / preview 的 Node 同源网关。所有对局由 `server/crates/server` 运行权威模拟，通过 WebSocket 向 `web/src/net` 提供快照。`src/game` 保持纯 TypeScript，Phaser 负责渲染与输入。
 
 ### 4.2 当前默认参数
 
@@ -150,7 +152,7 @@ DeepSeek 使用 Vite dev / preview 的 Node 同源网关。联机房间由 `serv
 
 T00 的首批契约已由后续模块消费：正常出生仍由 `MatchConfig.startingWeapon`（当前手枪）创建；`bombPressed` 已接 K / 小键盘 1；`ExplosionResolver` 已由 T02 实现；T03 已提供箱子拾取。当前可用入口是真实对局规则，不能把测试注入当作产品入口。
 
-`BattleSimulation.step(dt, inputs)` 是底层更新入口；`MatchRunner.advance(milliseconds, readHuman)` 加上固定步长和 AI。测试可以通过模拟器设置场景；产品代码不能照搬测试方式任意写状态。
+Rust 房间组装本步的玩家与 AI 指令，然后调用 `Simulation::step`。浏览器从快照绘制，由 `LocalPlayers` 为本机键位提供移动预测。
 
 ## 6. 已知限制与接入风险
 
@@ -170,6 +172,8 @@ T00 的首批契约已由后续模块消费：正常出生仍由 `MatchConfig.st
 以上是实现边界和静态核对结果，不代表每项都已在用户正常操作中触发故障。
 
 ## 7. 验证证据与缺口
+
+本轮 Rust 工作区 55 项测试通过，前端 300 项通过，2 项按需生成数据的用例默认跳过。类型检查、生产构建、Rust 格式和 Clippy 检查均通过。本机真实 WebSocket 验证了五种常规模式、同屏分别输入、训练重置、暂停恢复及跨浏览器公共房间重连。单命自定义对局实测 P2 出界后只结算一次，刷新保留 P1 胜场。四张地图和暂停后换图重赛的浏览器回归通过。DeepSeek 使用真实游戏房间和模拟的模型响应。
 
 下表为 T10-A 动画集成时的检查快照，不包含随后出现的并行武器调参；专项细节见 [动画流程](./CHARACTER_ANIMATION_PIPELINE.md)。历史范围见 [全角色交接](./updates/2026-10-18-all-character-rigs.md)、[T00 记录](./updates/2026-10-17-t00-contracts.md)、[T01 记录](./updates/2026-10-17-weapons.md)、[地图 / 外观记录](./updates/2026-10-17-appearance-maps.md)；当前地图数值与验收见 [适中难度记录](./updates/2026-10-18-moderate-map-difficulty.md)。
 
@@ -220,10 +224,13 @@ PRD 验收对照：
 通用环境：Node.js 22.12+，建议 24 LTS；使用 `package.json` 指定的 pnpm 和现有锁文件。
 
 ```powershell
-cd D:\Code\gun-brawl
+cd D:\Code\gun-brawl\server
+cargo run -p gunbrawl-server
+# 第二个终端
+cd D:\Code\gun-brawl\web
 pnpm install
 pnpm dev
-# 另一个终端
+# 在 web 目录另开终端验证
 pnpm test
 pnpm build
 pnpm test:browser

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { ARENAS } from '../src/content/maps';
-import { BotController } from '../src/game/ai/BotController';
+import { BotController } from './reference/ai/BotController';
 import { planRoute } from '../src/game/ai/Navigation';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import type { ActorState, MapDefinition, WeaponDrop } from '../src/game/core/types';
 

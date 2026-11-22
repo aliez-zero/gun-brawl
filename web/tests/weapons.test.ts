@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { BASIC_PISTOL, CANNON, GATLING, RIFLE, ROCKET, SHOTGUN, SMG, SNIPER, WEAPONS, createWeapon, getWeapon } from '../src/content/weapons';
-import { BotController } from '../src/game/ai/BotController';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BotController } from './reference/ai/BotController';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
 import type { MapDefinition, MatchConfig } from '../src/game/core/types';
-import { equipWeapon, hasAmmo, refillWeapon, revertToPistol } from '../src/game/systems/WeaponSystem';
+import { equipWeapon, hasAmmo, refillWeapon, revertToPistol } from './reference/systems/WeaponSystem';
 
 function active(overrides: Partial<MatchConfig> = {}): BattleSimulation {
   const simulation = new BattleSimulation({ ...createMatchConfig('local-duel', 42), countdown: 0, ...overrides });

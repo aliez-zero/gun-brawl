@@ -1,17 +1,17 @@
 import { BINDING_ACTIONS, cloneBindings, keyLabel, rebind } from '../content/controls';
 import type { ControlAction, KeyBindings } from '../content/controls';
-import { TRAINING_TASKS } from '../content/tutorial';
+import { MatchHUD, matchLabel } from './MatchHUD';
 import { ARMORY_WEAPONS, weaponBurstImpulse, weaponRole, weaponSustainedImpulse } from '../content/weapons';
 import { createWeaponIconCanvas } from '../presentation/WeaponArt';
-import {
-  CUSTOM_MAP_OPTIONS, CUSTOM_MATCH_LIMITS, DIFFICULTY_LABELS, MODE_LABELS, cloneCustomMatch, validateCustomMatch,
-} from '../content/matches';
-import type { CustomMatchSettings, CustomSlot } from '../content/matches';
+import { DIFFICULTY_LABELS, MODE_LABELS } from '../content/matches';
+import type { CustomMatchSettings } from '../content/matches';
+import { customMatchForm, readCustomSettings, refreshCustomValidation } from './CustomMatchForm';
+import { escapeLabel, formatTime } from './format';
 import { APPEARANCE_PRESETS, isCharacterStyle, normalizeAppearance, presetAppearance } from '../content/appearances';
 import { CAMPAIGN_LEVELS, getCampaignLevel } from '../content/campaign';
 import type { CampaignProgress } from '../content/campaign';
 import { getArena, isMapId } from '../content/maps';
-import type { CharacterAppearance, Difficulty, DropMode, GameMode, HumanSlot, MatchResult, MatchState, WeaponId } from '../game/core/types';
+import type { CharacterAppearance, GameMode, HumanSlot, MatchResult, MatchState, WeaponId } from '../game/core/types';
 import { isGameMode } from '../storage/SaveStore';
 import type { SaveData } from '../storage/SaveStore';
 import { appearanceEditor, drawAppearancePreviews } from './appearance/AppearanceEditor';
@@ -75,18 +75,13 @@ export class GameUI {
   private readonly status: HTMLElement;
   private readonly toast: HTMLElement;
   private selected: GameMode;
-  private hudReady = false;
-  private lastPhase = '';
-  private readonly weaponIcons = new Map<string, string>();
+  private readonly hud: MatchHUD;
   private ready = false;
   private editingSlot: HumanSlot = 1;
   private editNextRound = false;
   private readonly mapLabel: HTMLElement;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingBinding: { slot: HumanSlot; action: ControlAction } | null = null;
-  private trainingDummyMoving = true;
-  private lastTrainingWeaponId: WeaponId = 'pistol';
-  private trainingIntroDismissed = false;
   private readonly listeners = new AbortController();
   private musicState: MusicStatus = { track: 'menu', state: 'waiting' };
 
@@ -120,6 +115,7 @@ export class GameUI {
         <footer class="site-footer"><span>高台有优势，边缘有代价。</span><span>跳跃 · 开火 · 把对手送出场外 <b>↗</b></span></footer>
       </div>`;
     this.overlay = root.querySelector('#game-overlay')!;
+    this.hud = new MatchHUD(this.overlay);
     this.footer = root.querySelector('#control-guide')!;
     this.status = root.querySelector('#match-status')!;
     this.toast = root.querySelector('.toast')!;
@@ -174,22 +170,16 @@ export class GameUI {
       }
       if (action !== 'rebind') this.pendingBinding = null;
       if (action === 'start-custom') {
-        const settings = this.readCustomSettings();
-        const errors = validateCustomMatch(settings);
-        if (errors.length) { this.showCustomErrors(errors); return; }
-        this.actions.startCustom(settings);
+        const settings = readCustomSettings(this.overlay);
+        if (refreshCustomValidation(this.overlay, settings)) this.actions.startCustom(settings);
         return;
       }
       if (action === 'reset-training') { this.actions.resetTraining(); return; }
       if (action === 'dummy-toggle') {
-        this.trainingDummyMoving = !this.trainingDummyMoving;
-        this.actions.setDummyMoving(this.trainingDummyMoving);
-        const toggle = this.overlay.querySelector<HTMLElement>('[data-action="dummy-toggle"]');
-        if (toggle) toggle.textContent = this.trainingDummyMoving ? '假人：移动中' : '假人：静止';
+        this.actions.setDummyMoving(this.hud.toggleDummy());
         return;
       }
       if (action === 'dismiss-training-intro') {
-        this.trainingIntroDismissed = true;
         this.actions.dismissTrainingIntro();
         this.overlay.querySelector('#training-intro')?.remove();
         return;
@@ -209,7 +199,7 @@ export class GameUI {
       if (action === 'train-weapon') {
         const weaponId = button.dataset.weapon as WeaponId;
         if (ARMORY_WEAPONS.some((weapon) => weapon.id === weaponId)) {
-          this.lastTrainingWeaponId = weaponId;
+          this.hud.trainingWeapon = weaponId;
           this.actions.startTrainingWeapon(weaponId);
         }
         return;
@@ -266,7 +256,7 @@ export class GameUI {
         const track = event.target.value;
         if (track === 'auto' || isMusicTrack(track)) this.actions.setMusic({ track });
       }
-      if (event.target instanceof Element && event.target.closest('#custom-form')) this.refreshCustomValidation();
+      if (event.target instanceof Element && event.target.closest('#custom-form')) refreshCustomValidation(this.overlay);
     }, { signal: this.listeners.signal });
     window.addEventListener('keydown', this.captureBinding, { capture: true, signal: this.listeners.signal });
     root.addEventListener('keydown', (event) => {
@@ -315,7 +305,6 @@ export class GameUI {
   setReady(): void { this.ready = true; this.showMenu(); }
 
   showMenu(): void {
-    this.hudReady = false;
     this.overlay.className = 'menu-overlay';
     const map = getArena(this.save.selectedMapId);
     const look = APPEARANCE_PRESETS.find((entry) => entry.id === this.save.appearances[1].style)!;
@@ -346,28 +335,19 @@ export class GameUI {
     this.status.innerHTML = '<span class="status-dot"></span> 战场就绪';
   }
 
-  showMatch(state: Readonly<MatchState>): void {
-    const matchLabel = state.actors.some((a) => a.config.control === 'external') ? 'DeepSeek 对战' : MODE_LABELS[state.config.mode];
-    this.hudReady = true;
-    this.lastPhase = '';
-    this.weaponIcons.clear();
-    this.overlay.className = 'match-overlay';
-    this.overlay.innerHTML = `
-      <div class="hud-top">
-        <div class="actor-cards ${state.actors.length > 2 ? 'many' : ''}">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${actor.config.name}</span><canvas class="weapon-icon" id="weapon-icon-${actor.config.id}" width="120" height="48" aria-label="当前武器"></canvas></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
-        <div class="timer-block"><span id="round-label">${matchLabel}</span><strong id="round-time">03:00</strong></div>
-        <div class="net-status" id="net-status" hidden></div>
-        <button class="pause-button" data-action="pause" aria-label="暂停对战">Ⅱ <kbd>ESC</kbd></button>
-      </div>
-      <div class="countdown" aria-live="polite" hidden><small>准备就绪</small><strong></strong><span>保持移动，远离边缘。</span></div>
-      <div class="spectator-banner" id="spectator-banner" hidden><small>SPECTATING</small><strong>本地玩家已出局 · 观战中</strong><span>本局结束后可重赛或返回菜单</span></div>
-      ${state.config.mode === 'training' && state.training ? this.trainingPanel(state) : ''}`;
-    this.trainingDummyMoving = state.training?.dummyMoving ?? true;
-    this.setGuide(state.config.mode);
-    this.mapLabel.textContent = state.config.map.name + ' / ' + state.config.map.subtitle;
-    this.status.innerHTML = `<span class="status-dot"></span> ${matchLabel} <span class="status-divider">/</span> ${state.config.map.name}`;
-    this.updateHUD(state);
+  showConnecting(): void {
+    this.dialog('GUN BRAWL', '正在连接游戏服务器…', '<button class="secondary-button" data-action="menu">取消并返回主菜单</button>');
   }
+
+  showMatch(state: Readonly<MatchState>, publicRoom = false): void {
+    this.hud.render(state, !this.save.trainingIntroSeen, publicRoom);
+    const hasSecondKeyboard = !publicRoom && state.actors.some(({ config }) => config.control === 'human' && config.inputSlot === 2);
+    this.setGuide(hasSecondKeyboard ? 'local-duel' : state.config.mode);
+    this.mapLabel.textContent = state.config.map.name + ' / ' + state.config.map.subtitle;
+    this.status.innerHTML = `<span class="status-dot"></span> ${matchLabel(state)} <span class="status-divider">/</span> ${escapeLabel(state.config.map.name)}`;
+  }
+
+  updateHUD(state: Readonly<MatchState>): void { this.hud.update(state); }
 
   showDeepSeekSetup(info: DeepSeekInfo | null, error: string | null = null, starting = false): void {
     this.dialog('DEEPSEEK / DIRECT CONTROL', '挑战 DeepSeek。', deepSeekSetup(info, getArena(this.save.selectedMapId).name, error, starting));
@@ -408,67 +388,6 @@ export class GameUI {
     element.textContent = `DeepSeek · ${value.message} · 已接收 ${value.decisions} 次操作${value.latencyMs === null ? '' : ` · ${value.latencyMs} ms`} · 请求 ${value.requests} · ${value.tokens} token`;
   }
 
-  private trainingPanel(state: Readonly<MatchState>): string {
-    const training = state.training;
-    const done = training ? training.completedTasks.length : 0;
-    const tasks = TRAINING_TASKS.map((task) => `<li class="training-task ${training?.completed[task.id] ? 'done' : ''}" data-training-task="${task.id}"><b>${task.title}</b><span>${task.hint}</span></li>`).join('');
-    const intro = !this.save.trainingIntroSeen && !this.trainingIntroDismissed
-      ? `<div class="training-intro" id="training-intro"><small>第一次来训练台？</small><p>先按 A / D 移动，空格跳跃；按 J 开火。底栏 1—8 可直接换枪，右侧图鉴可试全部 17 个型号。</p><button data-action="dismiss-training-intro">知道了</button></div>`
-      : '';
-    return `<aside class="training-panel" aria-label="训练任务">
-      ${intro}
-      <div class="training-head"><strong>训练任务 <span id="training-progress">${done}/6</span></strong><span>不扣命 · 不计战绩</span></div>
-      <ul class="training-tasks">${tasks}</ul>
-      <div class="training-actions"><button data-action="dummy-toggle">${training?.dummyMoving ? '假人：移动中' : '假人：静止'}</button><button data-action="reset-training">重置训练</button><button data-action="encyclopedia">武器图鉴</button></div>
-    </aside>`;
-  }
-
-  updateHUD(state: Readonly<MatchState>): void {
-    if (!this.hudReady) return;
-    const timer = this.overlay.querySelector('#round-time');
-    const label = this.overlay.querySelector('#round-label');
-    if (timer) timer.textContent = state.config.mode === 'training' ? '∞' : formatTime(state.remaining);
-    if (label) label.textContent = state.overtime ? '决胜加时' : state.actors.some((a) => a.config.control === 'external') ? 'DeepSeek 对战' : MODE_LABELS[state.config.mode];
-    const spectator = this.overlay.querySelector<HTMLElement>('#spectator-banner');
-    if (spectator) {
-      const humans = state.actors.filter((actor) => actor.config.control === 'human');
-      spectator.hidden = !(state.phase === 'playing' && humans.length > 0 && humans.every((actor) => actor.status !== 'alive'));
-    }
-    for (const actor of state.actors) {
-      const stocks = this.overlay.querySelector(`#stocks-${actor.config.id}`);
-      const status = this.overlay.querySelector(`#actor-status-${actor.config.id}`);
-      const card = this.overlay.querySelector(`#card-${actor.config.id}`);
-      const stockText = state.config.mode === 'training' ? '∞ 无限生命' : `${'● '.repeat(actor.stocks)}${'○ '.repeat(Math.max(0, state.config.stocks - actor.stocks))}`;
-      if (stocks && stocks.textContent !== stockText) stocks.textContent = stockText;
-      const ammo = actor.weapon.ammoRemaining === null ? '∞' : `${actor.weapon.ammoRemaining}/${actor.weapon.reserveRemaining}`;
-      const reload = actor.reloadRemaining > 0 ? ` · 换弹 ${actor.reloadRemaining.toFixed(1)}s` : '';
-      const tier = actor.weapon.definition.tier === 'ultimate' ? '终极 · ' : '';
-      if (status) status.textContent = actor.status === 'eliminated' ? '已淘汰 · 观战中' : actor.status === 'respawning' ? '正在返回战场' : `${tier}${actor.weapon.definition.name} · ${ammo}${reload} · 炸弹 ${actor.bombsRemaining}`;
-      card?.classList.toggle('eliminated', actor.status === 'eliminated');
-      this.drawWeaponIcon(actor.config.id, actor.weapon.definition.id);
-    }
-    if (state.training) {
-      const human = state.actors.find((actor) => actor.config.control === 'human');
-      if (human) this.lastTrainingWeaponId = human.weapon.definition.id;
-      const progress = this.overlay.querySelector<HTMLElement>('#training-progress');
-      if (progress) progress.textContent = `${state.training.completedTasks.length}/6`;
-      for (const task of TRAINING_TASKS) {
-        this.overlay.querySelector(`[data-training-task="${task.id}"]`)?.classList.toggle('done', state.training.completed[task.id]);
-      }
-      this.trainingDummyMoving = state.training.dummyMoving;
-    }
-    const countdown = this.overlay.querySelector<HTMLElement>('.countdown');
-    if (countdown) {
-      countdown.hidden = state.phase !== 'countdown';
-      const number = countdown.querySelector('strong');
-      if (number) number.textContent = String(Math.max(1, Math.ceil(state.countdownRemaining)));
-    }
-    if (this.lastPhase !== state.phase) {
-      this.lastPhase = state.phase;
-      this.overlay.classList.toggle('is-countdown', state.phase === 'countdown');
-    }
-  }
-
   showPause(): void {
     this.dialog('TIME OUT', '喘口气，再上场。', '<p class="dialog-copy">战场已经暂停，返回后会有 3 秒准备时间。</p><button class="start-button" data-action="resume"><span>继续对战</span><span>↗</span></button><div class="dialog-actions"><button data-action="restart">重新开始</button><button data-action="appearance">角色外观</button><button data-action="maps">更换地图</button><button data-action="settings">设置</button><button data-action="menu">返回主菜单</button></div>');
   }
@@ -506,16 +425,16 @@ export class GameUI {
     this.dialog('CAMPAIGN', '六关，一条命一条命打上去。', `<p class="dialog-copy">胜利解锁下一关并记录最佳成绩；失败或平局不解锁。当前已解锁 ${progress.unlocked}/6。</p><div class="campaign-list">${cards}</div><div class="dialog-actions"><button data-action="close">返回</button></div>`);
   }
 
-  showResult(result: MatchResult): void {
+  showResult(result: MatchResult, publicRoom = false): void {
     const level = result.campaignLevelId ? getCampaignLevel(result.campaignLevelId) : undefined;
     const heading = level
       ? result.winner === 'p1' ? `${level.name} · 通关` : result.winner === null ? `${level.name} · 平局` : `${level.name} · 失败`
       : winnerHeading(result);
     this.dialog('ROUND COMPLETE', heading, `
       <p class="dialog-copy">${level ? `战役第 ${level.order} 关` : MODE_LABELS[result.mode]} · 用时 ${formatTime(result.duration)}${result.overtime ? ' · 决胜加时' : ''}${level && result.winner === 'p1' ? ' · 下一关已解锁' : ''}</p>
-      <div class="result-table"><div class="result-row table-label"><span>参战者</span><span>剩余生命</span><span>击出</span><span>出界</span></div>${result.actors.map((actor) => `<div class="result-row ${actor.id === result.winner ? 'winner-row' : ''}"><strong>${actor.name}</strong><span>${actor.stocks}</span><span>${actor.knockouts}</span><span>${actor.falls}</span></div>`).join('')}</div>
+      <div class="result-table"><div class="result-row table-label"><span>参战者</span><span>剩余生命</span><span>击出</span><span>出界</span></div>${result.actors.map((actor) => `<div class="result-row ${actor.id === result.winner ? 'winner-row' : ''}"><strong>${escapeLabel(actor.name)}</strong><span>${actor.stocks}</span><span>${actor.knockouts}</span><span>${actor.falls}</span></div>`).join('')}</div>
       ${level && result.winner === 'p1' ? '<button class="start-button" data-action="next-campaign"><span>下一关</span><span>↗</span></button>' : ''}
-      <button class="${level && result.winner === 'p1' ? 'secondary-button' : 'start-button'}" data-action="restart"><span>${level ? '重试本关' : '再来一局'}</span><span>↗</span></button>
+      <button class="${level && result.winner === 'p1' ? 'secondary-button' : 'start-button'}" data-action="restart"><span>${publicRoom ? '返回联机房间' : level ? '重试本关' : '再来一局'}</span><span>↗</span></button>
       <div class="dialog-actions">${level ? '<button data-action="campaign-select">选择关卡</button>' : ''}<button data-action="menu">返回主菜单</button></div>`);
   }
 
@@ -527,7 +446,7 @@ export class GameUI {
         ? `${weapon.pellets} 丸 · ±${Math.round(weapon.spreadRadians * 180 / Math.PI)}°`
         : '单发直线';
       const blast = weapon.explosion ? ` · 爆炸 ${weapon.explosion.radius}px` : '';
-      const selected = id === this.lastTrainingWeaponId;
+      const selected = id === this.hud.trainingWeapon;
       const burst = weaponBurstImpulse(weapon);
       const sustained = weaponSustainedImpulse(weapon);
       const burstWidth = Math.max(3, Math.min(100, Math.round(burst / 12.5)));
@@ -553,86 +472,8 @@ export class GameUI {
   }
 
   showCustomSetup(settings: CustomMatchSettings): void {
-    const custom = cloneCustomMatch(settings);
-    const mapOptions = CUSTOM_MAP_OPTIONS.map((map) => `<option value="${map.id}" ${custom.mapId === map.id ? 'selected' : ''}>${escapeLabel(map.name)}</option>`).join('');
-    const slotRow = (index: number, slot: CustomSlot): string => {
-      if (index === 0) return `<div class="custom-slot fixed"><span><b>槽位 1</b><small>玩家 1 · 本地键盘</small></span><em>固定</em></div>`;
-      const modes = index === 1
-        ? [['human', '玩家 2'], ['bot', 'AI'], ['empty', '关闭']]
-        : [['bot', 'AI'], ['empty', '关闭']];
-      const mode = slot.kind;
-      const difficulty = slot.kind === 'bot' ? slot.difficulty : 'normal';
-      return `<div class="custom-slot"><span><b>槽位 ${index + 1}</b><small data-custom-label="${index}">${mode === 'empty' ? '空置' : mode === 'human' ? '本地键盘 2' : `${DIFFICULTY_LABELS[difficulty]} AI`}</small></span>
-        <select data-custom-slot="${index}" aria-label="槽位 ${index + 1}">${modes.map(([value, label]) => `<option value="${value}" ${mode === value ? 'selected' : ''}>${label}</option>`).join('')}</select>
-        <select data-custom-difficulty="${index}" aria-label="槽位 ${index + 1} AI 难度">${(['easy', 'normal', 'hard'] as const).map((level) => `<option value="${level}" ${difficulty === level ? 'selected' : ''}>${DIFFICULTY_LABELS[level]}</option>`).join('')}</select></div>`;
-    };
-    this.dialog('CUSTOM MATCH', '这一局，你说了算。', `
-      <form id="custom-form" class="custom-form" onsubmit="return false">
-        <div class="custom-grid">
-          <label>地图<select id="custom-map">${mapOptions}</select></label>
-          <label>每人生命<input id="custom-stocks" type="number" min="${CUSTOM_MATCH_LIMITS.minStocks}" max="${CUSTOM_MATCH_LIMITS.maxStocks}" step="1" value="${custom.stocks}" /></label>
-          <label>时限（秒）<input id="custom-duration" type="number" min="${CUSTOM_MATCH_LIMITS.minDuration}" max="${CUSTOM_MATCH_LIMITS.maxDuration}" step="30" value="${custom.duration}" /></label>
-          <label>武器池<select id="custom-drop">${dropModeOptions(custom.dropMode)}</select></label>
-        </div>
-        <div class="custom-slots">${custom.slots.map((slot, index) => slotRow(index, slot)).join('')}</div>
-        <p class="setting-note" id="custom-errors" role="alert"></p>
-        <p class="custom-summary" id="custom-summary"></p>
-        <button type="button" class="start-button" data-action="start-custom"><span>开始对战</span><span>↗</span></button>
-        <div class="dialog-actions"><button type="button" data-action="close">返回</button></div>
-      </form>`);
-    this.refreshCustomValidation();
-  }
-
-  private readCustomSettings(): CustomMatchSettings {
-    const form = this.overlay.querySelector<HTMLFormElement>('#custom-form');
-    if (!form) return cloneCustomMatch();
-    const value = (selector: string): string => form.querySelector<HTMLInputElement | HTMLSelectElement>(selector)?.value ?? '';
-    const slots: CustomSlot[] = [{ kind: 'human', inputSlot: 1 }];
-    for (let index = 1; index < 4; index++) {
-      const mode = value(`[data-custom-slot="${index}"]`);
-      const rawDifficulty = value(`[data-custom-difficulty="${index}"]`);
-      if (index === 1 && mode === 'human') slots.push({ kind: 'human', inputSlot: 2 });
-      else if (mode === 'bot') slots.push({ kind: 'bot', difficulty: (rawDifficulty || 'normal') as Difficulty });
-      else slots.push({ kind: 'empty' });
-    }
-    return {
-      mapId: value('#custom-map'),
-      stocks: Number(value('#custom-stocks')),
-      duration: Number(value('#custom-duration')),
-      dropMode: (value('#custom-drop') || 'all') as DropMode,
-      slots,
-    };
-  }
-
-  private refreshCustomValidation(): void {
-    const settings = this.readCustomSettings();
-    const errors = validateCustomMatch(settings);
-    const errorBox = this.overlay.querySelector<HTMLElement>('#custom-errors');
-    const summary = this.overlay.querySelector<HTMLElement>('#custom-summary');
-    const start = this.overlay.querySelector<HTMLButtonElement>('[data-action="start-custom"]');
-    for (let index = 1; index < 4; index++) {
-      const mode = this.overlay.querySelector<HTMLSelectElement>(`[data-custom-slot="${index}"]`);
-      const difficulty = this.overlay.querySelector<HTMLSelectElement>(`[data-custom-difficulty="${index}"]`);
-      if (mode && difficulty) {
-        difficulty.disabled = mode.value !== 'bot';
-        const label = this.overlay.querySelector<HTMLElement>(`[data-custom-label="${index}"]`);
-        if (label) label.textContent = mode.value === 'empty' ? '空置' : mode.value === 'human' ? '本地键盘 2' : `${DIFFICULTY_LABELS[difficulty.value as Difficulty] ?? '普通'} AI`;
-      }
-    }
-    const active = settings.slots.filter((slot) => slot.kind !== 'empty');
-    const humans = active.filter((slot) => slot.kind === 'human').length;
-    const bots = active.length - humans;
-    if (errorBox) {
-      errorBox.textContent = errors.join(' ');
-      errorBox.classList.toggle('error', errors.length > 0);
-    }
-    if (summary) summary.textContent = `${active.length} 人 · ${humans} 本地 / ${bots} AI · 每人 ${settings.stocks || 0} 命 · ${settings.duration || 0} 秒`;
-    if (start) start.disabled = errors.length > 0;
-  }
-
-  private showCustomErrors(errors: string[]): void {
-    const box = this.overlay.querySelector<HTMLElement>('#custom-errors');
-    if (box) { box.textContent = errors.join(' '); box.classList.add('error'); }
+    this.dialog('CUSTOM MATCH', '这一局，你说了算。', customMatchForm(settings));
+    refreshCustomValidation(this.overlay);
   }
 
   updateMusic(status: MusicStatus): void {
@@ -686,21 +527,9 @@ export class GameUI {
 
   private dialog(eyebrow: string, title: string, body: string, panelClass = ''): void {
     this.pendingBinding = null;
-    this.hudReady = false;
     this.overlay.className = 'dialog-overlay';
-    this.overlay.innerHTML = `<section class="dialog-panel ${panelClass}" role="dialog" aria-modal="true" aria-label="${title}"><div class="eyebrow"><span class="slash">//</span> ${eyebrow}</div><h2>${title}</h2>${body}</section>`;
+    this.overlay.innerHTML = `<section class="dialog-panel ${panelClass}" role="dialog" aria-modal="true" aria-label="${escapeLabel(title)}"><div class="eyebrow"><span class="slash">//</span> ${eyebrow}</div><h2>${escapeLabel(title)}</h2>${body}</section>`;
     this.overlay.querySelector<HTMLButtonElement>('.start-button')?.focus({ preventScroll: true });
-  }
-
-  private drawWeaponIcon(actorId: string, weaponId: WeaponId): void {
-    if (this.weaponIcons.get(actorId) === weaponId) return;
-    const canvas = this.overlay.querySelector<HTMLCanvasElement>(`#weapon-icon-${actorId}`);
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(createWeaponIconCanvas(weaponId), 0, 0, canvas.width, canvas.height);
-    this.weaponIcons.set(actorId, weaponId);
   }
 
   private setGuide(mode: GameMode): void {
@@ -712,25 +541,7 @@ export class GameUI {
   }
 }
 
-function dropModeOptions(selected: DropMode): string {
-  const options: [DropMode, string][] = [
-    ['all', '全部武器（含终极）'],
-    ['standard', '仅标准武器'],
-    ['none', '关闭特殊投放'],
-  ];
-  return options.map(([value, label]) => `<option value="${value}" ${selected === value ? 'selected' : ''}>${label}</option>`).join('');
-}
-
 function winnerHeading(result: MatchResult): string {
   const winner = result.actors.find((actor) => actor.id === result.winner);
   return winner ? `${winner.name}，站到了最后。` : '势均力敌，平局。';
-}
-
-function escapeLabel(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
-}
-
-function formatTime(seconds: number): string {
-  const rounded = Math.max(0, Math.ceil(seconds));
-  return `${Math.floor(rounded / 60).toString().padStart(2, '0')}:${(rounded % 60).toString().padStart(2, '0')}`;
 }

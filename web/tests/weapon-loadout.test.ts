@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createMatchConfig } from '../src/content/matches';
 import { ARMORY_WEAPONS } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
 import type { MapDefinition, WeaponId } from '../src/game/core/types';
-import { equipWeapon } from '../src/game/systems/WeaponSystem';
+import { equipWeapon } from './reference/systems/WeaponSystem';
 
 const map: MapDefinition = {
   id: 'loadout', name: 'loadout', width: 6000, height: 700,

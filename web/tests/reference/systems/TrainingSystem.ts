@@ -1,6 +1,6 @@
-import { BOMB } from '../core/constants';
-import { createTrainingState } from '../../content/tutorial';
-import type { ActorInput, BattleEvent, MatchState, TrainingTaskId, TrainingState } from '../core/types';
+import { BOMB } from '../../../src/game/core/constants';
+import { createTrainingState } from '../../../src/content/tutorial';
+import type { ActorInput, BattleEvent, MatchState, TrainingTaskId, TrainingState } from '../../../src/game/core/types';
 
 /**
  * Training-only observer. It never mutates combat state; it only records tasks

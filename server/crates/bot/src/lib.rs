@@ -1,6 +1,6 @@
 //! Platform navigation and the three bot difficulties.
 //!
-//! Port of `web/src/game/ai/Navigation.ts` and `BotController.ts`. The bot only
+//! Platform search and combat decisions run in the room. The bot only
 //! produces `ActorInput`, exactly like a human client, so the server applies the
 //! same movement, ammo, knockback and ring-out rules to both.
 

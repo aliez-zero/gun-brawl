@@ -4,18 +4,21 @@
 //! ring-outs, drops, match resolution — in that exact order.
 
 use crate::actor::create_actor;
-use crate::combat::update_combat;
+use crate::combat::{equip_weapon, update_combat};
 use crate::drops::{DropPoolEntry, DropRuntime};
 use crate::grenade::update_grenades;
 use crate::life::{resolve_ringouts, update_life_timers};
 use crate::match_rule::resolve_match;
 use crate::movement::move_actor;
+use crate::training::Training;
 use crate::types::{
-    ActorInput, BattleEvent, GameMode, InputTable, MatchConfig, MatchPhase, MatchState, Vec2,
+    ActorInput, ActorStatus, BattleEvent, Control, GameMode, InputTable, MatchConfig, MatchPhase,
+    MatchState, Vec2, WeaponId,
 };
 
 pub struct Simulation {
     pub state: MatchState,
+    pub training: Option<Training>,
     next_projectile: u32,
     next_bomb: u32,
     drops: DropRuntime,
@@ -40,6 +43,7 @@ impl Simulation {
                 )
             })
             .collect();
+        let training = (config.mode == GameMode::Training).then(Training::default);
         let state = MatchState {
             phase: MatchPhase::Countdown,
             remaining: config.duration,
@@ -55,6 +59,7 @@ impl Simulation {
         };
         Self {
             state,
+            training,
             next_projectile: 0,
             next_bomb: 0,
             drops: DropRuntime::new(drop_pool),
@@ -80,6 +85,7 @@ impl Simulation {
             MatchPhase::Playing => {}
         }
 
+        let first_event = self.events.len();
         self.state.elapsed += dt;
         if self.state.config.mode != GameMode::Training {
             self.state.remaining = (self.state.remaining - dt).max(0.0);
@@ -113,6 +119,38 @@ impl Simulation {
         resolve_ringouts(&mut self.state, &mut self.events);
         self.drops.update(&mut self.state, dt, &mut self.events);
         resolve_match(&mut self.state, &mut self.events);
+        if let Some(training) = &mut self.training {
+            training.observe(&self.state, inputs, dt, &self.events[first_event..]);
+        }
+    }
+
+    pub fn reset_training(&mut self) -> bool {
+        let Some(training) = &mut self.training else {
+            return false;
+        };
+        training.reset(&mut self.state);
+        self.events.clear();
+        self.events.push(BattleEvent::Phase(MatchPhase::Countdown));
+        true
+    }
+
+    pub fn select_training_weapon(&mut self, id: WeaponId) -> bool {
+        let Some(weapon) = self.state.config.weapons.get(id as usize) else {
+            return false;
+        };
+        if self.training.is_none() {
+            return false;
+        }
+        let mut equipped = false;
+        for actor in &mut self.state.actors {
+            if matches!(actor.config.control, Control::Human(_))
+                && actor.status == ActorStatus::Alive
+            {
+                equip_weapon(actor, id, weapon);
+                equipped = true;
+            }
+        }
+        equipped
     }
 
     pub fn pause(&mut self) {

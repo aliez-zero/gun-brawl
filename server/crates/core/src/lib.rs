@@ -15,6 +15,7 @@ pub mod math;
 pub mod movement;
 pub mod random;
 pub mod simulation;
+pub mod training;
 pub mod types;
 
 pub use constants::{FIXED_STEP, SNAPSHOT_RATE, TICK_RATE};

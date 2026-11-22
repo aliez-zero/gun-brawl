@@ -1,6 +1,6 @@
-import { ACTOR_HEIGHT, ACTOR_WIDTH, MOVEMENT } from '../core/constants';
+import { ACTOR_HEIGHT, ACTOR_WIDTH, MOVEMENT } from '../../../src/game/core/constants';
 import { approach } from '../core/math';
-import type { ActorInput, ActorState, MapDefinition } from '../core/types';
+import type { ActorInput, ActorState, MapDefinition } from '../../../src/game/core/types';
 
 export function moveActor(actor: ActorState, input: ActorInput, map: MapDefinition, dt: number): void {
   if (actor.status !== 'alive') return;

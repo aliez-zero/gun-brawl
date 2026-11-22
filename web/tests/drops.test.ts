@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { ARENAS } from '../src/content/maps';
 import { createMatchConfig } from '../src/content/matches';
 import { getWeapon } from '../src/content/weapons';
-import { BattleSimulation } from '../src/game/core/BattleSimulation';
+import { BattleSimulation } from './reference/core/BattleSimulation';
 import { FIXED_STEP } from '../src/game/core/constants';
 import { idleInput } from '../src/game/core/types';
 import type { BattleEvent, MapDefinition, MatchConfig, WeaponDrop } from '../src/game/core/types';
-import { DropSystem } from '../src/game/systems/DropSystem';
+import { DropSystem } from './reference/systems/DropSystem';
 
 function dropMap(): MapDefinition {
   return {
