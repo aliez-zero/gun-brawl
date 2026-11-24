@@ -55,11 +55,46 @@ describe('WebSocket handshake', () => {
     await connected;
     expect(client.connected).toBe(true);
     expect(client.playerId).toBe(8);
+    expect(socket.send).toHaveBeenCalledTimes(2);
+    expect(new Reader(socket.send.mock.calls[1]![0]).varint()).toBe(8);
     vi.advanceTimersByTime(1000);
+    expect(socket.send).toHaveBeenCalledTimes(3);
     expect(new Reader(socket.send.mock.calls.at(-1)![0]).varint()).toBe(8);
     client.disconnect();
     expect(vi.getTimerCount()).toBe(0);
     expect(socket.onmessage).toBeNull();
+  });
+
+  it('publishes measured latency and clears it before a reconnect', async () => {
+    let now = 100.75;
+    vi.stubGlobal('performance', { now: () => now });
+    const hooks = handlers();
+    const client = new NetClient(hooks);
+    const welcome = Uint8Array.of(0, 8, 1, 65, 0, 60, 30);
+    const pending = client.connect('ws://game/ws');
+    const first = Socket.last;
+    first.open();
+    first.receive(welcome);
+    await pending;
+    expect(client.latency).toBeNull();
+    expect(hooks.onLatency).not.toHaveBeenCalled();
+
+    const ping = new Reader(first.send.mock.calls[1]![0]);
+    expect([ping.varint(), ping.varint()]).toEqual([8, 100]);
+    now = 141;
+    first.receive(Uint8Array.of(4, 100, 0));
+    expect(client.latency).toEqual({ rtt: 41, jitter: 0 });
+    expect(hooks.onLatency).toHaveBeenCalledWith(41, 0);
+
+    first.close();
+    expect(client.latency).toBeNull();
+    const retry = client.connect('ws://game/ws');
+    const second = Socket.last;
+    second.open();
+    second.receive(welcome);
+    await retry;
+    expect(client.latency).toBeNull();
+    client.disconnect();
   });
 
   it.each(['timeout', 'close', 'error', 'kick', 'cancel'])('releases a pending %s handshake and can connect again', async (reason) => {

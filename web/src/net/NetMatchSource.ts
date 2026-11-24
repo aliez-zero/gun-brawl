@@ -28,7 +28,6 @@ export class NetMatchSource implements MatchSource {
   private lastSnapshotAt = 0;
   private lastAdvanceAt: number | null = null;
   private events: BattleEvent[] = [];
-  private latencyValue = { rtt: 0, jitter: 0 };
 
   constructor(readonly client: NetClient, readonly room: RoomView, predictor: Predictor | null = null, config?: MatchConfig) {
     this.privateMatch = config !== undefined;
@@ -55,8 +54,6 @@ export class NetMatchSource implements MatchSource {
   get alpha(): number { return this.playback.alpha; }
   get localPoses(): ReadonlyMap<number, LocalRenderPose> { return this.players.poses; }
   get tick(): number { return this.playback.latest?.playingTick ?? 0; }
-  get latency(): { rtt: number; jitter: number } { return this.latencyValue; }
-  setLatency(rtt: number, jitter: number): void { this.latencyValue = { rtt, jitter }; }
 
   applySnapshot(wire: Snapshot): void {
     const previous = this.playback.latest;

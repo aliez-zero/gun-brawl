@@ -1,6 +1,6 @@
 import { closeDeepSeekSession, type DeepSeekSession } from '../adapters/ai/DeepSeekClient';
 import type { MatchConfig, MatchResult, WeaponId } from '../game/core/types';
-import { NetClient } from '../net/NetClient';
+import { NetClient, type NetLatency } from '../net/NetClient';
 import { NetMatchSource } from '../net/NetMatchSource';
 import type { Predictor } from '../net/Predictor';
 import { PHASE_COUNTDOWN, PHASE_PLAYING, type RoomView } from '../net/protocol';
@@ -20,6 +20,7 @@ interface PrivateMatchCallbacks {
   predictor(): Predictor | null;
   onStart(source: NetMatchSource, session?: DeepSeekSession): void;
   onResult(result: MatchResult): void;
+  onLatency(): void;
   onError(message: string): void;
 }
 
@@ -44,7 +45,7 @@ export class PrivateMatchSession {
       onMatchEnd: (result) => {
         if (this.source && !this.source.state.result) this.callbacks.onResult(this.source.finish(result));
       },
-      onLatency: (rtt, jitter) => this.source?.setLatency(rtt, jitter),
+      onLatency: () => this.callbacks.onLatency(),
       onStatus: (status, detail) => {
         if (this.welcomed && (status === 'closed' || status === 'error')) {
           this.fail(detail ?? '游戏服务器连接已断开');
@@ -52,6 +53,8 @@ export class PrivateMatchSession {
       },
     }, { privateSession: true });
   }
+
+  get latency(): NetLatency | null { return this.client.latency; }
 
   async start(): Promise<void> {
     this.timeout = window.setTimeout(() => this.fail('等待游戏服务器创建对局超时'), 8000);

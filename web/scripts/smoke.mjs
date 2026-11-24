@@ -15,6 +15,8 @@ const browser = await chromium.launch({
   args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--no-proxy-server'],
 });
 const errors = [];
+const latencyReading = /^延迟 \d+ ms · 抖动 \d+ ms$/;
+const waitForLatency = (page) => page.locator('#net-status').filter({ hasText: latencyReading }).waitFor({ timeout: 10_000 });
 try {
   await mkdir('artifacts', { recursive: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1080 }, deviceScaleFactor: 1 });
@@ -45,6 +47,7 @@ try {
   await page.locator('[data-mode="training"]').click();
   await page.getByRole('button', { name: '进入战场' }).click();
   await page.locator('#round-time').waitFor();
+  await waitForLatency(page);
   await page.locator('.countdown').waitFor({ state: 'hidden', timeout: 12_000 });
   assert.equal(await page.locator('#round-time').textContent(), '∞');
   await page.waitForTimeout(1700);
@@ -70,6 +73,7 @@ try {
   await page.keyboard.press('Escape');
   assert.match(await page.getByRole('dialog').textContent(), /喘口气/);
   await page.getByRole('button', { name: '继续对战' }).click();
+  assert.match(await page.locator('#net-status').textContent(), latencyReading);
   await page.locator('.countdown').waitFor({ state: 'hidden', timeout: 12_000 });
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await page.getByRole('dialog').waitFor();
@@ -79,6 +83,7 @@ try {
   await page.locator('[data-mode="local-duel"]').click();
   await page.getByRole('button', { name: '进入战场' }).click();
   await page.locator('#round-time').waitFor();
+  await waitForLatency(page);
   await page.locator('.countdown').waitFor({ state: 'hidden', timeout: 12_000 });
   assert.equal(await page.locator('#actor-status-p2').count(), 1);
   assert.match(await page.locator('#control-guide').textContent(), /P1.*J.*P2.*Enter/);

@@ -61,9 +61,17 @@
   padding: 10px 12px;
 }
 
-.online-status {
-  min-height: 18px;
-  opacity: 0.8;
+.online-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 10px;
+}
+
+.online-feedback p {
+  margin: 0;
 }
 
 /* Slot actions ("设为 AI") are plain <button>s outside .dialog-actions, so without an
@@ -87,7 +95,28 @@
 .net-status {
   font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
-  letter-spacing: 0.12em;
-  opacity: 0.8;
-  text-transform: uppercase;
+  color: #c8d8bc;
+}
+
+.hud-controls {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.hud-controls .net-status {
+  background: #101811dd;
+  border-radius: 4px;
+  padding: 4px 6px;
+  text-align: right;
+}
+
+@media (max-width: 560px) {
+  .hud-controls {
+    gap: 16px;
+  }
+
+  .hud-controls .net-status {
+    max-width: 96px;
+  }
 }

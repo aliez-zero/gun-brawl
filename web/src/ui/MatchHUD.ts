@@ -26,8 +26,10 @@ export class MatchHUD {
       <div class="hud-top">
         <div class="actor-cards ${state.actors.length > 2 ? 'many' : ''}">${state.actors.map((actor) => `<div class="actor-card" id="card-${actor.config.id}" style="--player-color:#${actor.config.color.toString(16).padStart(6, '0')}"><div class="actor-name"><i></i><span>${escapeLabel(actor.config.name)}</span><canvas class="weapon-icon" id="weapon-icon-${actor.config.id}" width="120" height="48" aria-label="当前武器"></canvas></div><div class="stocks" id="stocks-${actor.config.id}"></div><small id="actor-status-${actor.config.id}"></small></div>`).join('')}</div>
         <div class="timer-block"><span id="round-label">${label}</span><strong id="round-time">03:00</strong></div>
-        <div class="net-status" id="net-status" hidden></div>
-        <button class="pause-button" data-action="pause" aria-label="${publicRoom ? '离开房间' : '暂停对战'}">${publicRoom ? '离开' : 'Ⅱ'} <kbd>ESC</kbd></button>
+        <div class="hud-controls">
+          <button class="pause-button" data-action="pause" aria-label="${publicRoom ? '离开房间' : '暂停对战'}">${publicRoom ? '离开' : 'Ⅱ'} <kbd>ESC</kbd></button>
+          <div class="net-status" id="net-status"></div>
+        </div>
       </div>
       <div class="countdown" aria-live="polite" hidden><small>准备就绪</small><strong></strong><span>保持移动，远离边缘。</span></div>
       <div class="spectator-banner" id="spectator-banner" hidden><small>SPECTATING</small><strong>本地玩家已出局 · 观战中</strong><span>本局结束后可重赛或返回菜单</span></div>

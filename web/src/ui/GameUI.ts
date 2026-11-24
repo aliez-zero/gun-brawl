@@ -368,11 +368,9 @@ export class GameUI {
     if (element) element.textContent = text;
   }
 
-  updateNetStatus(text: string | null): void {
-    const element = document.querySelector<HTMLElement>('#net-status');
-    if (!element) return;
-    element.hidden = text === null;
-    element.textContent = text ?? '';
+  updateNetStatus(text: string): void {
+    const element = this.overlay.querySelector<HTMLElement>('#net-status, #online-latency');
+    if (element && element.textContent !== text) element.textContent = text;
   }
 
   private field(id: string): string {

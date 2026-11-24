@@ -54,8 +54,6 @@ export class GameApplication {
   private onlineSource: NetMatchSource | null = null;
   private onlineRoom: RoomView | null = null;
   private onlineStatus = '';
-  private onlineLatency = { rtt: 0, jitter: 0 };
-  private netStatusAt = 0;
   private predictor: Predictor | null = null;
   private predictorPromise: Promise<Predictor | null> | null = null;
   private reconnectAttempts = 0;
@@ -219,6 +217,7 @@ export class GameApplication {
         if (document.hidden || !document.hasFocus()) this.pause();
       },
       onResult: (result) => this.finishMatch(result),
+      onLatency: () => this.updateNetStatus(),
       onError: (message) => {
         this.menu();
         this.ui.notify(`无法继续对局，${message}。请确认游戏服务已启动后重试。`);
@@ -237,6 +236,7 @@ export class GameApplication {
     this.screen = 'match';
     this.arena.startMatch(source, session);
     this.ui.showMatch(source.state, Boolean(this.onlineSource));
+    this.updateNetStatus();
     this.syncMusic();
     (document.activeElement as HTMLElement | null)?.blur();
   }
@@ -320,6 +320,7 @@ export class GameApplication {
     this.screen = 'online';
     this.onlineStatus = '正在连接服务器…';
     this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
+    this.updateNetStatus();
     this.syncMusic();
     try {
       await this.ensureOnline();
@@ -340,6 +341,7 @@ export class GameApplication {
   private refreshOnline(): void {
     if (this.onlineRoom) this.ui.showOnline(this.onlineRoom, this.online?.playerId ?? 0, this.onlineStatus);
     else this.ui.updateOnlineStatus(this.onlineStatus);
+    this.updateNetStatus();
   }
 
   private async ensureOnline(): Promise<NetClient> {
@@ -359,12 +361,9 @@ export class GameApplication {
           if (!this.reconnecting) this.scheduleReconnect();
         }
         if (this.screen === 'online') this.refreshOnline();
+        else this.updateNetStatus();
       },
-      onLatency: (rtt, jitter) => {
-        this.onlineLatency = { rtt, jitter };
-        this.onlineSource?.setLatency(rtt, jitter);
-        this.updateNetStatus();
-      },
+      onLatency: () => this.updateNetStatus(),
     });
     this.online = client;
     const connection = client.connect(gameServerUrl()).then(() => client);
@@ -440,7 +439,7 @@ export class GameApplication {
       this.startOnlineMatch(room);
       return;
     }
-    if (this.screen === 'online') this.ui.showOnline(room, this.online?.playerId ?? 0, this.onlineStatus);
+    if (this.screen === 'online') this.refreshOnline();
   }
 
   private showOnlineRoom(): void {
@@ -453,12 +452,10 @@ export class GameApplication {
   private startOnlineMatch(room: RoomView): void {
     if (!this.online) return;
     const source = new NetMatchSource(this.online, room, this.predictor);
-    source.setLatency(this.onlineLatency.rtt, this.onlineLatency.jitter);
     this.leavePrivateSession();
     this.onlineSource = source;
     this.sound.unlock();
     this.enterMatch(source);
-    this.updateNetStatus();
   }
 
   private handleOnlineEnd(result: MatchResultWire): void {
@@ -497,8 +494,6 @@ export class GameApplication {
       client.disconnect();
     }
     this.onlineRoom = null;
-    this.onlineLatency = { rtt: 0, jitter: 0 };
-    this.ui.updateNetStatus(null);
   }
 
   private leaveOnline(): void {
@@ -507,15 +502,19 @@ export class GameApplication {
   }
 
   private updateNetStatus(): void {
-    if (!this.onlineSource) {
-      this.ui.updateNetStatus(null);
-      return;
+    if (this.screen !== 'online' && this.screen !== 'match') return;
+    const online = this.screen === 'online' || this.onlineSource !== null;
+    const client = online ? this.online : null;
+    const latency = online ? client?.latency : this.privateMatch?.latency;
+    let text = '延迟检测中…';
+    if (latency) {
+      text = `延迟 ${Math.round(latency.rtt)} ms · 抖动 ${Math.round(latency.jitter)} ms`;
+    } else if (client && this.reconnecting && !client.connected) {
+      text = '正在重连…';
+    } else if (client?.status === 'closed' || client?.status === 'error') {
+      text = '延迟不可用';
     }
-    const now = performance.now();
-    if (now - this.netStatusAt < 500) return;
-    this.netStatusAt = now;
-    const { rtt, jitter } = this.onlineLatency;
-    this.ui.updateNetStatus(`PING ${Math.round(rtt)}ms · JITTER ${Math.round(jitter)}ms`);
+    this.ui.updateNetStatus(text);
   }
 
   private clearSave(): void {
@@ -531,7 +530,6 @@ export class GameApplication {
 
   private frame(state: Readonly<MatchState>): void {
     if (this.screen === 'match') this.ui.updateHUD(state);
-    if (this.onlineSource) this.updateNetStatus();
     if (state.config.mode === 'training' && state.training) {
       const completed = state.training.completedTasks;
       const saved = this.store.data.trainingCompleted;
@@ -568,6 +566,7 @@ export class GameApplication {
     this.screen = 'match';
     this.arena.resumeMatch();
     this.ui.showMatch(this.arena.matchState!);
+    this.updateNetStatus();
     this.syncMusic();
     (document.activeElement as HTMLElement | null)?.blur();
   }

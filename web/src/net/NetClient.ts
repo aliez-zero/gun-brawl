@@ -9,6 +9,11 @@ import {
 
 export type NetStatus = 'connecting' | 'open' | 'closed' | 'error';
 
+export interface NetLatency {
+  readonly rtt: number;
+  readonly jitter: number;
+}
+
 export interface NetHandlers {
   onRoom(view: RoomView): void;
   onSnapshot(snapshot: Snapshot): void;
@@ -28,6 +33,7 @@ export class NetClient {
   private handshake: { url: string; build: string; promise: Promise<void>; settle(error?: Error): void } | null = null;
   private pingTimer: number | null = null;
   private readonly rtts: number[] = [];
+  private sample: NetLatency | null = null;
 
   constructor(readonly handlers: NetHandlers, private readonly options: { privateSession?: boolean } = {}) {}
 
@@ -35,13 +41,14 @@ export class NetClient {
     return this.status === 'open' && this.socket?.readyState === WebSocket.OPEN;
   }
 
+  get latency(): NetLatency | null { return this.sample; }
+
   connect(url: string, build = 'web'): Promise<void> {
     if (this.handshake?.url === url && this.handshake.build === build) return this.handshake.promise;
     if (this.socket) this.disconnect();
     this.lastError = null;
     this.playerId = 0;
     this.name = '';
-    this.rtts.length = 0;
     let socket: WebSocket;
     try {
       socket = new WebSocket(url);
@@ -80,8 +87,8 @@ export class NetClient {
         this.playerId = message.playerId;
         this.name = message.name;
         this.handshake.settle();
-        this.startPing();
         this.setStatus('open');
+        if (this.socket === socket) this.startPing();
         return;
       }
       this.dispatch(message);
@@ -108,7 +115,7 @@ export class NetClient {
       case 'matchEnd': this.handlers.onMatchEnd(message.result); break;
       case 'pong': {
         const rtt = performance.now() - message.t;
-        if (rtt > 0 && rtt < 5000) this.recordRtt(rtt);
+        if (rtt >= 0 && rtt < 5000) this.recordRtt(rtt);
         break;
       }
     }
@@ -123,6 +130,8 @@ export class NetClient {
   private releaseSocket(): void {
     if (this.pingTimer !== null) window.clearInterval(this.pingTimer);
     this.pingTimer = null;
+    this.rtts.length = 0;
+    this.sample = null;
     const socket = this.socket;
     this.socket = null;
     this.room = null;
@@ -159,7 +168,9 @@ export class NetClient {
   }
 
   private startPing(): void {
-    this.pingTimer = window.setInterval(() => this.send({ type: 'ping', t: Math.round(performance.now()) }), 1000);
+    const ping = () => this.send({ type: 'ping', t: Math.floor(performance.now()) });
+    ping();
+    this.pingTimer = window.setInterval(ping, 1000);
   }
 
   private recordRtt(rtt: number): void {
@@ -169,7 +180,8 @@ export class NetClient {
     const median = sorted[Math.floor(sorted.length / 2)]!;
     const mean = this.rtts.reduce((sum, value) => sum + value, 0) / this.rtts.length;
     const variance = this.rtts.reduce((sum, value) => sum + (value - mean) ** 2, 0) / this.rtts.length;
-    this.handlers.onLatency(median, Math.sqrt(variance));
+    this.sample = { rtt: median, jitter: Math.sqrt(variance) };
+    this.handlers.onLatency(this.sample.rtt, this.sample.jitter);
   }
 
   private setStatus(status: NetStatus, detail?: string): void {

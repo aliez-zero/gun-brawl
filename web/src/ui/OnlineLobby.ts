@@ -7,6 +7,10 @@ import { SLOT_BOT, SLOT_EMPTY, type RoomView } from '../net/protocol';
  * otherwise. Actions are handled centrally in `GameUI`.
  */
 export function onlineLobbyHtml(room: RoomView | null, playerId: number, status: string): string {
+  const feedback = `<div class="online-feedback">
+    <p class="dialog-copy" id="online-status">${escapeLabel(status)}</p>
+    <p class="net-status" id="online-latency"></p>
+  </div>`;
   if (!room) {
     const maps = ARENAS.map((map) => `<option value="${map.id}">${map.name}</option>`).join('');
     return `<p class="dialog-copy">创建房间或用房间码加入。最多 4 人，空位可设为 AI。</p>
@@ -20,7 +24,7 @@ export function onlineLobbyHtml(room: RoomView | null, playerId: number, status:
         <label class="online-field">时长（秒） <select id="online-duration"><option>180</option><option>120</option><option>300</option><option>600</option></select></label>
       </div>
       <div class="dialog-actions"><button class="start-button" data-action="online-create"><span>创建房间</span><span>↗</span></button></div>
-      <p class="dialog-copy online-status" id="online-status">${escapeLabel(status)}</p>`;
+      ${feedback}`;
   }
 
   const slots = room.slots.map((slot, index) => {
@@ -52,5 +56,5 @@ export function onlineLobbyHtml(room: RoomView | null, playerId: number, status:
       ${start}${rematch}
       <button data-action="online-leave">离开房间</button>
     </div>
-    <p class="dialog-copy online-status" id="online-status">${escapeLabel(status)}</p>`;
+    ${feedback}`;
 }
